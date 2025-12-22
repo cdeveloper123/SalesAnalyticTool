@@ -1,4 +1,5 @@
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { Product } from '../types/product';
 
 interface ProductCardProps {
@@ -60,6 +61,7 @@ const formatCurrency = (amount: number, currency: string) => {
 };
 
 function ProductCard({ product }: ProductCardProps) {
+  const [isChannelsCollapsed, setIsChannelsCollapsed] = useState(false);
   const decisionConfig = getDecisionConfig(product.decision);
   const DecisionIcon = decisionConfig.icon;
   const scoreColors = getScoreColor(product.deal_quality_score);
@@ -78,7 +80,7 @@ function ProductCard({ product }: ProductCardProps) {
               <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
             </div>
           </div>
-          
+
           {/* Deal Score Badge */}
           <div className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border ${scoreColors.bg} ${scoreColors.border} min-w-[80px]`}>
             <span className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Score</span>
@@ -176,60 +178,67 @@ function ProductCard({ product }: ProductCardProps) {
         {/* Channels Section */}
         {product.channels && product.channels.length > 0 && (
           <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-            <div className="flex items-center gap-2 mb-4">
-              <FiDollarSign className="text-blue-400" size={18} />
-              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                All Channels ({product.channels.length})
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {product.channels.map((channel, idx) => (
-                <div 
-                  key={idx} 
-                  className={`bg-gray-800 rounded-lg p-3 border ${
-                    channel.recommendation === 'Sell' 
-                      ? 'border-green-500/30 bg-green-500/5' 
-                      : 'border-gray-600/30'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="font-semibold text-white text-sm mb-1">
-                        {channel.channel}-{channel.marketplace}
-                      </div>
-                      <div className="space-y-0.5">
-                        <div className="text-xs text-gray-400">
-                          Sell: <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+            <button
+              onClick={() => setIsChannelsCollapsed(!isChannelsCollapsed)}
+              className="w-full flex items-center justify-between mb-2 group/header"
+            >
+              <div className="flex items-center gap-2">
+                <FiDollarSign className="text-blue-400" size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold group-hover/header:text-gray-300 transition-colors">
+                  All Channels ({product.channels.length})
+                </span>
+              </div>
+              <div className="text-gray-500 group-hover/header:text-gray-300 transition-colors">
+                {isChannelsCollapsed ? <FiChevronDown size={20} /> : <FiChevronUp size={20} />}
+              </div>
+            </button>
+
+            {!isChannelsCollapsed && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {product.channels.map((channel, idx) => (
+                  <div
+                    key={idx}
+                    className={`bg-gray-800 rounded-lg p-3 border ${channel.recommendation === 'Sell'
+                        ? 'border-green-500/30 bg-green-500/5'
+                        : 'border-gray-600/30'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="font-semibold text-white text-sm mb-1">
+                          {channel.channel}-{channel.marketplace}
                         </div>
-                        <div className="text-xs text-gray-400">
-                          Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
+                        <div className="space-y-0.5">
+                          <div className="text-xs text-gray-400">
+                            Sell: <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right ml-3">
+                        <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
+                            channel.marginPercent >= 15 ? 'text-yellow-400' :
+                              channel.marginPercent > 0 ? 'text-orange-400' :
+                                'text-red-400'
+                          }`}>
+                          {channel.marginPercent.toFixed(1)}%
                         </div>
                       </div>
                     </div>
-                    <div className="text-right ml-3">
-                      <div className={`text-xl font-bold ${
-                        channel.marginPercent >= 30 ? 'text-green-400' :
-                        channel.marginPercent >= 15 ? 'text-yellow-400' :
-                        channel.marginPercent > 0 ? 'text-orange-400' :
-                        'text-red-400'
-                      }`}>
-                        {channel.marginPercent.toFixed(1)}%
+                    {channel.recommendation && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${channel.recommendation === 'Sell'
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        }`}>
+                        {channel.recommendation}
                       </div>
-                    </div>
+                    )}
                   </div>
-                  {channel.recommendation && (
-                    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${
-                      channel.recommendation === 'Sell' 
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}>
-                      {channel.recommendation}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -270,8 +279,8 @@ function ProductCard({ product }: ProductCardProps) {
               <div className="space-y-2">
                 {Object.keys(product.allocation.allocated).length > 0 ? (
                   Object.entries(product.allocation.allocated).map(([channel, qty]) => (
-                    <div 
-                      key={channel} 
+                    <div
+                      key={channel}
                       className="flex justify-between items-center bg-gray-800 rounded-lg px-3 py-2 border border-gray-600/20"
                     >
                       <span className="text-sm text-gray-300 font-medium">{channel}</span>

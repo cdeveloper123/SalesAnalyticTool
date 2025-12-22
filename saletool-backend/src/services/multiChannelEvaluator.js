@@ -603,36 +603,27 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     }
   }
   
-  // Build overall rationale explaining the hybrid strategy
+  // Build overall rationale explaining the hybrid strategy (concise one-liner)
   let overallRationale = '';
   if (Object.keys(allocation).length === 0) {
-    overallRationale = 'No channels allocated. All recommended channels lack sufficient market absorption capacity to safely allocate inventory.';
+    overallRationale = 'No channels allocated due to insufficient market absorption capacity.';
   } else {
     const allocatedChannels = Object.keys(allocation);
     const marginChannelsList = marginChannels.filter(c => allocation[c]);
     const speedChannelsList = speedChannels.filter(c => allocation[c]);
     
-    overallRationale = `HYBRID ALLOCATION STRATEGY: Balanced approach optimizing both profit and inventory turnover. `;
-    
-    if (marginChannelsList.length > 0) {
-      overallRationale += `PHASE 1 (High Margin - ${Math.round((marginAllocated / quantity) * 100)}%): Allocated ${marginAllocated} units to highest-margin channels: ${marginChannelsList.join(', ')}. `;
-    }
-    
-    if (speedChannelsList.length > 0) {
-      const speedAllocated = speedChannelsList.reduce((sum, c) => sum + (allocation[c] || 0), 0);
-      overallRationale += `PHASE 2 (Fast Absorption - ${Math.round((speedAllocated / quantity) * 100)}%): Allocated ${speedAllocated} units to fastest-absorption channels: ${speedChannelsList.join(', ')}. `;
-    }
-    
-    overallRationale += `This hybrid approach balances maximum profit (from high-margin channels) with faster inventory turnover (from fast-absorption channels), reducing overall inventory risk. `;
+    const channelNames = allocatedChannels.join(', ');
+    const marginPercent = Math.round((marginAllocated / quantity) * 100);
+    const speedPercent = Math.round((speedChannelsList.reduce((sum, c) => sum + (allocation[c] || 0), 0) / quantity) * 100);
     
     if (remainingQty > 0) {
-      overallRationale += `${remainingQty} units held back to avoid market flooding. `;
+      overallRationale = `${marginPercent}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPercent}% to fast-absorption channels (${speedChannelsList.join(', ')}). ${remainingQty} units held back.`;
     } else {
       const maxMonths = Math.max(...allocatedChannels.map(c => {
         const ch = allChannels.find(ch => `${ch.channel}-${ch.marketplace}` === c);
         return ch?.demand?.absorptionCapacity > 0 ? (allocation[c] / ch.demand.absorptionCapacity) : 0;
       }));
-      overallRationale += `Full quantity allocated. Estimated sell-through time: ${maxMonths.toFixed(1)} months (weighted average). `;
+      overallRationale = `${marginPercent}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPercent}% to fast-absorption channels (${speedChannelsList.join(', ')}). Estimated sell-through: ${maxMonths.toFixed(1)} months.`;
     }
   }
   
