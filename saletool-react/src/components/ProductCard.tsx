@@ -299,7 +299,6 @@ function ProductCard({ product }: ProductCardProps) {
           {/* Analysis/Explanation */}
           <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
             <div className="flex items-center gap-2 mb-3">
-              <FiInfo className="text-blue-400" size={18} />
               <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Analysis</span>
             </div>
             <p className="text-sm text-gray-300 leading-relaxed">

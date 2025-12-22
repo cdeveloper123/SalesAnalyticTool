@@ -19,20 +19,32 @@ interface AddProductFormProps {
   onLoadingStart?: () => void;
 }
 
-const CURRENCY_OPTIONS = [
-  { value: 'USD', label: 'USD' },
-  { value: 'EUR', label: 'EUR' },
-  { value: 'GBP', label: 'GBP' },
-  { value: 'JPY', label: 'JPY' },
-  { value: 'CNY', label: 'CNY' },
-];
-
 const REGION_OPTIONS = [
   { value: 'US', label: 'US' },
-  { value: 'EU', label: 'EU' },
   { value: 'UK', label: 'UK' },
-  { value: 'JP', label: 'JP' },
-  { value: 'CN', label: 'CN' },
+  { value: 'DE', label: 'DE' },
+  { value: 'FR', label: 'FR' },
+  { value: 'IT', label: 'IT' },
+  { value: 'AU', label: 'AU' },
+];
+
+// Hardcoded mapping: Supplier Region → Currency
+const REGION_TO_CURRENCY: Record<string, string> = {
+  'US': 'USD',
+  'UK': 'GBP',
+  'DE': 'EUR',
+  'FR': 'EUR',
+  'IT': 'EUR',
+  'AU': 'AUD',
+};
+
+// Currency options - only currencies that match the regions in REGION_OPTIONS
+// Hardcoded: US→USD, UK→GBP, DE/FR/IT→EUR, AU→AUD
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'GBP', label: 'GBP' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'AUD', label: 'AUD' },
 ];
 
 /**
@@ -102,6 +114,17 @@ function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormPro
       setFormData((prev) => ({
         ...prev,
         [name]: numericValue,
+      }));
+      return;
+    }
+    
+    // When supplier region changes, update currency to match
+    if (name === 'supplier_region') {
+      const matchingCurrency = REGION_TO_CURRENCY[value] || 'USD';
+      setFormData((prev) => ({
+        ...prev,
+        supplier_region: value,
+        currency: matchingCurrency, // Auto-update currency to match region
       }));
       return;
     }
