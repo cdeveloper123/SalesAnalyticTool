@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FiPlus, FiPackage, FiLoader } from 'react-icons/fi';
+import { FiPlus, FiPackage } from 'react-icons/fi';
 import Modal from '../components/Modal';
 import AddProductForm, { ProductInput } from '../components/AddProductForm';
 import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
+import Loader from '../components/Loader';
 import { Product } from '../types/product';
 import { API_ENDPOINTS } from '../config/api';
 
@@ -67,6 +68,8 @@ function Dashboard() {
           allocation: ev.allocation ? {
             allocated: ev.allocation.allocated,
             hold: ev.allocation.hold,
+            rationale: ev.allocation.rationale,
+            channelDetails: ev.allocation.channelDetails,
           } : undefined,
           landedCost,
           negotiationSupport: ev.negotiationSupport || undefined,
@@ -85,6 +88,9 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-900">
+      {/* Full-screen Loader */}
+      {isLoading && <Loader />}
+
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -136,20 +142,6 @@ function Dashboard() {
                 </Button>
               </div>
             </div>
-          ) : isLoading ? (
-            <div className="p-12">
-              <div className="text-center py-16">
-                <div className="inline-flex p-6 bg-blue-500/10 rounded-2xl border border-blue-500/50 mb-6">
-                  <FiLoader size={56} className="text-blue-400 animate-spin" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-300 mb-2">
-                  Analyzing Deal...
-                </h3>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  Fetching prices from Amazon & eBay, calculating fees, duties, and shipping...
-                </p>
-              </div>
-            </div>
           ) : (
             <div className="p-6">
               <div className="space-y-6">
@@ -171,6 +163,7 @@ function Dashboard() {
         <AddProductForm
           onSubmit={handleAddProduct}
           onClose={() => setIsModalOpen(false)}
+          onLoadingStart={() => setIsLoading(true)}
         />
       </Modal>
     </div>

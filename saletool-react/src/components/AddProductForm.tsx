@@ -16,6 +16,7 @@ export interface ProductInput {
 interface AddProductFormProps {
   onSubmit: (data: ProductInput) => Promise<void>;
   onClose: () => void;
+  onLoadingStart?: () => void;
 }
 
 const CURRENCY_OPTIONS = [
@@ -34,7 +35,7 @@ const REGION_OPTIONS = [
   { value: 'CN', label: 'CN' },
 ];
 
-function AddProductForm({ onSubmit, onClose }: AddProductFormProps) {
+function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormProps) {
   const [formData, setFormData] = useState<ProductInput>({
     ean: '',
     quantity: 0,
@@ -67,13 +68,21 @@ function AddProductForm({ onSubmit, onClose }: AddProductFormProps) {
     }
 
     setIsSubmitting(true);
+    
+    // Notify parent that loading is starting (for immediate loader display)
+    if (onLoadingStart) {
+      onLoadingStart();
+    }
+    
+    // Close modal immediately on submit
+    onClose();
+    
     try {
       await onSubmit(formData);
-      toast.success('Product added successfully!');
-      onClose();
+      toast.success('Product analyzed successfully!');
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to add product. Please try again.'
+        err instanceof Error ? err.message : 'Failed to analyze product. Please try again.'
       );
     } finally {
       setIsSubmitting(false);
@@ -106,7 +115,7 @@ function AddProductForm({ onSubmit, onClose }: AddProductFormProps) {
         />
 
         <Input
-          label="Buy Price"
+          label="Buy Price Per Unit"
           name="buy_price"
           type="number"
           value={formData.buy_price || ''}
