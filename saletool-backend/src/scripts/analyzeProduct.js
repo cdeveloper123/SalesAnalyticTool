@@ -169,7 +169,11 @@ async function analyzeProduct() {
         explanation: evaluation.explanation,
         bestChannel: evaluation.bestChannel,
         channelAnalysis: evaluation.channelAnalysis,
-        allocation: evaluation.allocationRecommendation
+        allocation: evaluation.allocationRecommendation,
+        // Negotiation support for Renegotiate decisions
+        negotiationSupport: evaluation.negotiationSupport || null,
+        // Sourcing suggestions for Source Elsewhere decisions
+        sourcingSuggestions: evaluation.sourcingSuggestions || null
       },
       marketData: {
         amazonMarketsFound: Object.keys(amazonPricing),

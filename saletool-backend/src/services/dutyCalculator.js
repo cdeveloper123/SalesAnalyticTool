@@ -15,118 +15,78 @@ const DUTY_RATES = {
   // From China (CN)
   CN: {
     US: {
-      // US tariffs on Chinese goods (Section 301 + Regular MFN)
-      electronics: 0.00,           // Consumer electronics often 0%
-      computers: 0.00,             // Laptops, tablets 0%
-      video_games: 0.00,           // Game consoles 0%
-      toys_games: 0.00,            // Toys 0%
-      clothing_apparel: 0.12,      // 12% average
-      footwear: 0.20,              // 20% average
-      furniture: 0.00,             // Most furniture 0%
-      home_garden: 0.05,           // 5% average
-      sports_outdoors: 0.04,       // 4% average
-      health_beauty: 0.00,         // Most 0%
-      kitchen: 0.03,               // 3% average
-      pet_supplies: 0.00,          // 0%
-      automotive: 0.025,           // 2.5%
-      jewelry: 0.065,              // 6.5%
-      watches: 0.065,              // 6.5%
-      books_media: 0.00,           // 0%
-      musical_instruments: 0.045,  // 4.5%
-      default: 0.05                // Default 5%
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.00,
+      clothing_apparel: 0.12, footwear: 0.20, furniture: 0.00, home_garden: 0.05,
+      sports_outdoors: 0.04, health_beauty: 0.00, kitchen: 0.03, pet_supplies: 0.00,
+      automotive: 0.025, jewelry: 0.065, watches: 0.065, books_media: 0.00,
+      musical_instruments: 0.045, default: 0.05
     },
     UK: {
-      // UK tariffs post-Brexit (UK Global Tariff)
-      electronics: 0.00,
-      computers: 0.00,
-      video_games: 0.00,
-      toys_games: 0.047,           // 4.7%
-      clothing_apparel: 0.12,
-      footwear: 0.08,              // 8%
-      furniture: 0.00,
-      home_garden: 0.04,
-      sports_outdoors: 0.04,
-      health_beauty: 0.00,
-      kitchen: 0.03,
-      pet_supplies: 0.00,
-      automotive: 0.04,
-      jewelry: 0.025,
-      watches: 0.045,
-      books_media: 0.00,
-      musical_instruments: 0.035,
-      default: 0.04
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.047,
+      clothing_apparel: 0.12, footwear: 0.08, furniture: 0.00, home_garden: 0.04,
+      sports_outdoors: 0.04, health_beauty: 0.00, kitchen: 0.03, pet_supplies: 0.00,
+      automotive: 0.04, jewelry: 0.025, watches: 0.045, books_media: 0.00,
+      musical_instruments: 0.035, default: 0.04
     },
     DE: {
-      // EU Common External Tariff (applies to Germany)
-      electronics: 0.00,
-      computers: 0.00,
-      video_games: 0.00,
-      toys_games: 0.047,
-      clothing_apparel: 0.12,
-      footwear: 0.08,
-      furniture: 0.00,
-      home_garden: 0.04,
-      sports_outdoors: 0.04,
-      health_beauty: 0.00,
-      kitchen: 0.03,
-      pet_supplies: 0.00,
-      automotive: 0.04,
-      jewelry: 0.025,
-      watches: 0.045,
-      books_media: 0.00,
-      musical_instruments: 0.035,
-      default: 0.04
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.047,
+      clothing_apparel: 0.12, footwear: 0.08, furniture: 0.00, home_garden: 0.04,
+      sports_outdoors: 0.04, health_beauty: 0.00, kitchen: 0.03, pet_supplies: 0.00,
+      automotive: 0.04, jewelry: 0.025, watches: 0.045, books_media: 0.00,
+      musical_instruments: 0.035, default: 0.04
+    },
+    FR: {
+      // EU Common External Tariff (same as DE)
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.047,
+      clothing_apparel: 0.12, footwear: 0.08, furniture: 0.00, home_garden: 0.04,
+      sports_outdoors: 0.04, health_beauty: 0.00, kitchen: 0.03, pet_supplies: 0.00,
+      automotive: 0.04, jewelry: 0.025, watches: 0.045, books_media: 0.00,
+      musical_instruments: 0.035, default: 0.04
+    },
+    IT: {
+      // EU Common External Tariff (same as DE)
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.047,
+      clothing_apparel: 0.12, footwear: 0.08, furniture: 0.00, home_garden: 0.04,
+      sports_outdoors: 0.04, health_beauty: 0.00, kitchen: 0.03, pet_supplies: 0.00,
+      automotive: 0.04, jewelry: 0.025, watches: 0.045, books_media: 0.00,
+      musical_instruments: 0.035, default: 0.04
+    },
+    AU: {
+      // Australia tariffs on Chinese goods
+      electronics: 0.00, computers: 0.00, video_games: 0.00, toys_games: 0.00,
+      clothing_apparel: 0.05, footwear: 0.10, furniture: 0.00, home_garden: 0.05,
+      sports_outdoors: 0.05, health_beauty: 0.00, kitchen: 0.05, pet_supplies: 0.00,
+      automotive: 0.05, jewelry: 0.05, watches: 0.05, books_media: 0.00,
+      musical_instruments: 0.05, default: 0.05
     }
   },
   
   // From EU countries
   EU: {
-    US: {
-      electronics: 0.00,
-      toys_games: 0.00,
-      clothing_apparel: 0.08,
-      default: 0.03
-    },
-    UK: {
-      // EU-UK Trade Agreement (mostly 0%)
-      electronics: 0.00,
-      toys_games: 0.00,
-      clothing_apparel: 0.00,
-      default: 0.00
-    },
-    DE: {
-      // Intra-EU = 0%
-      default: 0.00
-    }
+    US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
+    UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },
+    DE: { default: 0.00 },  // Intra-EU = 0%
+    FR: { default: 0.00 },  // Intra-EU = 0%
+    IT: { default: 0.00 },  // Intra-EU = 0%
+    AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
   },
   
   // From UK
   UK: {
-    US: {
-      electronics: 0.00,
-      toys_games: 0.00,
-      default: 0.03
-    },
-    DE: {
-      // UK-EU Trade Agreement
-      electronics: 0.00,
-      toys_games: 0.00,
-      default: 0.00
-    }
+    US: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
+    DE: { electronics: 0.00, toys_games: 0.00, default: 0.00 },  // UK-EU Trade Agreement
+    FR: { electronics: 0.00, toys_games: 0.00, default: 0.00 },
+    IT: { electronics: 0.00, toys_games: 0.00, default: 0.00 },
+    AU: { electronics: 0.00, toys_games: 0.00, default: 0.05 }
   },
   
   // From US
   US: {
-    UK: {
-      electronics: 0.00,
-      toys_games: 0.00,
-      default: 0.03
-    },
-    DE: {
-      electronics: 0.00,
-      toys_games: 0.00,
-      default: 0.03
-    }
+    UK: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
+    DE: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
+    FR: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
+    IT: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
+    AU: { electronics: 0.00, toys_games: 0.00, default: 0.05 }
   }
 };
 

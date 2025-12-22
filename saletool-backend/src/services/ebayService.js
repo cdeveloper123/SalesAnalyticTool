@@ -9,6 +9,7 @@
 
 import eBayApi from 'ebay-api';
 import dotenv from 'dotenv';
+import currencyService from './currencyService.js';
 
 dotenv.config();
 
@@ -53,6 +54,21 @@ const EBAY_FEES = {
     insertionFee: 0,
     finalValueFee: 0.1325, // 13.25%
     perOrderFee: 0.30 // €0.30 per order
+  },
+  FR: {
+    insertionFee: 0,
+    finalValueFee: 0.1325, // 13.25%
+    perOrderFee: 0.30 // €0.30 per order
+  },
+  IT: {
+    insertionFee: 0,
+    finalValueFee: 0.1325, // 13.25%
+    perOrderFee: 0.30 // €0.30 per order
+  },
+  AU: {
+    insertionFee: 0,
+    finalValueFee: 0.1325, // 13.25%
+    perOrderFee: 0.30 // A$0.30 per order
   }
 };
 
@@ -290,7 +306,7 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
       return null;
     }
 
-    // Calculate average active price
+    // Calculate average active price (API returns USD)
     const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
     
     if (activePrices.length === 0) {
@@ -298,7 +314,13 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
       return null;
     }
     
-    const avgActivePrice = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
+    const avgActivePriceUSD = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
+
+    // Convert USD price to local marketplace currency
+    const targetCurrency = currencyService.getCurrencyForMarketplace(marketplace);
+    const avgActivePrice = currencyService.convert(avgActivePriceUSD, 'USD', targetCurrency);
+    const minPrice = currencyService.convert(Math.min(...activePrices), 'USD', targetCurrency);
+    const maxPrice = currencyService.convert(Math.max(...activePrices), 'USD', targetCurrency);
 
     // For demand, we'll use active listing count as a proxy since Finding API is rate-limited
     // More listings typically = higher demand
@@ -310,14 +332,14 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
       productTitle: activeListings[0]?.title || 'Unknown',
       buyBoxPrice: Number(avgActivePrice.toFixed(2)),
       activePriceRange: {
-        min: Number(Math.min(...activePrices).toFixed(2)),
-        max: Number(Math.max(...activePrices).toFixed(2)),
+        min: Number(minPrice.toFixed(2)),
+        max: Number(maxPrice.toFixed(2)),
         avg: Number(avgActivePrice.toFixed(2))
       },
       activeListings: activeListings.length,
       estimatedMonthlySales,
       confidence: activeListings.length > 20 ? 'High' : activeListings.length > 5 ? 'Medium' : 'Low',
-      currency: activeListings[0]?.currency || 'USD'
+      currency: targetCurrency
     };
   } catch (error) {
     console.error('[eBayService] Get pricing by EAN error:', error.message);
@@ -391,7 +413,7 @@ export function calculateEbayFees(sellPrice, marketplace = 'US') {
     perOrderFee: Number(perOrderFee.toFixed(2)),
     totalFees: Number(totalFees.toFixed(2)),
     netProceeds: Number(netProceeds.toFixed(2)),
-    currency: marketplace === 'UK' ? 'GBP' : marketplace === 'DE' ? 'EUR' : 'USD',
+    currency: ['DE', 'FR', 'IT'].includes(marketplace) ? 'EUR' : marketplace === 'UK' ? 'GBP' : marketplace === 'AU' ? 'AUD' : 'USD',
     marketplace: `eBay-${marketplace}`
   };
 }

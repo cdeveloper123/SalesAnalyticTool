@@ -377,7 +377,7 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   
   // Calculate duty and shipping for each destination
   const landedCosts = {};
-  const destinations = ['US', 'UK', 'DE'];
+  const destinations = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
   
   for (const dest of destinations) {
     // Calculate duty (per unit)
@@ -695,7 +695,9 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     // Negotiation support for Renegotiate decision
     negotiationSupport: negotiationSupport ? {
       ...negotiationSupport,
-      message: `To achieve ${negotiationSupport.targetMarginPercent}% margin, negotiate down to ${currency} ${negotiationSupport.targetBuyPrice}. Walk away if above ${currency} ${negotiationSupport.walkAwayPrice}.`
+      message: negotiationSupport.currentBuyPrice <= negotiationSupport.targetBuyPrice
+        ? `Current price of ${currency} ${negotiationSupport.currentBuyPrice} already achieves ${negotiationSupport.currentMarginPercent.toFixed(1)}% margin (above ${negotiationSupport.targetMarginPercent}% target). Good deal - proceed with caution on volume.`
+        : `To achieve ${negotiationSupport.targetMarginPercent}% margin, negotiate down to ${currency} ${negotiationSupport.targetBuyPrice}. Walk away if above ${currency} ${negotiationSupport.walkAwayPrice}.`
     } : null,
     // Sourcing suggestions for Source Elsewhere decision  
     sourcingSuggestions: sourcingSuggestions

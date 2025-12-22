@@ -51,11 +51,11 @@ function Dashboard() {
         const newProduct: Product = {
           ean: data.ean,
           productName: prod?.title || ev.productTitle || `Product ${data.ean}`,
-          deal_quality_score: ev.dealScore,
+          deal_quality_score: ev.dealScore?.overall || ev.dealScore || 0,
           net_margin: ev.bestChannel.marginPercent,
-          demand_confidence: ev.scoreBreakdown.demandConfidenceScore,
-          volume_risk: 100 - ev.scoreBreakdown.volumeRiskScore,
-          data_reliability: ev.scoreBreakdown.dataReliabilityScore,
+          demand_confidence: ev.scoreBreakdown?.demandConfidenceScore || ev.dealScore?.breakdown?.demandConfidenceScore || 50,
+          volume_risk: 100 - (ev.scoreBreakdown?.volumeRiskScore || ev.dealScore?.breakdown?.volumeRiskScore || 50),
+          data_reliability: ev.scoreBreakdown?.dataReliabilityScore || ev.dealScore?.breakdown?.dataReliabilityScore || 50,
           decision: ev.decision,
           explanation: ev.explanation,
           bestChannel: {
@@ -65,12 +65,17 @@ function Dashboard() {
             currency: ev.bestChannel.currency,
           },
           channels: ev.channelAnalysis || [],
-          allocation: ev.allocation ? {
+          allocation: ev.allocationRecommendation ? {
+            allocated: ev.allocationRecommendation.allocated,
+            hold: ev.allocationRecommendation.hold,
+            rationale: ev.allocationRecommendation.rationale,
+            channelDetails: ev.allocationRecommendation.channelDetails,
+          } : (ev.allocation ? {
             allocated: ev.allocation.allocated,
             hold: ev.allocation.hold,
             rationale: ev.allocation.rationale,
             channelDetails: ev.allocation.channelDetails,
-          } : undefined,
+          } : undefined),
           landedCost,
           negotiationSupport: ev.negotiationSupport || undefined,
           sourcingSuggestions: ev.sourcingSuggestions || undefined,

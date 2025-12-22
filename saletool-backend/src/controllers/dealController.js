@@ -51,7 +51,7 @@ export const analyzeDeal = async (req, res) => {
     console.log(`[Analyze Deal] EAN: ${ean}, Qty: ${quantity}, Buy: ${currency} ${buyPrice}`);
     
     // Step 1: Fetch Amazon data for multiple markets
-    const amazonMarkets = ['US', 'UK', 'DE'];
+    const amazonMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const amazonPricing = {};
     let productData = null;
     
@@ -97,7 +97,7 @@ export const analyzeDeal = async (req, res) => {
     }
     
     // Step 2: Fetch eBay data for multiple markets
-    const ebayMarkets = ['US', 'UK', 'DE'];
+    const ebayMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const ebayPricing = {};
     
     for (const market of ebayMarkets) {
@@ -156,7 +156,11 @@ export const analyzeDeal = async (req, res) => {
           explanation: evaluation.explanation,
           bestChannel: evaluation.bestChannel,
           channelAnalysis: evaluation.channelAnalysis,
-          allocation: evaluation.allocationRecommendation
+          allocation: evaluation.allocationRecommendation,
+          // Negotiation support for Renegotiate decisions
+          negotiationSupport: evaluation.negotiationSupport || null,
+          // Sourcing suggestions for Source Elsewhere decisions
+          sourcingSuggestions: evaluation.sourcingSuggestions || null
         },
         marketData: {
           amazonMarketsFound: Object.keys(amazonPricing),

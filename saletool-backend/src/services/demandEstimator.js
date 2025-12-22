@@ -102,6 +102,41 @@ const CATEGORY_FORMULAS = {
     'Haustier': { coefficient: 19250, exponent: 0.76 },
     'Pet Supplies': { coefficient: 19250, exponent: 0.76 },
     'default': { coefficient: 17500, exponent: 0.75 }
+  },
+  
+  FR: {
+    // France market is approximately 20% of US size
+    'Jeux vidéo': { coefficient: 16000, exponent: 0.72 },
+    'Video Games': { coefficient: 16000, exponent: 0.72 },
+    'Électronique': { coefficient: 24000, exponent: 0.78 },
+    'Electronics': { coefficient: 24000, exponent: 0.78 },
+    'Cuisine & Maison': { coefficient: 30000, exponent: 0.80 },
+    'Home & Kitchen': { coefficient: 30000, exponent: 0.80 },
+    'Jouets': { coefficient: 20000, exponent: 0.75 },
+    'Toys & Games': { coefficient: 20000, exponent: 0.75 },
+    'default': { coefficient: 10000, exponent: 0.75 }
+  },
+  
+  IT: {
+    // Italy market is approximately 15% of US size
+    'Videogiochi': { coefficient: 12000, exponent: 0.72 },
+    'Video Games': { coefficient: 12000, exponent: 0.72 },
+    'Elettronica': { coefficient: 18000, exponent: 0.78 },
+    'Electronics': { coefficient: 18000, exponent: 0.78 },
+    'Casa e cucina': { coefficient: 22500, exponent: 0.80 },
+    'Home & Kitchen': { coefficient: 22500, exponent: 0.80 },
+    'Giochi e giocattoli': { coefficient: 15000, exponent: 0.75 },
+    'Toys & Games': { coefficient: 15000, exponent: 0.75 },
+    'default': { coefficient: 7500, exponent: 0.75 }
+  },
+  
+  AU: {
+    // Australia market is approximately 10% of US size
+    'Video Games': { coefficient: 8000, exponent: 0.72 },
+    'Electronics': { coefficient: 12000, exponent: 0.78 },
+    'Home & Kitchen': { coefficient: 15000, exponent: 0.80 },
+    'Toys & Games': { coefficient: 10000, exponent: 0.75 },
+    'default': { coefficient: 5000, exponent: 0.75 }
   }
 };
 

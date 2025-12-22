@@ -109,6 +109,45 @@ const REFERRAL_RATES = {
     'Schmuck': 0.20,
     'Uhren': 0.15,
     'default': 0.15
+  },
+  
+  FR: {
+    'Électronique': 0.08,
+    'Informatique': 0.08,
+    'Jeux vidéo': 0.15,
+    'Cuisine & Maison': 0.15,
+    'Jouets': 0.15,
+    'Sports & Loisirs': 0.15,
+    'Beauté': 0.15,
+    'Santé': 0.15,
+    'Vêtements': 0.15,
+    'default': 0.15
+  },
+  
+  IT: {
+    'Elettronica': 0.08,
+    'Informatica': 0.08,
+    'Videogiochi': 0.15,
+    'Casa e cucina': 0.15,
+    'Giochi e giocattoli': 0.15,
+    'Sport e tempo libero': 0.15,
+    'Bellezza': 0.15,
+    'Salute': 0.15,
+    'Abbigliamento': 0.15,
+    'default': 0.15
+  },
+  
+  AU: {
+    'Electronics': 0.08,
+    'Computers': 0.08,
+    'Video Games': 0.15,
+    'Home & Kitchen': 0.15,
+    'Toys & Games': 0.15,
+    'Sports & Outdoors': 0.15,
+    'Beauty': 0.15,
+    'Health': 0.15,
+    'Clothing': 0.15,
+    'default': 0.15
   }
 };
 
@@ -243,6 +282,46 @@ const FBA_SIZE_TIERS = {
       baseFee: 9.07,
       perKg: 0.35
     }
+  },
+  
+  // FR and IT use same EU structure as DE
+  FR: {
+    envelope: { maxLength: 33, maxWidth: 23, maxHeight: 2.5, maxWeight: 100, fee: 2.16 },
+    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+      fees: [{ maxWeight: 100, fee: 2.37 }, { maxWeight: 210, fee: 2.50 }, { maxWeight: 400, fee: 2.78 }]
+    },
+    largeStandard: { maxWeight: 12000,
+      fees: [{ maxWeight: 400, fee: 3.21 }, { maxWeight: 900, fee: 3.51 }, { maxWeight: 1400, fee: 4.24 },
+             { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
+             { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
+    },
+    largeBulky: { baseFee: 9.07, perKg: 0.35 }
+  },
+  
+  IT: {
+    envelope: { maxLength: 33, maxWidth: 23, maxHeight: 2.5, maxWeight: 100, fee: 2.16 },
+    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+      fees: [{ maxWeight: 100, fee: 2.37 }, { maxWeight: 210, fee: 2.50 }, { maxWeight: 400, fee: 2.78 }]
+    },
+    largeStandard: { maxWeight: 12000,
+      fees: [{ maxWeight: 400, fee: 3.21 }, { maxWeight: 900, fee: 3.51 }, { maxWeight: 1400, fee: 4.24 },
+             { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
+             { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
+    },
+    largeBulky: { baseFee: 9.07, perKg: 0.35 }
+  },
+  
+  AU: {
+    // Australia uses grams, AUD equivalent fees
+    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+      fees: [{ maxWeight: 100, fee: 3.20 }, { maxWeight: 210, fee: 3.40 }, { maxWeight: 400, fee: 3.80 }]
+    },
+    largeStandard: { maxWeight: 12000,
+      fees: [{ maxWeight: 400, fee: 4.50 }, { maxWeight: 900, fee: 5.00 }, { maxWeight: 1400, fee: 5.80 },
+             { maxWeight: 1900, fee: 6.30 }, { maxWeight: 2900, fee: 7.20 }, { maxWeight: 3900, fee: 7.80 },
+             { maxWeight: 5900, fee: 8.40 }, { maxWeight: 8900, fee: 9.00 }, { maxWeight: 12000, fee: 10.30 }]
+    },
+    largeBulky: { baseFee: 12.50, perKg: 0.45 }
   }
 };
 
@@ -253,7 +332,10 @@ const FBA_SIZE_TIERS = {
 const VAT_RATES = {
   US: 0,        // No VAT (sales tax handled by states)
   UK: 0.20,     // 20%
-  DE: 0.19      // 19%
+  DE: 0.19,     // 19%
+  FR: 0.20,     // 20%
+  IT: 0.22,     // 22%
+  AU: 0.10      // 10% GST
 };
 
 // ============================================================================
@@ -263,7 +345,10 @@ const VAT_RATES = {
 const CLOSING_FEES = {
   US: 1.80,
   UK: 0.50,  // £0.50
-  DE: 0.50   // €0.50
+  DE: 0.50,  // €0.50
+  FR: 0.50,  // €0.50
+  IT: 0.50,  // €0.50
+  AU: 0.50   // A$0.50
 };
 
 const MEDIA_CATEGORIES = ['Books', 'Music', 'DVD', 'Software', 'Video'];
@@ -275,7 +360,10 @@ const MEDIA_CATEGORIES = ['Books', 'Music', 'DVD', 'Software', 'Video'];
 const CURRENCIES = {
   US: 'USD',
   UK: 'GBP',
-  DE: 'EUR'
+  DE: 'EUR',
+  FR: 'EUR',
+  IT: 'EUR',
+  AU: 'AUD'
 };
 
 // ============================================================================
