@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Dashboard from './pages/Dashboard';
+import AnalyzeDeal from './pages/AnalyzeDeal';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
       />
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/analyze" element={<AnalyzeDeal />} />
       </Routes>
     </BrowserRouter>
   );

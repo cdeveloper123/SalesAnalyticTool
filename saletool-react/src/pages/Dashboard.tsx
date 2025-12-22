@@ -7,71 +7,33 @@ import ProductCard from '../components/ProductCard';
 import { Product } from '../types/product';
 import { API_ENDPOINTS } from '../config/api';
 
-// Static products data - will be replaced with API call in future
-const STATIC_PRODUCTS: Product[] = [
-  {
-    ean: '45496395230',
-    deal_quality_score: 85,
-    net_margin: 22,
-    demand_confidence: 90,
-    volume_risk: 15,
-    data_reliability: 95,
-    decision: 'Buy',
-    explanation: 'Strong margins with high demand confidence and reliable data. Low volume risk makes this an excellent opportunity to proceed with the purchase.',
-  },
-  {
-    ean: '78912345678',
-    deal_quality_score: 65,
-    net_margin: 18,
-    demand_confidence: 70,
-    volume_risk: 25,
-    data_reliability: 80,
-    decision: 'Renegotiate',
-    explanation: 'Moderate margins and demand confidence, but volume risk is elevated. Consider negotiating better terms to improve profitability before committing.',
-  },
-  {
-    ean: '12345678901',
-    deal_quality_score: 45,
-    net_margin: 12,
-    demand_confidence: 55,
-    volume_risk: 40,
-    data_reliability: 70,
-    decision: 'Source Elsewhere',
-    explanation: 'Low margins combined with moderate demand confidence and high volume risk. Better alternatives likely available in the market with improved terms.',
-  },
-  {
-    ean: '98765432109',
-    deal_quality_score: 92,
-    net_margin: 28,
-    demand_confidence: 95,
-    volume_risk: 10,
-    data_reliability: 98,
-    decision: 'Buy',
-    explanation: 'Exceptional deal quality with outstanding margins, high demand confidence, minimal volume risk, and highly reliable data. Strong recommendation to proceed immediately.',
-  },
-  {
-    ean: '45678901234',
-    deal_quality_score: 35,
-    net_margin: 8,
-    demand_confidence: 45,
-    volume_risk: 50,
-    data_reliability: 60,
-    decision: 'Pass',
-    explanation: 'Poor margins, low demand confidence, high volume risk, and questionable data reliability. This deal does not meet our quality standards and should be declined.',
-  },
+const REGION_OPTIONS = [
+  { value: 'US', label: 'US' },
+  { value: 'EU', label: 'EU' },
+  { value: 'UK', label: 'UK' },
+  { value: 'JP', label: 'JP' },
+  { value: 'CN', label: 'CN' },
+  { value: 'Other', label: 'Other' },
 ];
 
 function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>(STATIC_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]); // Start with empty - only show analyzed products
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const handleAddProduct = async (data: ProductInput) => {
-    const response = await fetch(API_ENDPOINTS.PRODUCTS, {
+    // Call analyze endpoint instead
+    const response = await fetch(API_ENDPOINTS.ANALYZE, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ean: data.ean,
+        quantity: data.quantity,
+        buyPrice: data.buy_price,
+        currency: data.currency,
+      }),
     });
 
     if (!response.ok) {
@@ -82,12 +44,45 @@ function Dashboard() {
     }
 
     const result = await response.json();
-    // The backend returns { success: true, message: '...', data: {...} }
-    // For now, we'll just log it since the backend console logs the payload
-    console.log('Product submitted successfully:', result);
+    console.log('Deal analysis result:', result);
+    console.log('Has evaluation?', !!result.data?.evaluation);
+    console.log('Has product?', !!result.data?.product);
     
-    // Note: The backend currently just logs the data, so we won't add it to the products list
-    // In the future when the backend returns the created product, we can add it here
+    // Store the analysis result
+    setAnalysisResult(result.data);
+    
+    // Create a product card from the analysis (product data is optional)
+    if (result.data?.evaluation) {
+      const ev = result.data.evaluation;
+      const prod = result.data.product; // May be null
+      const newProduct: Product = {
+        ean: data.ean,
+        productName: prod?.title || ev.productTitle || `Product ${data.ean}`,
+        deal_quality_score: ev.dealScore,
+        net_margin: ev.bestChannel.marginPercent,
+        demand_confidence: ev.scoreBreakdown.demandConfidenceScore,
+        volume_risk: 100 - ev.scoreBreakdown.volumeRiskScore,
+        data_reliability: ev.scoreBreakdown.dataReliabilityScore,
+        decision: ev.decision,
+        explanation: ev.explanation,
+        bestChannel: {
+          channel: ev.bestChannel.channel,
+          marketplace: ev.bestChannel.marketplace,
+          marginPercent: ev.bestChannel.marginPercent,
+          currency: ev.bestChannel.currency,
+        },
+        channels: ev.channelAnalysis || [],
+        allocation: ev.allocation ? {
+          allocated: ev.allocation.allocated,
+          hold: ev.allocation.hold,
+        } : undefined,
+      };
+      console.log('Creating product card:', newProduct);
+      setProducts([newProduct, ...products]);
+    } else {
+      console.error('No evaluation data in response');
+    }
+    
     return result.data || result;
   };
 
