@@ -1,0 +1,412 @@
+/**
+ * eBay Service - Browse API & Finding API Integration
+ * 
+ * Provides:
+ * - Product pricing from eBay
+ * - Completed/sold item data
+ * - Sales volume estimation
+ */
+
+import eBayApi from 'ebay-api';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const eBay = new eBayApi({
+  appId: process.env.EBAY_APP_ID,
+  certId: process.env.EBAY_CERT_ID,
+  devId: process.env.EBAY_DEV_ID,
+  sandbox: false, // Use production
+  siteId: eBayApi.SiteId.EBAY_US // Default to US
+});
+
+// Marketplace to eBay Site ID mapping
+const MARKETPLACE_SITE_IDS = {
+  US: eBayApi.SiteId.EBAY_US,
+  UK: eBayApi.SiteId.EBAY_GB,
+  DE: eBayApi.SiteId.EBAY_DE,
+  FR: eBayApi.SiteId.EBAY_FR,
+  IT: eBayApi.SiteId.EBAY_IT,
+  ES: eBayApi.SiteId.EBAY_ES,
+  CA: eBayApi.SiteId.EBAY_ENCA,
+  AU: eBayApi.SiteId.EBAY_AU
+};
+
+// eBay fee structure (2025 rates - effective Feb 14, 2025)
+// Payment processing is now INCLUDED in Final Value Fee
+const EBAY_FEES = {
+  US: {
+    insertionFee: 0, // Free for most categories
+    finalValueFee: 0.1325, // 13.25% (includes payment processing as of 2025)
+    perOrderFee: 0.30 // $0.30 per order
+  },
+  UK: {
+    insertionFee: 0,
+    finalValueFee: 0.1325, // 13.25%
+    perOrderFee: 0.30 // £0.30 per order
+  },
+  DE: {
+    insertionFee: 0,
+    finalValueFee: 0.1325, // 13.25%
+    perOrderFee: 0.30 // €0.30 per order
+  }
+};
+
+// ============================================================================
+// AUTHENTICATION
+// ============================================================================
+
+let authToken = null;
+let tokenExpiry = null;
+
+/**
+ * Get OAuth2 application access token (Client Credentials flow)
+ */
+async function getAuthToken() {
+  // Check if we have a valid cached token
+  if (authToken && tokenExpiry && Date.now() < tokenExpiry) {
+    return authToken;
+  }
+
+  try {
+    // Get application access token using client credentials
+    const token = await eBay.oauth2.getApplicationToken('PRODUCTION');
+    
+    authToken = token;
+    // eBay application tokens typically last 2 hours
+    tokenExpiry = Date.now() + (7200 * 1000); // 2 hours
+    
+    console.log('[eBayService] OAuth token obtained successfully');
+    return authToken;
+  } catch (error) {
+    console.error('[eBayService] OAuth error:', error.message);
+    throw new Error('Failed to authenticate with eBay API: ' + error.message);
+  }
+}
+
+// ============================================================================
+// BROWSE API - Current Listings
+// ============================================================================
+
+/**
+ * Search for active listings by EAN/UPC/GTIN
+ */
+export async function searchByEAN(ean, marketplace = 'US') {
+  try {
+    const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
+    
+    // eBay accepts EAN-13, UPC-12, ISBN
+    const results = await eBay.buy.browse.search({
+      gtin: ean, // Use GTIN filter for barcode search
+      limit: 50,
+      filter: 'buyingOptions:{FIXED_PRICE}'
+    });
+
+    if (!results || !results.itemSummaries) {
+      return [];
+    }
+
+    return results.itemSummaries.map(item => ({
+      title: item.title,
+      price: Number(item.price?.value) || 0,  // Convert string to number
+      currency: item.price?.currency || 'USD',
+      itemId: item.itemId,
+      condition: item.condition,
+      seller: {
+        username: item.seller?.username,
+        feedbackPercentage: item.seller?.feedbackPercentage
+      },
+      shippingCost: Number(item.shippingOptions?.[0]?.shippingCost?.value) || 0,
+      itemWebUrl: item.itemWebUrl,
+      ean: ean
+    }));
+  } catch (error) {
+    console.error('[eBayService] Browse API (EAN) error:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Search for active listings by keyword (fallback)
+ */
+export async function searchByKeyword(keyword, marketplace = 'US') {
+  try {
+    const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
+    
+    const results = await eBay.buy.browse.search({
+      q: keyword,
+      limit: 20,
+      filter: 'buyingOptions:{FIXED_PRICE}'
+    });
+
+    if (!results || !results.itemSummaries) {
+      return [];
+    }
+
+    return results.itemSummaries.map(item => ({
+      title: item.title,
+      price: item.price?.value || 0,
+      currency: item.price?.currency || 'USD',
+      itemId: item.itemId,
+      condition: item.condition,
+      seller: {
+        username: item.seller?.username,
+        feedbackPercentage: item.seller?.feedbackPercentage
+      },
+      shippingCost: item.shippingOptions?.[0]?.shippingCost?.value || 0,
+      itemWebUrl: item.itemWebUrl
+    }));
+  } catch (error) {
+    console.error('[eBayService] Browse API error:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Get item details by item ID (with GTIN extraction)
+ */
+export async function getItemDetails(itemId) {
+  try {
+    const item = await eBay.buy.browse.getItem({
+      item_id: itemId
+    });
+
+    // Extract GTIN - check multiple possible fields
+    let gtin = null;
+    let gtinType = null;
+    
+    // Method 1: Direct gtin field (array format)
+    if (item.gtin && Array.isArray(item.gtin) && item.gtin.length > 0) {
+      gtin = item.gtin[0].gtinValue || item.gtin[0];
+      gtinType = item.gtin[0].gtinType || 'GTIN';
+    }
+    // Method 2: Single gtin field
+    else if (item.gtin && typeof item.gtin === 'string') {
+      gtin = item.gtin;
+      gtinType = 'GTIN';
+    }
+    // Method 3: inferredGtin (eBay's guess)
+    else if (item.inferredGtin) {
+      gtin = item.inferredGtin;
+      gtinType = 'Inferred';
+    }
+    // Method 4: product.epid (eBay Product ID)
+    else if (item.product?.epid) {
+      gtin = item.product.epid;
+      gtinType = 'EPID';
+    }
+
+    return {
+      itemId,
+      title: item.title,
+      price: item.price?.value || 0,
+      currency: item.price?.currency || 'USD',
+      condition: item.condition,
+      categoryPath: item.categoryPath,
+      seller: item.seller,
+      description: item.shortDescription,
+      images: item.image?.imageUrl || [],
+      gtin,
+      gtinType,
+      hasGtin: !!gtin,
+      brand: item.brand,
+      mpn: item.mpn // Manufacturer Part Number
+    };
+  } catch (error) {
+    console.error('[eBayService] Get item error:', error.message);
+    return null;
+  }
+}
+
+// ============================================================================
+// FINDING API - Completed/Sold Items
+// ============================================================================
+
+/**
+ * Find completed (sold) items to estimate demand
+ */
+export async function findCompletedItems(keyword, marketplace = 'US') {
+  try {
+    const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
+    
+    const results = await eBay.finding.findCompletedItems({
+      keywords: keyword,
+      'itemFilter(0).name': 'SoldItemsOnly',
+      'itemFilter(0).value': 'true',
+      'sortOrder': 'EndTimeSoonest',
+      'paginationInput.entriesPerPage': 100
+    });
+
+    if (!results || !results[0]?.searchResult?.[0]?.item) {
+      return { items: [], averagePrice: 0, soldCount: 0 };
+    }
+
+    const items = results[0].searchResult[0].item.map(item => ({
+      title: item.title?.[0],
+      soldPrice: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 0),
+      currency: item.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId'] || 'USD',
+      soldDate: item.listingInfo?.[0]?.endTime?.[0],
+      condition: item.condition?.[0]?.conditionDisplayName?.[0]
+    }));
+
+    const soldPrices = items.map(i => i.soldPrice).filter(p => p > 0);
+    const averagePrice = soldPrices.length > 0 
+      ? soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length 
+      : 0;
+
+    return {
+      items,
+      averagePrice: Number(averagePrice.toFixed(2)),
+      soldCount: items.length,
+      priceRange: {
+        min: Math.min(...soldPrices),
+        max: Math.max(...soldPrices)
+      }
+    };
+  } catch (error) {
+    console.error('[eBayService] Finding API error:', error.message);
+    return { items: [], averagePrice: 0, soldCount: 0 };
+  }
+}
+
+// ============================================================================
+// PRICING & DEMAND ESTIMATION
+// ============================================================================
+
+/**
+ * Get eBay pricing and demand data for a product by EAN
+ */
+export async function getProductPricingByEAN(ean, marketplace = 'US') {
+  try {
+    // Search by EAN
+    const activeListings = await searchByEAN(ean, marketplace);
+    
+    if (activeListings.length === 0) {
+      console.warn('[eBayService] No listings found for EAN:', ean);
+      return null;
+    }
+
+    // Calculate average active price
+    const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
+    
+    if (activePrices.length === 0) {
+      console.warn('[eBayService] No valid prices found for EAN:', ean);
+      return null;
+    }
+    
+    const avgActivePrice = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
+
+    // For demand, we'll use active listing count as a proxy since Finding API is rate-limited
+    // More listings typically = higher demand
+    const estimatedMonthlySales = Math.min(activeListings.length * 10, 500); // Conservative estimate
+
+    return {
+      marketplace,
+      ean,
+      productTitle: activeListings[0]?.title || 'Unknown',
+      buyBoxPrice: Number(avgActivePrice.toFixed(2)),
+      activePriceRange: {
+        min: Number(Math.min(...activePrices).toFixed(2)),
+        max: Number(Math.max(...activePrices).toFixed(2)),
+        avg: Number(avgActivePrice.toFixed(2))
+      },
+      activeListings: activeListings.length,
+      estimatedMonthlySales,
+      confidence: activeListings.length > 20 ? 'High' : activeListings.length > 5 ? 'Medium' : 'Low',
+      currency: activeListings[0]?.currency || 'USD'
+    };
+  } catch (error) {
+    console.error('[eBayService] Get pricing by EAN error:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Get eBay pricing and demand data for a product (legacy - keyword search)
+ */
+export async function getProductPricing(keyword, marketplace = 'US') {
+  try {
+    // Get active listings
+    const activeListings = await searchByKeyword(keyword, marketplace);
+    
+    // Get sold items (last 30 days)
+    const soldData = await findCompletedItems(keyword, marketplace);
+
+    // Calculate average active price
+    const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
+    const avgActivePrice = activePrices.length > 0 
+      ? activePrices.reduce((a, b) => a + b, 0) / activePrices.length 
+      : 0;
+
+    // Estimate monthly sales (sold count is typically ~7-30 days)
+    const estimatedMonthlySales = soldData.soldCount > 0 
+      ? Math.round(soldData.soldCount * 1.5) // Approximate 30-day extrapolation
+      : 0;
+
+    return {
+      marketplace,
+      buyBoxPrice: soldData.averagePrice || avgActivePrice || 0,
+      activePriceRange: {
+        min: Math.min(...activePrices),
+        max: Math.max(...activePrices),
+        avg: Number(avgActivePrice.toFixed(2))
+      },
+      soldPriceRange: soldData.priceRange,
+      activeListings: activeListings.length,
+      soldLast30Days: soldData.soldCount,
+      estimatedMonthlySales,
+      confidence: soldData.soldCount > 20 ? 'High' : soldData.soldCount > 5 ? 'Medium' : 'Low'
+    };
+  } catch (error) {
+    console.error('[eBayService] Get pricing error:', error.message);
+    return null;
+  }
+}
+
+// ============================================================================
+// FEE CALCULATION
+// ============================================================================
+
+/**
+ * Calculate eBay fees for a sale (2025 rates)
+ */
+export function calculateEbayFees(sellPrice, marketplace = 'US') {
+  const fees = EBAY_FEES[marketplace] || EBAY_FEES.US;
+  
+  const insertionFee = fees.insertionFee;
+  const finalValueFee = sellPrice * fees.finalValueFee; // Includes payment processing
+  const perOrderFee = fees.perOrderFee;
+  
+  const totalFees = insertionFee + finalValueFee + perOrderFee;
+  const netProceeds = sellPrice - totalFees;
+
+  return {
+    sellPrice: Number(sellPrice.toFixed(2)),
+    insertionFee: Number(insertionFee.toFixed(2)),
+    finalValueFee: Number(finalValueFee.toFixed(2)),
+    perOrderFee: Number(perOrderFee.toFixed(2)),
+    totalFees: Number(totalFees.toFixed(2)),
+    netProceeds: Number(netProceeds.toFixed(2)),
+    currency: marketplace === 'UK' ? 'GBP' : marketplace === 'DE' ? 'EUR' : 'USD',
+    marketplace: `eBay-${marketplace}`
+  };
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export default {
+  searchByEAN,
+  searchByKeyword,
+  getItemDetails,
+  findCompletedItems,
+  getProductPricing,
+  getProductPricingByEAN,
+  calculateEbayFees,
+  MARKETPLACE_SITE_IDS
+};
