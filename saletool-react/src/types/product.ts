@@ -1,3 +1,10 @@
+export interface LandedCost {
+  buyPrice: number;
+  duty: number;
+  shipping: number;
+  total: number;
+}
+
 export interface ChannelData {
   channel: string;
   marketplace: string;
@@ -6,6 +13,34 @@ export interface ChannelData {
   netProceeds: number;
   netMargin: number;
   marginPercent: number;
+  recommendation: string;
+  landedCost?: LandedCost;
+}
+
+export interface NegotiationSupport {
+  currentBuyPrice: number;
+  targetBuyPrice: number;
+  walkAwayPrice: number;
+  currency: string;
+  currentMarginPercent: number;
+  targetMarginPercent: number;
+  savings: number;
+  savingsPercent: number;
+  message: string;
+}
+
+export interface SourcingAlternative {
+  region: string;
+  name: string;
+  pros: string;
+  cons: string;
+}
+
+export interface SourcingSuggestions {
+  currentRegion: string;
+  targetBuyPrice: number;
+  alternatives: SourcingAlternative[];
+  supplierTypes: { type: string; estimatedSavings: string }[];
   recommendation: string;
 }
 
@@ -30,5 +65,7 @@ export interface Product {
     allocated: Record<string, number>;
     hold: number;
   };
+  landedCost?: LandedCost;
+  negotiationSupport?: NegotiationSupport;
+  sourcingSuggestions?: SourcingSuggestions;
 }
-
