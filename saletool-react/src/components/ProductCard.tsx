@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle } from 'react-icons/fi';
 import { Product } from '../types/product';
 
 interface ProductCardProps {
@@ -195,48 +195,72 @@ function ProductCard({ product }: ProductCardProps) {
 
             {!isChannelsCollapsed && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {product.channels.map((channel, idx) => (
-                  <div
-                    key={idx}
-                    className={`bg-gray-800 rounded-lg p-3 border ${channel.recommendation === 'Sell'
-                        ? 'border-green-500/30 bg-green-500/5'
-                        : 'border-gray-600/30'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="font-semibold text-white text-sm mb-1">
-                          {channel.channel}-{channel.marketplace}
-                        </div>
-                        <div className="space-y-0.5">
-                          <div className="text-xs text-gray-400">
-                            Sell: <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+                {product.channels.map((channel, idx) => {
+                  // Determine channel type for styling
+                  const isRetailer = channel.channel === 'Retailer';
+                  const isDistributor = channel.channel === 'Distributor';
+                  
+                  // Get display name
+                  const displayName = isRetailer 
+                    ? `${(channel as any).retailer}` 
+                    : isDistributor 
+                    ? `${(channel as any).distributor}`
+                    : `${channel.channel}-${channel.marketplace}`;
+                  
+                  // Get border color based on type and recommendation
+                  const borderColor = channel.recommendation === 'Sell' 
+                    ? 'border-green-500/30 bg-green-500/5'
+                    : isRetailer
+                    ? 'border-purple-500/30 bg-purple-500/5'
+                    : isDistributor
+                    ? 'border-cyan-500/30 bg-cyan-500/5'
+                    : 'border-gray-600/30';
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`bg-gray-800 rounded-lg p-3 border ${borderColor}`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {isRetailer && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Retail</span>}
+                            {isDistributor && <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">Distributor</span>}
+                            <span className="font-semibold text-white text-sm">{displayName}</span>
                           </div>
-                          <div className="text-xs text-gray-400">
-                            Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-gray-400">
+                              {isDistributor ? 'They Pay: ' : 'Sell: '}
+                              <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right ml-3">
+                          <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
+                              channel.marginPercent >= 15 ? 'text-yellow-400' :
+                                channel.marginPercent > 0 ? 'text-orange-400' :
+                                  'text-red-400'
+                            }`}>
+                            {channel.marginPercent.toFixed(1)}%
                           </div>
                         </div>
                       </div>
-                      <div className="text-right ml-3">
-                        <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
-                            channel.marginPercent >= 15 ? 'text-yellow-400' :
-                              channel.marginPercent > 0 ? 'text-orange-400' :
-                                'text-red-400'
+                      {channel.recommendation && (
+                        <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${channel.recommendation === 'Sell'
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            : channel.recommendation === 'Consider'
+                            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
                           }`}>
-                          {channel.marginPercent.toFixed(1)}%
+                          {channel.recommendation}
                         </div>
-                      </div>
+                      )}
                     </div>
-                    {channel.recommendation && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${channel.recommendation === 'Sell'
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        }`}>
-                        {channel.recommendation}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -384,6 +408,75 @@ function ProductCard({ product }: ProductCardProps) {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compliance Flags Section */}
+          {product.compliance && product.compliance.flagCount > 0 && (
+            <div className={`rounded-lg p-4 border ${
+              product.compliance.overallRisk === 'high' 
+                ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30' 
+                : product.compliance.overallRisk === 'medium'
+                ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
+                : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FiShield className={`${
+                    product.compliance.overallRisk === 'high' ? 'text-red-400' :
+                    product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                  }`} size={18} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                    Compliance ({product.compliance.flagCount})
+                  </span>
+                </div>
+                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                  product.compliance.overallRisk === 'high' 
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                    : product.compliance.overallRisk === 'medium'
+                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                    : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                }`}>
+                  {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                {product.compliance.flags.map((flag, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${
+                      flag.severity === 'high' ? 'border-l-red-500' :
+                      flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${
+                        flag.severity === 'high' ? 'text-red-400' :
+                        flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                      }`} size={14} />
+                      <div className="flex-1">
+                        <div className="font-medium text-white text-sm">{flag.title}</div>
+                        <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
+                        <div className="mt-2 flex items-center gap-1">
+                          <span className="text-xs text-gray-500">Action:</span>
+                          <span className="text-xs text-cyan-400">{flag.action}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No Compliance Issues */}
+          {product.compliance && product.compliance.flagCount === 0 && (
+            <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 border border-green-500/20">
+              <div className="flex items-center gap-2">
+                <FiCheckCircle className="text-green-400" size={16} />
+                <span className="text-sm text-green-400">No compliance issues detected</span>
               </div>
             </div>
           )}

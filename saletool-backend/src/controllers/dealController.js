@@ -160,7 +160,9 @@ export const analyzeDeal = async (req, res) => {
           // Negotiation support for Renegotiate decisions
           negotiationSupport: evaluation.negotiationSupport || null,
           // Sourcing suggestions for Source Elsewhere decisions
-          sourcingSuggestions: evaluation.sourcingSuggestions || null
+          sourcingSuggestions: evaluation.sourcingSuggestions || null,
+          // Compliance flags for Amazon selling restrictions
+          compliance: evaluation.compliance || null
         },
         marketData: {
           amazonMarketsFound: Object.keys(amazonPricing),

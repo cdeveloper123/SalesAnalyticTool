@@ -79,6 +79,7 @@ function Dashboard() {
           landedCost,
           negotiationSupport: ev.negotiationSupport || undefined,
           sourcingSuggestions: ev.sourcingSuggestions || undefined,
+          compliance: ev.compliance || undefined,
         };
         setProducts([newProduct, ...products]);
       } else {

@@ -44,6 +44,23 @@ export interface SourcingSuggestions {
   recommendation: string;
 }
 
+export interface ComplianceFlag {
+  type: string;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  action: string;
+}
+
+export interface Compliance {
+  flags: ComplianceFlag[];
+  flagCount: number;
+  overallRisk: 'high' | 'medium' | 'low';
+  canSell: boolean;
+  canSellWithApproval: boolean;
+  summary: string;
+}
+
 export interface Product {
   ean: string;
   productName?: string;
@@ -70,4 +87,5 @@ export interface Product {
   landedCost?: LandedCost;
   negotiationSupport?: NegotiationSupport;
   sourcingSuggestions?: SourcingSuggestions;
+  compliance?: Compliance;
 }

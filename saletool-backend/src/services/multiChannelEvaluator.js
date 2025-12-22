@@ -12,6 +12,9 @@ import currencyService from './currencyService.js';
 import ebayService from './ebayService.js';
 import dutyCalculator from './dutyCalculator.js';
 import shippingCalculator from './shippingCalculator.js';
+import complianceService from './complianceService.js';
+import retailerService from './retailerService.js';
+import distributorService from './distributorService.js';
 
 // Scoring weights
 const WEIGHTS = {
@@ -420,6 +423,68 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     }
   }
   
+  // Process Retailer channels (Walmart, Target - mocked)
+  if (amazonPricing && amazonPricing['US']) {
+    const usLanded = landedCosts['US'];
+    const usLandedCost = usLanded?.totalLandedCost || buyPrice;
+    const amazonUSPrice = amazonPricing['US'].buyBoxPrice || 140;
+    const category = productData?.category || 'default';
+    
+    // Get retailer pricing based on Amazon US price
+    const retailerChannels = retailerService.getRetailerPricing(productData, amazonUSPrice, category);
+    
+    for (const retailer of retailerChannels) {
+      // Calculate margin with landed cost
+      const withMargin = retailerService.calculateRetailerMargin(retailer, usLandedCost);
+      
+      // Add landed cost details
+      withMargin.landedCost = {
+        buyPrice: usLanded?.buyPrice || buyPrice,
+        duty: usLanded?.duty || 0,
+        shipping: usLanded?.shipping || 0,
+        total: usLandedCost
+      };
+      
+      // Calculate months to sell
+      const absorptionCapacity = Math.round((withMargin.demand?.estimatedMonthlySales?.mid || 30) * 0.15);
+      withMargin.demand.absorptionCapacity = absorptionCapacity;
+      withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
+      
+      allChannels.push(withMargin);
+    }
+  }
+  
+  // Process Distributor channels (Ingram Micro, Alliance - mocked)
+  if (amazonPricing && amazonPricing['US']) {
+    const usLanded = landedCosts['US'];
+    const usLandedCost = usLanded?.totalLandedCost || buyPrice;
+    const amazonUSPrice = amazonPricing['US'].buyBoxPrice || 140;
+    const category = productData?.category || 'default';
+    
+    // Get distributor pricing based on Amazon US price (they pay wholesale)
+    const distributorChannels = distributorService.getDistributorPricing(productData, amazonUSPrice, category);
+    
+    for (const distributor of distributorChannels) {
+      // Calculate margin with landed cost
+      const withMargin = distributorService.calculateDistributorMargin(distributor, usLandedCost);
+      
+      // Add landed cost details
+      withMargin.landedCost = {
+        buyPrice: usLanded?.buyPrice || buyPrice,
+        duty: usLanded?.duty || 0,
+        shipping: usLanded?.shipping || 0,
+        total: usLandedCost
+      };
+      
+      // For distributors, absorption capacity is higher (bulk sales)
+      const absorptionCapacity = Math.round((withMargin.demand?.estimatedMonthlySales?.mid || 500) * 0.20);
+      withMargin.demand.absorptionCapacity = absorptionCapacity;
+      withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
+      
+      allChannels.push(withMargin);
+    }
+  }
+  
   if (allChannels.length === 0) {
     return {
       error: 'No valid channel data provided',
@@ -691,7 +756,9 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
         : `To achieve ${negotiationSupport.targetMarginPercent}% margin, negotiate down to ${currency} ${negotiationSupport.targetBuyPrice}. Walk away if above ${currency} ${negotiationSupport.walkAwayPrice}.`
     } : null,
     // Sourcing suggestions for Source Elsewhere decision  
-    sourcingSuggestions: sourcingSuggestions
+    sourcingSuggestions: sourcingSuggestions,
+    // Compliance flags for Amazon selling restrictions
+    compliance: complianceService.getComplianceFlags(productData)
   };
 }
 
