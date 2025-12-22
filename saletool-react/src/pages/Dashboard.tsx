@@ -152,7 +152,7 @@ function Dashboard() {
             </div>
           ) : (
             <div className="p-6">
-              <div className="grid grid-cols-1 gap-6">
+              <div className="space-y-6">
                 {products.map((product, index) => (
                   <ProductCard key={`${product.ean}-${index}`} product={product} />
                 ))}

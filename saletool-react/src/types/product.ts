@@ -64,6 +64,8 @@ export interface Product {
   allocation?: {
     allocated: Record<string, number>;
     hold: number;
+    rationale?: string;
+    channelDetails?: Record<string, string>;
   };
   landedCost?: LandedCost;
   negotiationSupport?: NegotiationSupport;

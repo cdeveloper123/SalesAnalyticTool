@@ -32,7 +32,6 @@ const REGION_OPTIONS = [
   { value: 'UK', label: 'UK' },
   { value: 'JP', label: 'JP' },
   { value: 'CN', label: 'CN' },
-  { value: 'Other', label: 'Other' },
 ];
 
 function AddProductForm({ onSubmit, onClose }: AddProductFormProps) {

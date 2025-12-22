@@ -453,7 +453,7 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     : overallMonthsToSell <= 12 ? 35
     : 10;
   
-  const dataReliabilityScore = allChannels.length * 20; // 20 points per channel with data
+  const dataReliabilityScore = Math.min(100, allChannels.length * 20); // 20 points per channel with data, capped at 100
   
   // Calculate overall score
   const overallScore = 
@@ -493,20 +493,146 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     explanation += `High inventory risk: ${overallMonthsToSell.toFixed(0)}+ months to sell through quantity. `;
   }
   
-  // Channel allocation recommendation
+  // Hybrid Allocation Strategy: Balance high-margin channels with fast-absorption channels
+  // Phase 1: Allocate 60-70% to highest-margin channels (profit optimization)
+  // Phase 2: Allocate 30-40% to fastest-absorption channels (inventory turnover optimization)
+  
+  const sortedByMargin = [...recommendedChannels].sort((a, b) => b.marginPercent - a.marginPercent);
+  const sortedBySpeed = [...recommendedChannels]
+    .filter(c => (c.demand?.absorptionCapacity || 0) > 0)
+    .sort((a, b) => {
+      const monthsA = a.demand?.absorptionCapacity > 0 
+        ? quantity / a.demand.absorptionCapacity 
+        : 999;
+      const monthsB = b.demand?.absorptionCapacity > 0 
+        ? quantity / b.demand.absorptionCapacity 
+        : 999;
+      return monthsA - monthsB; // Fastest first
+    });
+  
   const allocation = {};
+  const allocationDetails = {}; // Store details for each allocation
   let remainingQty = quantity;
   
-  for (const channel of recommendedChannels) {
-    if (remainingQty <= 0) break;
+  // Phase 1: Allocate to high-margin channels (60-70% of quantity)
+  const marginAllocationTarget = Math.floor(quantity * 0.65); // 65% to margin channels
+  let marginAllocated = 0;
+  const marginChannels = [];
+  
+  for (const channel of sortedByMargin) {
+    if (marginAllocated >= marginAllocationTarget || remainingQty <= 0) break;
     
-    const maxAllocation = (channel.demand.absorptionCapacity || 0) * 3; // 3 months of capacity
-    const allocated = Math.min(remainingQty, Math.floor(maxAllocation));
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0) continue; // Skip channels with no absorption capacity
+    
+    const maxAllocation = absorptionCapacity * 3; // 3 months of capacity
+    const availableForMargin = marginAllocationTarget - marginAllocated;
+    const allocated = Math.min(remainingQty, Math.floor(maxAllocation), availableForMargin);
     
     if (allocated > 0) {
       const key = `${channel.channel}-${channel.marketplace}`;
-      allocation[key] = allocated;
+      allocation[key] = (allocation[key] || 0) + allocated;
+      marginAllocated += allocated;
+      marginChannels.push(key);
       remainingQty -= allocated;
+    }
+  }
+  
+  // Phase 2: Allocate remaining to fastest-absorption channels (30-40% of quantity)
+  const speedChannels = [];
+  for (const channel of sortedBySpeed) {
+    if (remainingQty <= 0) break;
+    
+    // Skip if already allocated in Phase 1
+    const key = `${channel.channel}-${channel.marketplace}`;
+    if (allocation[key]) continue;
+    
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0) continue;
+    
+    const maxAllocation = absorptionCapacity * 3; // 3 months of capacity
+    const allocated = Math.min(remainingQty, Math.floor(maxAllocation));
+    
+    if (allocated > 0) {
+      allocation[key] = allocated;
+      speedChannels.push(key);
+      remainingQty -= allocated;
+    }
+  }
+  
+  // Build detailed rationale for each allocated channel
+  for (const [channelKey, allocatedQty] of Object.entries(allocation)) {
+    const channel = allChannels.find(c => `${c.channel}-${c.marketplace}` === channelKey);
+    if (!channel) continue;
+    
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    const monthlySales = channel.demand?.estimatedMonthlySales?.mid || 0;
+    const monthsToSell = absorptionCapacity > 0 ? allocatedQty / absorptionCapacity : 0;
+    const isMarginChannel = marginChannels.includes(channelKey);
+    const isSpeedChannel = speedChannels.includes(channelKey);
+    
+    let channelRationale = `Allocated ${allocatedQty} units to ${channelKey} `;
+    
+    if (isMarginChannel && isSpeedChannel) {
+      channelRationale += `(hybrid: high margin ${channel.marginPercent.toFixed(1)}% + fast absorption ${monthsToSell.toFixed(1)} months). `;
+    } else if (isMarginChannel) {
+      channelRationale += `based on HIGH MARGIN strategy (${channel.marginPercent.toFixed(1)}% margin). `;
+    } else if (isSpeedChannel) {
+      channelRationale += `based on FAST ABSORPTION strategy (${monthsToSell.toFixed(1)} months to sell). `;
+    }
+    
+    if (absorptionCapacity > 0) {
+      channelRationale += `Monthly absorption capacity: ${absorptionCapacity} units (${monthlySales} estimated sales × market share). `;
+      channelRationale += `This allocation represents ${monthsToSell.toFixed(1)} months of sales capacity. `;
+    }
+    
+    channelRationale += `Margin: ${channel.marginPercent.toFixed(1)}%.`;
+    allocationDetails[channelKey] = channelRationale;
+  }
+  
+  // Add skipped channels to details
+  for (const channel of sortedByMargin) {
+    const key = `${channel.channel}-${channel.marketplace}`;
+    if (allocation[key]) continue;
+    
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0 && channel.marginPercent >= THRESHOLDS.minMarginPercent) {
+      allocationDetails[key] = `Skipped ${key} despite ${channel.marginPercent.toFixed(1)}% margin due to insufficient market absorption capacity (no reliable demand data available).`;
+    } else if (absorptionCapacity > 0 && !allocation[key]) {
+      allocationDetails[key] = `Skipped ${key} (${channel.marginPercent.toFixed(1)}% margin, ${(quantity / absorptionCapacity).toFixed(1)} months to sell) - lower priority than allocated channels.`;
+    }
+  }
+  
+  // Build overall rationale explaining the hybrid strategy
+  let overallRationale = '';
+  if (Object.keys(allocation).length === 0) {
+    overallRationale = 'No channels allocated. All recommended channels lack sufficient market absorption capacity to safely allocate inventory.';
+  } else {
+    const allocatedChannels = Object.keys(allocation);
+    const marginChannelsList = marginChannels.filter(c => allocation[c]);
+    const speedChannelsList = speedChannels.filter(c => allocation[c]);
+    
+    overallRationale = `HYBRID ALLOCATION STRATEGY: Balanced approach optimizing both profit and inventory turnover. `;
+    
+    if (marginChannelsList.length > 0) {
+      overallRationale += `PHASE 1 (High Margin - ${Math.round((marginAllocated / quantity) * 100)}%): Allocated ${marginAllocated} units to highest-margin channels: ${marginChannelsList.join(', ')}. `;
+    }
+    
+    if (speedChannelsList.length > 0) {
+      const speedAllocated = speedChannelsList.reduce((sum, c) => sum + (allocation[c] || 0), 0);
+      overallRationale += `PHASE 2 (Fast Absorption - ${Math.round((speedAllocated / quantity) * 100)}%): Allocated ${speedAllocated} units to fastest-absorption channels: ${speedChannelsList.join(', ')}. `;
+    }
+    
+    overallRationale += `This hybrid approach balances maximum profit (from high-margin channels) with faster inventory turnover (from fast-absorption channels), reducing overall inventory risk. `;
+    
+    if (remainingQty > 0) {
+      overallRationale += `${remainingQty} units held back to avoid market flooding. `;
+    } else {
+      const maxMonths = Math.max(...allocatedChannels.map(c => {
+        const ch = allChannels.find(ch => `${ch.channel}-${ch.marketplace}` === c);
+        return ch?.demand?.absorptionCapacity > 0 ? (allocation[c] / ch.demand.absorptionCapacity) : 0;
+      }));
+      overallRationale += `Full quantity allocated. Estimated sell-through time: ${maxMonths.toFixed(1)} months (weighted average). `;
     }
   }
   
@@ -563,9 +689,8 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
       totalQuantity: quantity,
       allocated: allocation,
       hold: remainingQty,
-      rationale: remainingQty > 0 
-        ? `Hold ${remainingQty} units to avoid flooding markets.`
-        : 'Full quantity can be absorbed within 3 months.'
+      rationale: overallRationale,
+      channelDetails: allocationDetails
     },
     // Negotiation support for Renegotiate decision
     negotiationSupport: negotiationSupport ? {
