@@ -106,6 +106,38 @@ OUTPUT: Deal Score, Decision, Allocation Plan, Channel Analysis
 | currency | String | Source currency | USD |
 | supplierRegion | String | Supplier location | US, CN, EU |
 
+### 3.1 Currency Parameter
+
+The currency parameter specifies the currency of the buy price. The system converts this to each destination market's currency for accurate margin calculation.
+
+```
+Buy Price: EUR 100
+
+Conversion for each market:
+- UK: EUR 100 → GBP 80 (at 0.80 rate)
+- US: EUR 100 → USD 104 (at 1.04 rate)
+- DE: EUR 100 → EUR 100 (no conversion)
+```
+
+All margin calculations use the converted buy price to ensure accurate profitability analysis.
+
+### 3.2 Supplier Region Parameter
+
+The supplier region determines:
+1. **Import duty rates** (origin → destination)
+2. **Shipping costs** (origin → destination route)
+3. **Sourcing suggestions** (alternative regions)
+
+Supported regions: US, CN (China), EU, UK, VN (Vietnam), MX (Mexico)
+
+Example impact:
+
+| Supplier Region | Duty to US | Duty to UK | Shipping to US |
+|-----------------|------------|------------|----------------|
+| CN (China) | 0-25% | 4.7% + VAT | $6.00/kg (air) |
+| US | 0% | 0% + VAT | $4.50/kg (air) |
+| EU | 0% | 0% | $5.50/kg (air) |
+
 ---
 
 ## 4. Data Sources

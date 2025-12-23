@@ -521,15 +521,22 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   }
 
   // Process Retailer channels (Walmart, Target - mocked)
-  if (amazonPricing && amazonPricing['US']) {
+  // Use Amazon US price, or fallback to eBay US price if Amazon unavailable
+  const hasAmazonUS = amazonPricing && amazonPricing['US'] && amazonPricing['US'].buyBoxPrice;
+  const hasEbayUS = ebayPricing && ebayPricing['US'] && ebayPricing['US'].buyBoxPrice;
+  
+  if (hasAmazonUS || hasEbayUS) {
     const usLanded = landedCosts['US'];
     const usLandedCost = usLanded?.totalLandedCost || buyPrice;
-    const amazonUSPrice = amazonPricing['US'].buyBoxPrice || 140;
+    // Use Amazon price if available, otherwise use eBay price
+    const referencePrice = hasAmazonUS 
+      ? amazonPricing['US'].buyBoxPrice 
+      : ebayPricing['US'].buyBoxPrice;
     const category = productData?.category || 'default';
-
-    // Get retailer pricing based on Amazon US price
-    const retailerChannels = retailerService.getRetailerPricing(productData, amazonUSPrice, category);
-
+    
+    // Get retailer pricing based on reference price
+    const retailerChannels = retailerService.getRetailerPricing(productData, referencePrice, category);
+    
     for (const retailer of retailerChannels) {
       // Calculate margin with landed cost
       const withMargin = retailerService.calculateRetailerMargin(retailer, usLandedCost);
@@ -563,15 +570,19 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   }
 
   // Process Distributor channels (Ingram Micro, Alliance - mocked)
-  if (amazonPricing && amazonPricing['US']) {
+  // Use Amazon US price, or fallback to eBay US price if Amazon unavailable
+  if (hasAmazonUS || hasEbayUS) {
     const usLanded = landedCosts['US'];
     const usLandedCost = usLanded?.totalLandedCost || buyPrice;
-    const amazonUSPrice = amazonPricing['US'].buyBoxPrice || 140;
+    // Use Amazon price if available, otherwise use eBay price
+    const referencePrice = hasAmazonUS 
+      ? amazonPricing['US'].buyBoxPrice 
+      : ebayPricing['US'].buyBoxPrice;
     const category = productData?.category || 'default';
-
-    // Get distributor pricing based on Amazon US price (they pay wholesale)
-    const distributorChannels = distributorService.getDistributorPricing(productData, amazonUSPrice, category);
-
+    
+    // Get distributor pricing based on reference price (they pay wholesale)
+    const distributorChannels = distributorService.getDistributorPricing(productData, referencePrice, category);
+    
     for (const distributor of distributorChannels) {
       // Calculate margin with landed cost
       const withMargin = distributorService.calculateDistributorMargin(distributor, usLandedCost);
