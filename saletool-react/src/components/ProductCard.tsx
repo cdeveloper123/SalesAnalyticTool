@@ -129,28 +129,10 @@ function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
             <div className="text-xs text-gray-400 mb-1.5 font-medium">Net Margin</div>
             <div className="text-lg font-bold text-white">{product.net_margin.toFixed(1)}%</div>
-          </div>
-          <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Monthly Sales</div>
-            {product.monthlySales ? (
-              <>
-                <div className="text-lg font-bold text-white">
-                  {product.monthlySales.mid >= 1000 
-                    ? `${(product.monthlySales.mid / 1000).toFixed(1)}K` 
-                    : product.monthlySales.mid}
-                  <span className="text-sm text-gray-400">/mo</span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {product.monthlySales.source?.includes('Amazon') ? '📊 Amazon data' : '📈 Estimated'}
-                </div>
-              </>
-            ) : (
-              <div className="text-lg font-bold text-gray-500">N/A</div>
-            )}
           </div>
           <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
             <div className="text-xs text-gray-400 mb-1.5 font-medium">Demand Confidence</div>
