@@ -59,7 +59,7 @@ async function analyzeProduct() {
 
     // Step 1: Fetch Amazon data for multiple markets
     console.log('[Step 1] Fetching Amazon product data...');
-    const amazonMarkets = ['US', 'UK', 'DE'];
+    const amazonMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const amazonPricing = {};
     let productData = null;
 
@@ -86,11 +86,33 @@ async function analyzeProduct() {
           }
 
           // Extract pricing data
+          // Parse sales rank - try structured array first, then fallback to specifications_flat
+          let salesRank = 999999;
+          let salesRankCategory = 'Unknown';
+          
+          if (product.bestsellers_rank && product.bestsellers_rank.length > 0) {
+            // Structured array available (UK, DE)
+            salesRank = product.bestsellers_rank[0].rank || 999999;
+            salesRankCategory = product.bestsellers_rank[0].category || 'Unknown';
+          } else if (product.specifications_flat) {
+            // Parse from specifications_flat (US fallback)
+            // Pattern: "Best Sellers Rank: #5,945 in Electronics Accessories & Supplies"
+            const rankMatch = product.specifications_flat.match(/Best Sellers Rank:.*?#([\d,]+)\s+in\s+([^.]+)/i);
+            if (rankMatch) {
+              salesRank = parseInt(rankMatch[1].replace(/,/g, ''), 10);
+              salesRankCategory = rankMatch[2].trim();
+            }
+          }
+          
           amazonPricing[market] = {
             buyBoxPrice: product.buybox_winner?.price?.value || 0,
-            salesRank: product.bestsellers_rank?.[0]?.rank || 999999,
-            salesRankCategory: product.bestsellers_rank?.[0]?.category || 'Unknown',
+            salesRank,
+            salesRankCategory,
             fbaOffers: product.buybox_winner?.is_prime ? 1 : 0,
+            // Use Amazon's actual sales data when available
+            recentSales: product.recent_sales || null, // e.g., "1K+ bought in past month"
+            ratingsTotal: product.ratings_total || 0,
+            rating: product.rating || 0,
             priceHistory30d: {
               min: product.buybox_winner?.price?.value || 0,
               max: product.buybox_winner?.price?.value || 0,
@@ -99,7 +121,7 @@ async function analyzeProduct() {
             }
           };
 
-          console.log(`  ✓ Amazon ${market}: Price ${amazonPricing[market].buyBoxPrice}, Rank ${amazonPricing[market].salesRank}`);
+          console.log(`  ✓ Amazon ${market}: Price ${amazonPricing[market].buyBoxPrice}, Rank ${salesRank}, Category ${salesRankCategory}${product.recent_sales ? `, Sales: ${product.recent_sales}` : ''}`);
         } else {
           console.log(`  ✗ Amazon ${market}: Product not found`);
         }
@@ -110,7 +132,7 @@ async function analyzeProduct() {
 
     // Step 2: Fetch eBay data for multiple markets
     console.log('\n[Step 2] Fetching eBay product data...');
-    const ebayMarkets = ['US', 'UK', 'DE'];
+    const ebayMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const ebayPricing = {};
 
     for (const market of ebayMarkets) {

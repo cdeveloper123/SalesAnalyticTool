@@ -65,6 +65,13 @@ function Dashboard() {
             currency: ev.bestChannel.currency,
           },
           channels: ev.channelAnalysis || [],
+          // Extract monthly sales from best channel's demand data
+          monthlySales: ev.channelAnalysis?.[0]?.demand?.estimatedMonthlySales ? {
+            low: ev.channelAnalysis[0].demand.estimatedMonthlySales.low || 0,
+            mid: ev.channelAnalysis[0].demand.estimatedMonthlySales.mid || 0,
+            high: ev.channelAnalysis[0].demand.estimatedMonthlySales.high || 0,
+            source: ev.channelAnalysis[0].demand.actualSalesSource || ev.channelAnalysis[0].demand.methodology || 'Estimated',
+          } : undefined,
           allocation: ev.allocationRecommendation ? {
             allocated: ev.allocationRecommendation.allocated,
             hold: ev.allocationRecommendation.hold,

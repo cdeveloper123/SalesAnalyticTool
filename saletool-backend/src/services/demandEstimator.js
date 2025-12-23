@@ -323,6 +323,65 @@ function rankToSales(rank, category, marketplace) {
 }
 
 // ============================================================================
+// PARSE AMAZON RECENT SALES
+// ============================================================================
+
+/**
+ * Parse Amazon's recent_sales string to get actual monthly sales
+ * Examples:
+ * - "1K+ bought in past month" → 1000 (US/UK)
+ * - "10K+ bought in past month" → 10000
+ * - "100+ bought in past month" → 100
+ * - "500+ bought in past month" → 500
+ * - "800+ bought in past month" → 800 (UK)
+ * - "500+ gekauft Mal im letzten Monat" → 500 (German)
+ * 
+ * @param {string} recentSales - Amazon's recent_sales string
+ * @returns {number|null} - Parsed monthly sales or null if can't parse
+ */
+function parseRecentSales(recentSales) {
+  if (!recentSales || typeof recentSales !== 'string') {
+    return null;
+  }
+  
+  // Try multiple patterns for different languages
+  // Pattern 1: English "1K+ bought" or "100+ bought"
+  // Pattern 2: German "500+ gekauft"
+  const patterns = [
+    /(\d+\.?\d*)(K?)\+?\s*bought/i,           // English: "1K+ bought"
+    /(\d+\.?\d*)(K?)\+?\s*gekauft/i,          // German: "500+ gekauft"
+    /(\d+\.?\d*)(K?)\+?\s*acheté/i,           // French: "bought"
+    /(\d+\.?\d*)(K?)\+?\s*acquistato/i,       // Italian
+    /(\d+\.?\d*)(K?)\+?\s*comprado/i,         // Spanish
+  ];
+  
+  for (const pattern of patterns) {
+    const match = recentSales.match(pattern);
+    if (match) {
+      let value = parseFloat(match[1]);
+      const hasK = match[2] && match[2].toLowerCase() === 'k';
+      
+      if (hasK) {
+        value *= 1000;
+      }
+      
+      return Math.round(value);
+    }
+  }
+  
+  // Fallback: try to extract any number followed by K or just a number
+  const fallbackMatch = recentSales.match(/(\d+\.?\d*)(K?)\+/i);
+  if (fallbackMatch) {
+    let value = parseFloat(fallbackMatch[1]);
+    const hasK = fallbackMatch[2] && fallbackMatch[2].toLowerCase() === 'k';
+    if (hasK) value *= 1000;
+    return Math.round(value);
+  }
+  
+  return null;
+}
+
+// ============================================================================
 // CONFIDENCE SCORING
 // ============================================================================
 
@@ -457,22 +516,74 @@ export function estimateDemand(marketplace, marketData) {
     salesRank,
     salesRankCategory,
     fbaOffers = 0,
-    priceHistory30d
+    priceHistory30d,
+    recentSales,  
+    ratingsTotal = 0
   } = marketData;
   
-  // Calculate sales estimates
-  const salesEstimate = rankToSales(
-    salesRank,
-    salesRankCategory || 'default',
-    marketplace
-  );
+  // Try to use Amazon's actual sales data first
+  const actualSales = parseRecentSales(recentSales);
+  
+  let salesEstimate;
+  let methodology;
+  const signals = [];
+  
+  if (actualSales && actualSales > 0) {
+    // Use Amazon's actual data - much more accurate
+    salesEstimate = {
+      low: Math.round(actualSales * 0.8),  // 20% variance
+      mid: actualSales,
+      high: Math.round(actualSales * 1.2)
+    };
+    methodology = 'Amazon actual sales data';
+    signals.push(`Amazon reports: ${recentSales}`);
+  } else {
+    // Fall back to formula-based estimation
+    salesEstimate = rankToSales(
+      salesRank,
+      salesRankCategory || 'default',
+      marketplace
+    );
+    methodology = 'Category-specific coefficient formula with lookup blend';
+  }
   
   // Determine confidence
-  const { confidence, signals, score } = determineConfidence(
+  const confidenceResult = determineConfidence(
     salesRank,
     fbaOffers,
     priceHistory30d
   );
+  
+  // Boost confidence if we have actual Amazon data
+  let confidenceScore = confidenceResult.score;
+  if (actualSales && actualSales > 0) {
+    confidenceScore = Math.min(100, confidenceScore + 20);
+    signals.push('High confidence: Using Amazon actual sales data');
+  }
+  
+  // Add other signals
+  signals.push(...confidenceResult.signals);
+  
+  // Boost confidence based on ratings count
+  if (ratingsTotal > 1000) {
+    confidenceScore = Math.min(100, confidenceScore + 10);
+    signals.push(`${ratingsTotal.toLocaleString()} total ratings (high volume indicator)`);
+  } else if (ratingsTotal > 100) {
+    confidenceScore = Math.min(100, confidenceScore + 5);
+    signals.push(`${ratingsTotal.toLocaleString()} total ratings`);
+  }
+  
+  // Determine confidence level
+  let confidence;
+  if (confidenceScore >= 75) {
+    confidence = 'High';
+  } else if (confidenceScore >= 50) {
+    confidence = 'Medium';
+  } else if (confidenceScore >= 25) {
+    confidence = 'Low';
+  } else {
+    confidence = 'Very Low';
+  }
   
   // Calculate absorption capacity
   const absorptionCapacity = calculateAbsorptionCapacity(salesEstimate, fbaOffers);
@@ -482,11 +593,12 @@ export function estimateDemand(marketplace, marketData) {
     salesRank,
     category: salesRankCategory,
     estimatedMonthlySales: salesEstimate,
+    actualSalesSource: actualSales ? recentSales : null,
     confidence,
-    confidenceScore: score,
+    confidenceScore,
     signals,
     absorptionCapacity,
-    methodology: 'Category-specific coefficient formula with lookup blend'
+    methodology
   };
 }
 

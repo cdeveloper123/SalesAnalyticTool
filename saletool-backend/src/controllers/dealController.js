@@ -84,11 +84,33 @@ export const analyzeDeal = async (req, res) => {
           }
 
           // Extract pricing data
+          // Parse sales rank - try structured array first, then fallback to specifications_flat
+          let salesRank = 999999;
+          let salesRankCategory = 'Unknown';
+          
+          if (product.bestsellers_rank && product.bestsellers_rank.length > 0) {
+            // Structured array available (UK, DE)
+            salesRank = product.bestsellers_rank[0].rank || 999999;
+            salesRankCategory = product.bestsellers_rank[0].category || 'Unknown';
+          } else if (product.specifications_flat) {
+            // Parse from specifications_flat (US fallback)
+            // Pattern: "Best Sellers Rank: #5,945 in Electronics Accessories & Supplies"
+            const rankMatch = product.specifications_flat.match(/Best Sellers Rank:.*?#([\d,]+)\s+in\s+([^.]+)/i);
+            if (rankMatch) {
+              salesRank = parseInt(rankMatch[1].replace(/,/g, ''), 10);
+              salesRankCategory = rankMatch[2].trim();
+            }
+          }
+          
           amazonPricing[market] = {
             buyBoxPrice: product.buybox_winner?.price?.value || 0,
-            salesRank: product.bestsellers_rank?.[0]?.rank || 999999,
-            salesRankCategory: product.bestsellers_rank?.[0]?.category || 'Unknown',
+            salesRank,
+            salesRankCategory,
             fbaOffers: product.buybox_winner?.is_prime ? 1 : 0,
+            // Use Amazon's actual sales data when available
+            recentSales: product.recent_sales || null, // e.g., "1K+ bought in past month"
+            ratingsTotal: product.ratings_total || 0,
+            rating: product.rating || 0,
             priceHistory30d: {
               min: product.buybox_winner?.price?.value || 0,
               max: product.buybox_winner?.price?.value || 0,
@@ -97,6 +119,8 @@ export const analyzeDeal = async (req, res) => {
             }
           };
 
+          // Debug: Log key demand data
+          console.log(`[Amazon ${market}] Extracted: rank=${salesRank}, category=${salesRankCategory}, recentSales=${product.recent_sales || 'null'}, ratings=${product.ratings_total || 0}`);
           console.log(`[Amazon ${market}] Found product: ${product.title?.substring(0, 50)}...`);
         } else if (market === 'US') {
           console.log(`[Amazon US] Product not found - likely invalid EAN or not available on Amazon`);

@@ -71,6 +71,13 @@ export interface Product {
   data_reliability: number;
   decision: 'Buy' | 'Renegotiate' | 'Source Elsewhere' | 'Pass';
   explanation: string;
+  // Monthly sales data
+  monthlySales?: {
+    low: number;
+    mid: number;
+    high: number;
+    source?: string; 
+  };
   bestChannel?: {
     channel: string;
     marketplace: string;
