@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard';
 import AnalyzeDeal from './pages/AnalyzeDeal';
 
 function App() {
+  const API_BASE_URL = import.meta.env.VITE_REACT_BACKEND_URL || 'http://localhost:3001';
+  console.log(API_BASE_URL,"API_URL");
   return (
     <BrowserRouter>
       <Toaster
