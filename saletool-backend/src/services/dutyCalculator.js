@@ -1,4 +1,4 @@
-/**
+c/**
  * Duty Calculator Service
  * 
  * Calculates import duties based on:
@@ -60,8 +60,46 @@ const DUTY_RATES = {
       musical_instruments: 0.05, default: 0.05
     }
   },
-  
-  // From EU countries
+
+  // From EU countries (Italy, France, Germany, Spain, etc.)
+  // Note: Intra-EU trade has 0% duty, but exports to non-EU have standard rates
+  IT: {
+    US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
+    UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },  // UK-EU Trade Agreement
+    DE: { default: 0.00 },  // Intra-EU = 0%
+    FR: { default: 0.00 },  // Intra-EU = 0%
+    ES: { default: 0.00 },  // Intra-EU = 0%
+    AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
+  },
+
+  FR: {
+    US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
+    UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },
+    DE: { default: 0.00 },  // Intra-EU = 0%
+    IT: { default: 0.00 },  // Intra-EU = 0%
+    ES: { default: 0.00 },  // Intra-EU = 0%
+    AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
+  },
+
+  DE: {
+    US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
+    UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },
+    FR: { default: 0.00 },  // Intra-EU = 0%
+    IT: { default: 0.00 },  // Intra-EU = 0%
+    ES: { default: 0.00 },  // Intra-EU = 0%
+    AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
+  },
+
+  ES: {
+    US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
+    UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },
+    DE: { default: 0.00 },  // Intra-EU = 0%
+    FR: { default: 0.00 },  // Intra-EU = 0%
+    IT: { default: 0.00 },  // Intra-EU = 0%
+    AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
+  },
+
+  // Legacy EU entry (kept for backward compatibility)
   EU: {
     US: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.08, default: 0.03 },
     UK: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.00, default: 0.00 },
@@ -70,7 +108,7 @@ const DUTY_RATES = {
     IT: { default: 0.00 },  // Intra-EU = 0%
     AU: { electronics: 0.00, toys_games: 0.00, clothing_apparel: 0.05, default: 0.05 }
   },
-  
+
   // From UK
   UK: {
     US: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
@@ -79,7 +117,7 @@ const DUTY_RATES = {
     IT: { electronics: 0.00, toys_games: 0.00, default: 0.00 },
     AU: { electronics: 0.00, toys_games: 0.00, default: 0.05 }
   },
-  
+
   // From US
   US: {
     UK: { electronics: 0.00, toys_games: 0.00, default: 0.03 },
@@ -120,21 +158,21 @@ export function calculateDuty(productValue, origin, destination, category = 'def
   // Normalize inputs
   origin = origin?.toUpperCase() || 'CN';
   destination = destination?.toUpperCase() || 'US';
-  
+
   // Map category to duty category
   const dutyCategory = CATEGORY_MAPPING[category] || category?.toLowerCase() || 'default';
-  
+
   // Get rates for origin → destination
   const originRates = DUTY_RATES[origin] || DUTY_RATES['CN'];
   const destRates = originRates?.[destination] || originRates?.['US'] || {};
-  
+
   // Get rate for category
-  const dutyRate = destRates[dutyCategory] !== undefined 
-    ? destRates[dutyCategory] 
+  const dutyRate = destRates[dutyCategory] !== undefined
+    ? destRates[dutyCategory]
     : (destRates['default'] || 0.05);
-  
+
   const dutyAmount = productValue * dutyRate;
-  
+
   return {
     origin,
     destination,
@@ -151,7 +189,7 @@ export function calculateDuty(productValue, origin, destination, category = 'def
  */
 export function calculateTotalDuty(unitPrice, quantity, origin, destination, category) {
   const singleDuty = calculateDuty(unitPrice, origin, destination, category);
-  
+
   return {
     ...singleDuty,
     quantity,
