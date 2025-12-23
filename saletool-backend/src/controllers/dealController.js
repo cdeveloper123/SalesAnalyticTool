@@ -25,7 +25,7 @@ import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
 export const analyzeDeal = async (req, res) => {
   try {
     const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'Unknown' } = req.body;
-    
+
     // Validation
     if (!ean) {
       return res.status(400).json({
@@ -33,35 +33,44 @@ export const analyzeDeal = async (req, res) => {
         message: 'EAN is required'
       });
     }
-    
+
     if (!quantity || quantity <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Valid quantity is required'
       });
     }
-    
+
     if (!buyPrice || buyPrice <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Valid buy price is required'
       });
     }
-    
+
     console.log(`[Analyze Deal] EAN: ${ean}, Qty: ${quantity}, Buy: ${currency} ${buyPrice}`);
-    
+
     // Step 1: Fetch Amazon data for multiple markets
+    // Optimization: Try US first, then only proceed to other markets if product is found
     const amazonMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const amazonPricing = {};
     let productData = null;
-    
+    let productFoundInAnyMarket = false;
+
     for (const market of amazonMarkets) {
       try {
+        // Early exit optimization: If we tried US and product not found, likely invalid EAN
+        if (market !== 'US' && !productFoundInAnyMarket && amazonMarkets.indexOf(market) > 0) {
+          console.log(`[Amazon ${market}] Skipping - product not found in US market (likely invalid EAN)`);
+          continue;
+        }
+
         const amazonResult = await getAmazonProductData(ean, market);
-        
+
         if (amazonResult.success && amazonResult.product) {
+          productFoundInAnyMarket = true;
           const product = amazonResult.product;
-          
+
           // Extract product data (only once)
           if (!productData) {
             productData = {
@@ -74,7 +83,7 @@ export const analyzeDeal = async (req, res) => {
               }
             };
           }
-          
+
           // Extract pricing data
           amazonPricing[market] = {
             buyBoxPrice: product.buybox_winner?.price?.value || 0,
@@ -88,37 +97,44 @@ export const analyzeDeal = async (req, res) => {
               trend: 'stable'
             }
           };
-          
+
           console.log(`[Amazon ${market}] Found product: ${product.title?.substring(0, 50)}...`);
+        } else if (market === 'US') {
+          console.log(`[Amazon US] Product not found - likely invalid EAN or not available on Amazon`);
         }
       } catch (error) {
         console.error(`[Amazon ${market}] Error:`, error.message);
       }
     }
-    
+
     // Step 2: Fetch eBay data for multiple markets
+    // Optimization: Only fetch eBay data if we found the product on Amazon
     const ebayMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const ebayPricing = {};
-    
-    for (const market of ebayMarkets) {
-      try {
-        const ebayResult = await ebayService.getProductPricingByEAN(ean, market);
-        
-        if (ebayResult) {
-          ebayPricing[market] = {
-            buyBoxPrice: ebayResult.buyBoxPrice,
-            activeListings: ebayResult.activeListings,
-            estimatedMonthlySales: ebayResult.estimatedMonthlySales,
-            confidence: ebayResult.confidence
-          };
-          
-          console.log(`[eBay ${market}] Avg Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
+
+    if (productFoundInAnyMarket) {
+      for (const market of ebayMarkets) {
+        try {
+          const ebayResult = await ebayService.getProductPricingByEAN(ean, market);
+
+          if (ebayResult) {
+            ebayPricing[market] = {
+              buyBoxPrice: ebayResult.buyBoxPrice,
+              activeListings: ebayResult.activeListings,
+              estimatedMonthlySales: ebayResult.estimatedMonthlySales,
+              confidence: ebayResult.confidence
+            };
+
+            console.log(`[eBay ${market}] Avg Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
+          }
+        } catch (error) {
+          console.error(`[eBay ${market}] Error:`, error.message);
         }
-      } catch (error) {
-        console.error(`[eBay ${market}] Error:`, error.message);
       }
+    } else {
+      console.log('[eBay] Skipping eBay lookups - product not found on Amazon');
     }
-    
+
     // Check if we have any data
     if (Object.keys(amazonPricing).length === 0 && Object.keys(ebayPricing).length === 0) {
       return res.status(404).json({
@@ -127,7 +143,7 @@ export const analyzeDeal = async (req, res) => {
         data: { ean }
       });
     }
-    
+
     // Step 3: Run multi-channel evaluation
     const evaluation = evaluateMultiChannel(
       { ean, quantity, buyPrice, currency, supplierRegion },
@@ -135,7 +151,7 @@ export const analyzeDeal = async (req, res) => {
       amazonPricing,
       ebayPricing
     );
-    
+
     // Step 4: Return results
     res.status(200).json({
       success: true,
@@ -170,7 +186,7 @@ export const analyzeDeal = async (req, res) => {
         }
       }
     });
-    
+
   } catch (error) {
     console.error('[Analyze Deal] Error:', error);
     res.status(500).json({

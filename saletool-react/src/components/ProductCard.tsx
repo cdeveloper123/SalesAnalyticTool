@@ -199,23 +199,23 @@ function ProductCard({ product }: ProductCardProps) {
                   // Determine channel type for styling
                   const isRetailer = channel.channel === 'Retailer';
                   const isDistributor = channel.channel === 'Distributor';
-                  
+
                   // Get display name
-                  const displayName = isRetailer 
-                    ? `${(channel as any).retailer}` 
-                    : isDistributor 
-                    ? `${(channel as any).distributor}`
-                    : `${channel.channel}-${channel.marketplace}`;
-                  
+                  const displayName = isRetailer
+                    ? `${(channel as any).retailer}`
+                    : isDistributor
+                      ? `${(channel as any).distributor}`
+                      : `${channel.channel}-${channel.marketplace}`;
+
                   // Get border color based on type and recommendation
-                  const borderColor = channel.recommendation === 'Sell' 
+                  const borderColor = channel.recommendation === 'Sell'
                     ? 'border-green-500/30 bg-green-500/5'
                     : isRetailer
-                    ? 'border-purple-500/30 bg-purple-500/5'
-                    : isDistributor
-                    ? 'border-cyan-500/30 bg-cyan-500/5'
-                    : 'border-gray-600/30';
-                  
+                      ? 'border-purple-500/30 bg-purple-500/5'
+                      : isDistributor
+                        ? 'border-cyan-500/30 bg-cyan-500/5'
+                        : 'border-gray-600/30';
+
                   return (
                     <div
                       key={idx}
@@ -240,9 +240,9 @@ function ProductCard({ product }: ProductCardProps) {
                         </div>
                         <div className="text-right ml-3">
                           <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
-                              channel.marginPercent >= 15 ? 'text-yellow-400' :
-                                channel.marginPercent > 0 ? 'text-orange-400' :
-                                  'text-red-400'
+                            channel.marginPercent >= 15 ? 'text-yellow-400' :
+                              channel.marginPercent > 0 ? 'text-orange-400' :
+                                'text-red-400'
                             }`}>
                             {channel.marginPercent.toFixed(1)}%
                           </div>
@@ -250,12 +250,31 @@ function ProductCard({ product }: ProductCardProps) {
                       </div>
                       {channel.recommendation && (
                         <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${channel.recommendation === 'Sell'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                            : channel.recommendation === 'Consider'
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          : channel.recommendation === 'Consider'
                             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                             : 'bg-red-500/20 text-red-400 border border-red-500/30'
                           }`}>
                           {channel.recommendation}
+                        </div>
+                      )}
+                      {(channel as any).explanation && (
+                        <div className="mt-2 text-xs text-gray-400 leading-relaxed">
+                          {(channel as any).explanation}
+                        </div>
+                      )}
+                      {/* Demand Signals */}
+                      {(channel as any).demand?.signals && (channel as any).demand.signals.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1.5">
+                            Demand Signals
+                          </div>
+                          {(channel as any).demand.signals.map((signal: string, signalIdx: number) => (
+                            <div key={signalIdx} className="flex items-start gap-2 text-xs">
+                              <span className="text-blue-400 mt-0.5">•</span>
+                              <span className="text-gray-400">{signal}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -414,48 +433,43 @@ function ProductCard({ product }: ProductCardProps) {
 
           {/* Compliance Flags Section */}
           {product.compliance && product.compliance.flagCount > 0 && (
-            <div className={`rounded-lg p-4 border ${
-              product.compliance.overallRisk === 'high' 
-                ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30' 
-                : product.compliance.overallRisk === 'medium'
+            <div className={`rounded-lg p-4 border ${product.compliance.overallRisk === 'high'
+              ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
+              : product.compliance.overallRisk === 'medium'
                 ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
                 : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
-            }`}>
+              }`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <FiShield className={`${
-                    product.compliance.overallRisk === 'high' ? 'text-red-400' :
+                  <FiShield className={`${product.compliance.overallRisk === 'high' ? 'text-red-400' :
                     product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                  }`} size={18} />
+                    }`} size={18} />
                   <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                     Compliance ({product.compliance.flagCount})
                   </span>
                 </div>
-                <div className={`px-2 py-1 rounded text-xs font-medium ${
-                  product.compliance.overallRisk === 'high' 
-                    ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
-                    : product.compliance.overallRisk === 'medium'
+                <div className={`px-2 py-1 rounded text-xs font-medium ${product.compliance.overallRisk === 'high'
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  : product.compliance.overallRisk === 'medium'
                     ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                     : 'bg-green-500/20 text-green-400 border border-green-500/30'
-                }`}>
+                  }`}>
                   {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 {product.compliance.flags.map((flag, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${
-                      flag.severity === 'high' ? 'border-l-red-500' :
+                  <div
+                    key={idx}
+                    className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${flag.severity === 'high' ? 'border-l-red-500' :
                       flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-2">
-                      <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${
-                        flag.severity === 'high' ? 'text-red-400' :
+                      <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${flag.severity === 'high' ? 'text-red-400' :
                         flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                      }`} size={14} />
+                        }`} size={14} />
                       <div className="flex-1">
                         <div className="font-medium text-white text-sm">{flag.title}</div>
                         <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
