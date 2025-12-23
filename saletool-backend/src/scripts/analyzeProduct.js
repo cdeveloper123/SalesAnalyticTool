@@ -2,6 +2,8 @@
  * Product Analysis Script
  * 
  * Analyzes a product deal and saves results to JSON file
+ * For Testing Purpose ONly
+ * npm run analyze <EAN> <quantity> <buyPrice> <currency> <supplierRegion>
  * 
  * Usage: node src/scripts/analyzeProduct.js
  */
@@ -133,7 +135,6 @@ async function analyzeProduct() {
       }
     }
 
-    // Check if we have any data
     if (Object.keys(amazonPricing).length === 0 && Object.keys(ebayPricing).length === 0) {
       throw new Error('Product not found on Amazon or eBay');
     }
@@ -170,11 +171,8 @@ async function analyzeProduct() {
         bestChannel: evaluation.bestChannel,
         channelAnalysis: evaluation.channelAnalysis,
         allocation: evaluation.allocationRecommendation,
-        // Negotiation support for Renegotiate decisions
         negotiationSupport: evaluation.negotiationSupport || null,
-        // Sourcing suggestions for Source Elsewhere decisions
         sourcingSuggestions: evaluation.sourcingSuggestions || null,
-        // Compliance flags for Amazon selling restrictions
         compliance: evaluation.compliance || null
       },
       marketData: {

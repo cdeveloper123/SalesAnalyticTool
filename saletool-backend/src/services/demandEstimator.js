@@ -1,5 +1,5 @@
 /**
- * Demand Estimator Service (Step 4) - Updated December 2025
+ * Demand Estimator Service (Step 4)
  * 
  * Estimates monthly sales volume based on Amazon Sales Rank (BSR).
  * Uses category-specific lookup tables derived from industry research.
@@ -218,7 +218,6 @@ const MARKETPLACE_FACTORS = {
 function getCategoryFormula(marketplace, category) {
   const marketFormulas = CATEGORY_FORMULAS[marketplace] || CATEGORY_FORMULAS.US;
   
-  // Try exact match
   if (marketFormulas[category]) {
     return marketFormulas[category];
   }
@@ -231,7 +230,6 @@ function getCategoryFormula(marketplace, category) {
     }
   }
   
-  // Fall back to default
   return marketFormulas.default;
 }
 

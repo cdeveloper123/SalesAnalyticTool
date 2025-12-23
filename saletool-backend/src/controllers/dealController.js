@@ -50,8 +50,7 @@ export const analyzeDeal = async (req, res) => {
 
     console.log(`[Analyze Deal] EAN: ${ean}, Qty: ${quantity}, Buy: ${currency} ${buyPrice}`);
 
-    // Step 1: Fetch Amazon data for multiple markets
-    // Optimization: Try US first, then only proceed to other markets if product is found
+
     const amazonMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const amazonPricing = {};
     let productData = null;
@@ -107,8 +106,6 @@ export const analyzeDeal = async (req, res) => {
       }
     }
 
-    // Step 2: Fetch eBay data for multiple markets
-    // Optimization: Only fetch eBay data if we found the product on Amazon
     const ebayMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
     const ebayPricing = {};
 
@@ -135,7 +132,6 @@ export const analyzeDeal = async (req, res) => {
       console.log('[eBay] Skipping eBay lookups - product not found on Amazon');
     }
 
-    // Check if we have any data
     if (Object.keys(amazonPricing).length === 0 && Object.keys(ebayPricing).length === 0) {
       return res.status(404).json({
         success: false,
@@ -144,7 +140,6 @@ export const analyzeDeal = async (req, res) => {
       });
     }
 
-    // Step 3: Run multi-channel evaluation
     const evaluation = evaluateMultiChannel(
       { ean, quantity, buyPrice, currency, supplierRegion },
       productData,
@@ -152,7 +147,6 @@ export const analyzeDeal = async (req, res) => {
       ebayPricing
     );
 
-    // Step 4: Return results
     res.status(200).json({
       success: true,
       message: 'Deal analyzed successfully',
@@ -173,11 +167,8 @@ export const analyzeDeal = async (req, res) => {
           bestChannel: evaluation.bestChannel,
           channelAnalysis: evaluation.channelAnalysis,
           allocation: evaluation.allocationRecommendation,
-          // Negotiation support for Renegotiate decisions
           negotiationSupport: evaluation.negotiationSupport || null,
-          // Sourcing suggestions for Source Elsewhere decisions
           sourcingSuggestions: evaluation.sourcingSuggestions || null,
-          // Compliance flags for Amazon selling restrictions
           compliance: evaluation.compliance || null
         },
         marketData: {

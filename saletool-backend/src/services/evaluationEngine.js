@@ -15,7 +15,6 @@
 import feeCalculator from './feeCalculator.js';
 import demandEstimator from './demandEstimator.js';
 import currencyService from './currencyService.js';
-import ebayService from './ebayService.js';
 
 // Scoring weights
 const WEIGHTS = {

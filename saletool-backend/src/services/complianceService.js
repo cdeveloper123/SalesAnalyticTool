@@ -2,7 +2,7 @@
  * Compliance Service
  * 
  * Detects selling restrictions and compliance requirements for products.
- * 
+ * Mock
  * Checks for:
  * - Brand gating (restricted brands requiring approval)
  * - Transparency program requirements

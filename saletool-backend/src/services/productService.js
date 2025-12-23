@@ -25,8 +25,7 @@ export const createProduct = async (productData) => {
     console.warn('No EAN provided, skipping Amazon API call');
   }
 
-  console.log('Amazon Data------------------------>>>>>:', amazonData);
-  console.log('Product Data------------------------>>>>>:', productData);
+
 
   return {
     ...productData,

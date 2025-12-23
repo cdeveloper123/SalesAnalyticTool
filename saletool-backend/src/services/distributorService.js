@@ -83,19 +83,15 @@ export function getDistributorPricing(productData, retailPrice, category = 'defa
   const categoryAdjust = CATEGORY_ADJUSTMENTS[category] || CATEGORY_ADJUSTMENTS.default;
   
   for (const [distributorId, distributor] of Object.entries(DISTRIBUTORS)) {
-    // Skip if category doesn't match
     if (!distributor.categories.includes(category) && category !== 'default') {
       continue;
     }
     
-    // Calculate what distributor would pay (wholesale price)
     const wholesalePrice = retailPrice * distributor.buyPricePercent * categoryAdjust.priceAdjust;
     const sellPrice = Number(wholesalePrice.toFixed(2));
     
-    // No fees when selling to distributor (they pay you directly)
     const netProceeds = sellPrice;
     
-    // Estimate monthly volume they could absorb
     const baseVolume = distributor.monthlyCapacity;
     const adjustedVolume = Math.round(baseVolume * categoryAdjust.demandMultiplier);
     
