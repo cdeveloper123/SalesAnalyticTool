@@ -322,9 +322,43 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
     const minPrice = currencyService.convert(Math.min(...activePrices), 'USD', targetCurrency);
     const maxPrice = currencyService.convert(Math.max(...activePrices), 'USD', targetCurrency);
 
-    // For demand, we'll use active listing count as a proxy since Finding API is rate-limited
-    // More listings typically = higher demand
-    const estimatedMonthlySales = Math.min(activeListings.length * 10, 500); // Conservative estimate
+    // MARKET SIZE FACTORS (relative to US baseline)
+    const marketFactors = {
+      US: 1.5,   // Largest market
+      UK: 1.0,   // Medium market  
+      DE: 1.2,   // Large EU market
+      FR: 0.8,   // Medium EU market
+      IT: 0.6,   // Smaller EU market
+      AU: 0.5    // Smaller market
+    };
+    
+    // CATEGORY/PRICE TIER MULTIPLIERS (inferred from price)
+    let categoryMultiplier = 1.0;
+    if (avgActivePrice > 100) {
+      categoryMultiplier = 1.5; // High-value items (electronics, gaming)
+    } else if (avgActivePrice > 50) {
+      categoryMultiplier = 1.2; // Mid-value items
+    } else if (avgActivePrice < 10) {
+      categoryMultiplier = 0.6; // Low-value items (lower volume)
+    }
+    
+    // COMPETITION FACTOR (more listings = higher total market demand)
+    let competitionFactor = 1.0;
+    if (activeListings.length > 20) {
+      competitionFactor = 2.0; // High competition = high demand market
+    } else if (activeListings.length > 10) {
+      competitionFactor = 1.5;
+    } else if (activeListings.length > 5) {
+      competitionFactor = 1.2;
+    } else if (activeListings.length <= 2) {
+      competitionFactor = 0.8; // Very few listings = niche/low demand
+    }
+    
+    // BASE FORMULA: listings × market × category × competition × base multiplier
+    const marketFactor = marketFactors[marketplace] || 1.0;
+    const baseMultiplier = 12; // Base units per listing
+    const rawEstimate = activeListings.length * marketFactor * categoryMultiplier * competitionFactor * baseMultiplier;
+    const estimatedMonthlySales = Math.round(Math.min(rawEstimate, 800)); // Cap at 800
 
     return {
       marketplace,

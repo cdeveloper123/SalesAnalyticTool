@@ -275,7 +275,20 @@ Margin Percent = (£21.73 / £93.04) x 100 = 23.4%
 
 ## 8. Demand Estimation
 
-### 8.1 Sales Rank to Sales Formula
+### 8.1 Amazon Demand Estimation
+
+The system prioritizes Amazon's actual sales data when available, falling back to sales rank formulas only when necessary.
+
+#### 8.1.1 Primary Method: Actual Sales Data
+
+Amazon provides direct sales indicators like "1K+ bought in past month" on product pages. The system extracts and parses these across all international markets:
+
+**Supported Formats:**
+- English: "1K+ bought in past month" → 1000 units/month
+- German: "500+ gekauft Mal im letzten Monat" → 500 units/month
+- French: "Plus de 100 achetés au cours du mois dernier" → 100 units/month
+- Italian: "50+ acquistati nel mese scorso" → 50 units/month
+
 
 ```
 Estimated Monthly Sales = Coefficient / (Sales Rank ^ Exponent)
@@ -294,10 +307,46 @@ Marketplace size factors (relative to US):
 - IT: 0.15
 - AU: 0.10
 
-### 8.2 Absorption Capacity
+**Regional Data Extraction:**
+Amazon US provides sales rank in `specifications_flat` text field, while UK/DE/FR/IT/AU use structured `bestsellers_rank` arrays. The system handles both formats automatically.
+
+### 8.2 eBay Demand Estimation
+
+eBay does not provide direct sales indicators. The system uses a sophisticated proxy formula based on market factors:
 
 ```
-Absorption Capacity = Estimated Monthly Sales x Target Market Share
+Estimated Monthly Sales = Listings × Market Factor × Category Multiplier × Competition Factor × Base Multiplier
+```
+
+**Market Factors (relative market size):**
+- US: 1.5 (largest market)
+- UK: 1.0 (medium market)
+- DE: 1.2 (large EU market)
+- FR: 0.8 (medium EU market)
+- IT: 0.6 (smaller EU market)
+- AU: 0.5 (smaller market)
+
+**Category Multiplier (inferred from price tier):**
+- Price > $100: 1.5× (electronics, gaming)
+- Price $50-$100: 1.2× (mid-value items)
+- Price < $10: 0.6× (low-value items)
+- Price $10-$50: 1.0× (baseline)
+
+**Competition Factor (listing count):**
+- 20+ listings: 2.0× (high demand market)
+- 10-19 listings: 1.5×
+- 6-9 listings: 1.2×
+- 3-5 listings: 1.0×
+- 2 or fewer: 0.8× (niche/low demand)
+
+**Base Multiplier:** 12 units per listing (calibrated baseline)
+
+**Maximum Cap:** 800 units/month per market
+
+### 8.3 Absorption Capacity
+
+```
+Absorption Capacity = Estimated Monthly Sales × Target Market Share
 
 Target Market Share:
 - 15+ FBA sellers: 8%
@@ -307,7 +356,7 @@ Target Market Share:
 - 0-1 FBA sellers: 35%
 ```
 
-### 8.3 Months to Sell Calculation
+### 8.4 Months to Sell Calculation
 
 ```
 Months to Sell = Allocated Quantity / Monthly Absorption Capacity
@@ -621,7 +670,3 @@ For most deals, distributors will show "Avoid" because wholesale prices are too 
 | Marketplace (eBay) | Final Value + Per Order | Active listings | B2C alternative |
 | Retailer | Commission + Payment | Mocked estimate | Multi-channel B2C |
 | Distributor | None (B2B sale) | Capacity estimate | Bulk liquidation |
-
----
-
-End of Document
