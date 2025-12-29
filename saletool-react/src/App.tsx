@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Dashboard from './pages/Dashboard';
-import AnalyzeDeal from './pages/AnalyzeDeal';
 
 function App() {
   const API_BASE_URL = import.meta.env.VITE_REACT_BACKEND_URL || 'http://localhost:3001';
@@ -32,9 +31,7 @@ function App() {
         }}
       />
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/analyze" element={<AnalyzeDeal />} />
-      </Routes>
+        <Route path="/" element={<Dashboard />} />      </Routes>
     </BrowserRouter>
   );
 }

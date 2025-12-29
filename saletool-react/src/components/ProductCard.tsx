@@ -263,18 +263,65 @@ function ProductCard({ product }: ProductCardProps) {
                           {(channel as any).explanation}
                         </div>
                       )}
-                      {/* Demand Signals */}
-                      {(channel as any).demand?.signals && (channel as any).demand.signals.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1.5">
-                            Demand Signals
-                          </div>
-                          {(channel as any).demand.signals.map((signal: string, signalIdx: number) => (
-                            <div key={signalIdx} className="flex items-start gap-2 text-xs">
-                              <span className="text-blue-400 mt-0.5">•</span>
-                              <span className="text-gray-400">{signal}</span>
+                      {/* Demand Information */}
+                      {(channel as any).demand && (
+                        <div className="mt-3 space-y-2 pt-3 border-t border-gray-700/50">
+                          {/* Demand Range + Confidence */}
+                          {(channel as any).demand.estimatedMonthlySales && (
+                            <div className="space-y-1.5">
+                              <div className="text-xs text-gray-500 uppercase tracking-wider font-medium">
+                                Demand Estimate
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400">Range:</span>
+                                <span className="text-xs font-medium text-white">
+                                  {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400">Likely:</span>
+                                <span className="text-xs font-semibold text-blue-400">
+                                  {(channel as any).demand.estimatedMonthlySales.mid} units/mo
+                                </span>
+                              </div>
+                              {(channel as any).demand.confidence && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-400">Confidence:</span>
+                                  <span className={`text-xs font-medium ${
+                                    (channel as any).demand.confidence === 'High' ? 'text-green-400' :
+                                    (channel as any).demand.confidence === 'Medium' ? 'text-yellow-400' :
+                                    (channel as any).demand.confidence === 'Low' ? 'text-orange-400' :
+                                    'text-gray-400'
+                                  }`}>
+                                    {(channel as any).demand.confidence}
+                                  </span>
+                                </div>
+                              )}
+                              {(channel as any).demand.absorptionCapacity > 0 && (
+                                <div className="flex items-center justify-between pt-1 border-t border-gray-700/30">
+                                  <span className="text-xs text-gray-400">Absorption Cap:</span>
+                                  <span className="text-xs font-semibold text-purple-400">
+                                    {(channel as any).demand.absorptionCapacity} units/mo
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )}
+                          
+                          {/* Demand Signals */}
+                          {(channel as any).demand?.signals && (channel as any).demand.signals.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1.5">
+                                Demand Signals
+                              </div>
+                              {(channel as any).demand.signals.map((signal: string, signalIdx: number) => (
+                                <div key={signalIdx} className="flex items-start gap-2 text-xs">
+                                  <span className="text-blue-400 mt-0.5">•</span>
+                                  <span className="text-gray-400">{signal}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -319,31 +366,93 @@ function ProductCard({ product }: ProductCardProps) {
                   </div>
                 )}
               </div>
+              {/* Summary */}
+              <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">Total Quantity</span>
+                  <span className="text-sm text-white font-semibold">{product.allocation.totalQuantity?.toLocaleString() || Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0) + (product.allocation.hold || 0)} units</span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">Allocated</span>
+                  <span className="text-sm text-green-400 font-semibold">
+                    {Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0).toLocaleString()} units
+                  </span>
+                </div>
+                {product.allocation.hold > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Held Back</span>
+                    <span className="text-sm text-yellow-400 font-semibold">{product.allocation.hold.toLocaleString()} units</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Per-Market Allocation Details */}
               <div className="space-y-2">
                 {Object.keys(product.allocation.allocated).length > 0 ? (
-                  Object.entries(product.allocation.allocated).map(([channel, qty]) => (
-                    <div
-                      key={channel}
-                      className="flex justify-between items-center bg-gray-800 rounded-lg px-3 py-2 border border-gray-600/20"
-                    >
-                      <span className="text-sm text-gray-300 font-medium">{channel}</span>
-                      <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
-                    </div>
-                  ))
+                  Object.entries(product.allocation.allocated).map(([channel, qty]) => {
+                    // Find the channel to get absorption capacity
+                    const channelData = product.channels?.find(
+                      (c: any) => `${c.channel}-${c.marketplace}` === channel
+                    );
+                    const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
+                    const channelDetail = product.allocation.channelDetails?.[channel];
+                    
+                    return (
+                      <div
+                        key={channel}
+                        className="bg-gray-800 rounded-lg p-3 border border-gray-600/20"
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm text-gray-300 font-medium">{channel}</span>
+                          <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
+                        </div>
+                        {absorptionCap > 0 && (
+                          <div className="text-xs text-gray-400 mb-1">
+                            Absorption Capacity: <span className="text-gray-300 font-medium">{absorptionCap} units/month</span>
+                            {' • '}
+                            Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
+                          </div>
+                        )}
+                        {channelDetail && (
+                          <p className="text-xs text-gray-500 mt-2 italic leading-relaxed">{channelDetail}</p>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-sm text-gray-400 italic text-center py-2">
                     No channels allocated
                   </div>
                 )}
                 {product.allocation.hold > 0 && (
-                  <div className="flex justify-between items-center bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 mt-2">
-                    <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
-                      <FiAlertCircle size={14} />
-                      Hold
-                    </span>
-                    <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-2">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
+                        <FiAlertCircle size={14} />
+                        Held Back
+                      </span>
+                      <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      These units are held back to avoid market flooding. Release in phases based on actual sales performance.
+                    </p>
                   </div>
                 )}
+                
+                {/* Skipped Markets */}
+                {product.allocation.channelDetails && 
+                 Object.entries(product.allocation.channelDetails)
+                   .filter(([channel]) => !product.allocation.allocated[channel])
+                   .map(([channel, detail]) => (
+                     <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
+                       <div className="flex justify-between items-center mb-1">
+                         <span className="text-xs text-gray-400 font-medium">{channel}</span>
+                         <span className="text-xs text-gray-500">Not allocated</span>
+                       </div>
+                       <p className="text-xs text-gray-500 italic leading-relaxed">{detail as string}</p>
+                     </div>
+                   ))
+                }
               </div>
             </div>
           )}

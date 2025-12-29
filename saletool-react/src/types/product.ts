@@ -5,6 +5,17 @@ export interface LandedCost {
   total: number;
 }
 
+export interface DemandData {
+  estimatedMonthlySales?: {
+    low: number;
+    mid: number;
+    high: number;
+  };
+  confidence?: string;
+  absorptionCapacity?: number;
+  signals?: string[];
+}
+
 export interface ChannelData {
   channel: string;
   marketplace: string;
@@ -15,6 +26,7 @@ export interface ChannelData {
   marginPercent: number;
   recommendation: string;
   landedCost?: LandedCost;
+  demand?: DemandData;
 }
 
 export interface NegotiationSupport {
@@ -86,6 +98,7 @@ export interface Product {
   };
   channels?: ChannelData[];
   allocation?: {
+    totalQuantity?: number;
     allocated: Record<string, number>;
     hold: number;
     rationale?: string;
