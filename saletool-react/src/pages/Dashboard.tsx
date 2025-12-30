@@ -54,7 +54,7 @@ function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingDeals, setIsLoadingDeals] = useState(true);
-  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('live');
+  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('mock');
 
   // Fetch saved deals on page load
   useEffect(() => {
