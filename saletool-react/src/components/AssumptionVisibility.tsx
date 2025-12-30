@@ -10,7 +10,7 @@ export default function AssumptionVisibility({ assumptions }: AssumptionVisibili
     return null;
   }
 
-  const { version, timestamp, summary, details, overrides } = assumptions;
+  const { version, timestamp, summary, details } = assumptions;
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">

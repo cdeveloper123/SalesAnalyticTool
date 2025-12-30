@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { FiGlobe, FiLayers } from 'react-icons/fi';
 
 export type DataSourceMode = 'live' | 'mock';

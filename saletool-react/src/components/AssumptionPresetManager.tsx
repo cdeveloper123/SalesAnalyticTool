@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FiSave, FiTrash2, FiX, FiCheck } from 'react-icons/fi';
+import { FiSave, FiTrash2, FiCheck } from 'react-icons/fi';
 import Modal from './Modal';
 import Input from './Input';
 import Button from './Button';
-import { getPresets, savePreset, applyPreset as applyPresetAPI, deletePreset } from '../services/assumptionService';
+import { getPresets, savePreset, deletePreset } from '../services/assumptionService';
 import toast from 'react-hot-toast';
 import type { AssumptionPreset, AssumptionOverrides } from '../types/assumptions';
 
@@ -188,9 +188,13 @@ export default function AssumptionPresetManager({
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => handleDeletePreset(preset.id, preset.name)}
+                      onClick={() => {
+                        if (preset.id) {
+                          handleDeletePreset(preset.id, preset.name);
+                        }
+                      }}
                       className="flex items-center gap-1 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                      disabled={isLoading}
+                      disabled={isLoading || !preset.id}
                     >
                       <FiTrash2 size={14} />
                     </Button>
