@@ -23,14 +23,6 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-connectDB()
-  .then(() => {
-    console.log('Database connection established');
-  })
-  .catch((error) => {
-    console.error('Failed to connect to database:', error);
-  });
-
 // Routes
 app.use('/api/v1', routes);
 
@@ -57,8 +49,19 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Start server after database connection is established
+(async () => {
+  try {
+    await connectDB();
+    console.log('Database connection established');
+    
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+})();
 
