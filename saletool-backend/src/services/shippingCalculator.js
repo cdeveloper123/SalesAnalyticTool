@@ -9,6 +9,8 @@
  * Uses 2024-2025 freight rates (averaged from major carriers)
  */
 
+import { applyShippingOverrides } from './shippingOverrideService.js';
+
 // Shipping rates per KG (2024-2025 estimates)
 // Sources: DHL, FedEx, UPS, Flexport estimates
 const SHIPPING_RATES = {
@@ -84,8 +86,14 @@ const DEFAULT_RATES = {
 
 /**
  * Calculate shipping cost for a single unit
+ * 
+ * @param {number} weightKg - Weight in kilograms
+ * @param {string} origin - Origin country code
+ * @param {string} destination - Destination country code
+ * @param {string} method - Shipping method (sea/air/express)
+ * @param {object} overrides - Optional shipping overrides
  */
-export function calculateShipping(weightKg, origin, destination, method = 'air') {
+export function calculateShipping(weightKg, origin, destination, method = 'air', overrides = null) {
   // Normalize inputs
   origin = origin?.toUpperCase() || 'CN';
   destination = destination?.toUpperCase() || 'US';
@@ -101,7 +109,7 @@ export function calculateShipping(weightKg, origin, destination, method = 'air')
   const rawCost = weightKg * methodRates.perKg;
   const shippingCost = Math.max(rawCost, methodRates.minCharge);
   
-  return {
+  const result = {
     origin,
     destination,
     method,
@@ -112,20 +120,34 @@ export function calculateShipping(weightKg, origin, destination, method = 'air')
     shippingCost: Number(shippingCost.toFixed(2)),
     currency: 'USD'
   };
+
+  // Apply overrides if provided
+  if (overrides) {
+    return applyShippingOverrides(result, overrides);
+  }
+
+  return result;
 }
 
 /**
  * Calculate shipping cost for multiple units
+ * 
+ * @param {number} weightKg - Weight per unit in kilograms
+ * @param {number} quantity - Number of units
+ * @param {string} origin - Origin country code
+ * @param {string} destination - Destination country code
+ * @param {string} method - Shipping method (sea/air/express)
+ * @param {object} overrides - Optional shipping overrides
  */
-export function calculateBulkShipping(weightKg, quantity, origin, destination, method = 'air') {
+export function calculateBulkShipping(weightKg, quantity, origin, destination, method = 'air', overrides = null) {
   weightKg = Number(weightKg) || 0.5;
   quantity = Number(quantity) || 1;
   
   const totalWeight = weightKg * quantity;
-  const singleUnitShipping = calculateShipping(weightKg, origin, destination, method);
+  const singleUnitShipping = calculateShipping(weightKg, origin, destination, method, overrides);
   
   // For bulk, calculate total and per-unit
-  const bulkCost = calculateShipping(totalWeight, origin, destination, method);
+  const bulkCost = calculateShipping(totalWeight, origin, destination, method, overrides);
   
   return {
     ...bulkCost,
@@ -139,13 +161,18 @@ export function calculateBulkShipping(weightKg, quantity, origin, destination, m
 
 /**
  * Get all available shipping methods with rates for a route
+ * 
+ * @param {number} weightKg - Weight in kilograms
+ * @param {string} origin - Origin country code
+ * @param {string} destination - Destination country code
+ * @param {object} overrides - Optional shipping overrides
  */
-export function getAllShippingOptions(weightKg, origin, destination) {
+export function getAllShippingOptions(weightKg, origin, destination, overrides = null) {
   const methods = ['sea', 'air', 'express'];
   
   return methods.map(method => ({
     method,
-    ...calculateShipping(weightKg, origin, destination, method)
+    ...calculateShipping(weightKg, origin, destination, method, overrides)
   }));
 }
 

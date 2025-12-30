@@ -8,6 +8,8 @@
  * Output: Fee breakdown + Net Proceeds
  */
 
+import { applyFeeOverrides } from './feeOverrideService.js';
+
 // ============================================================================
 // REFERRAL FEE RATES BY CATEGORY (2025)
 // ============================================================================
@@ -556,9 +558,10 @@ function isMediaCategory(category) {
  * @param {number} sellPrice - Listing price (gross, including VAT for EU)
  * @param {string} category - Product category
  * @param {object} dimensions - { lengthCm, widthCm, heightCm, weightKg }
+ * @param {object} overrides - Optional fee overrides
  * @returns {object} Fee breakdown and net proceeds
  */
-export function calculateFees(marketplace, sellPrice, category, dimensions = {}) {
+export function calculateFees(marketplace, sellPrice, category, dimensions = {}, overrides = null) {
   marketplace = marketplace.toUpperCase();
   
   // Validate inputs
@@ -601,7 +604,7 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {})
   // Net proceeds = Sell Price - VAT - Amazon Fees
   const netProceeds = sellPrice - vatAmount - totalFees;
   
-  return {
+  const result = {
     marketplace,
     currency: CURRENCIES[marketplace] || 'USD',
     sellPrice: Number(sellPrice.toFixed(2)),
@@ -618,18 +621,35 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {})
     netProceeds: Number(netProceeds.toFixed(2)),
     netMarginPercent: Number(((netProceeds / sellPrice) * 100).toFixed(1))
   };
+
+  // Apply overrides if provided
+  if (overrides) {
+    return applyFeeOverrides(marketplace, sellPrice, category, result, overrides);
+  }
+
+  return result;
 }
 
 /**
  * Calculate fees for all three marketplaces
+ * 
+ * @param {object} pricingData - Pricing data by marketplace
+ * @param {string} category - Product category
+ * @param {object} dimensions - Product dimensions
+ * @param {object} overrides - Optional fee overrides
  */
-export function calculateFeesAllMarkets(pricingData, category, dimensions) {
+export function calculateFeesAllMarkets(pricingData, category, dimensions, overrides = null) {
   const results = {};
   
   for (const [market, data] of Object.entries(pricingData)) {
     if (data && data.buyBoxPrice) {
       try {
-        results[market] = calculateFees(market, data.buyBoxPrice, category, dimensions);
+        // Get marketplace-specific overrides if provided
+        const marketOverrides = overrides ? 
+          (Array.isArray(overrides) ? overrides.filter(o => o.marketplace?.toUpperCase() === market.toUpperCase()) : 
+           (overrides.marketplace?.toUpperCase() === market.toUpperCase() ? overrides : null)) : null;
+        
+        results[market] = calculateFees(market, data.buyBoxPrice, category, dimensions, marketOverrides);
       } catch (error) {
         console.error(`Error calculating fees for ${market}:`, error.message);
       }
@@ -642,14 +662,19 @@ export function calculateFeesAllMarkets(pricingData, category, dimensions) {
 /**
  * Get a quick estimate of fees without full dimensions
  * Uses average small-standard tier
+ * 
+ * @param {string} marketplace - Marketplace code
+ * @param {number} sellPrice - Sell price
+ * @param {string} category - Product category
+ * @param {object} overrides - Optional fee overrides
  */
-export function estimateFees(marketplace, sellPrice, category) {
+export function estimateFees(marketplace, sellPrice, category, overrides = null) {
   return calculateFees(marketplace, sellPrice, category, {
     lengthCm: 20,
     widthCm: 15,
     heightCm: 5,
     weightKg: 0.5
-  });
+  }, overrides);
 }
 
 export default {

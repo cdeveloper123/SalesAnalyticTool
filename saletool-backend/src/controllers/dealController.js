@@ -7,6 +7,8 @@
 import { getAmazonProductData } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
 import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
+import assumptionVisibilityService from '../services/assumptionVisibilityService.js';
+import { getPrisma } from '../config/database.js';
 
 /**
  * POST /api/v1/analyze
@@ -24,7 +26,15 @@ import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
  */
 export const analyzeDeal = async (req, res) => {
   try {
-    const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'Unknown' } = req.body;
+    const { 
+      ean, 
+      quantity, 
+      buyPrice, 
+      currency = 'USD', 
+      supplierRegion = 'Unknown',
+      assumptionOverrides = null,
+      dataSourceMode = 'live' // Frontend sends this: 'live' or 'mock'
+    } = req.body;
 
     // Validation
     if (!ean) {
@@ -64,7 +74,7 @@ export const analyzeDeal = async (req, res) => {
           continue;
         }
 
-        const amazonResult = await getAmazonProductData(ean, market);
+        const amazonResult = await getAmazonProductData(ean, market, dataSourceMode);
 
         if (amazonResult.success && amazonResult.product) {
           productFoundInAnyMarket = true;
@@ -168,38 +178,211 @@ export const analyzeDeal = async (req, res) => {
       { ean, quantity, buyPrice, currency, supplierRegion },
       productData,
       amazonPricing,
-      ebayPricing
+      ebayPricing,
+      assumptionOverrides
     );
+
+    // Extract assumptions used in calculation
+    const assumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+      evaluation,
+      assumptionOverrides,
+      { ean, quantity, buyPrice, currency, supplierRegion }
+    );
+
+    const formattedAssumptions = assumptionVisibilityService.formatAssumptionsForDisplay(assumptions);
+
+    // Prepare response data
+    const responseData = {
+      input: {
+        ean,
+        quantity,
+        buyPrice,
+        currency,
+        supplierRegion
+      },
+      product: productData,
+      evaluation: {
+        dealScore: evaluation.dealScore.overall,
+        scoreBreakdown: evaluation.dealScore.breakdown,
+        decision: evaluation.decision,
+        explanation: evaluation.explanation,
+        bestChannel: evaluation.bestChannel,
+        channelAnalysis: evaluation.channelAnalysis,
+        allocation: evaluation.allocationRecommendation,
+        negotiationSupport: evaluation.negotiationSupport || null,
+        sourcingSuggestions: evaluation.sourcingSuggestions || null,
+        compliance: evaluation.compliance || null
+      },
+      assumptions: formattedAssumptions,
+      marketData: {
+        amazonMarketsFound: Object.keys(amazonPricing),
+        ebayMarketsFound: Object.keys(ebayPricing)
+      }
+    };
+
+    // Save deal to database
+    try {
+      const prisma = getPrisma();
+      if (!prisma || !prisma.deal) {
+        console.warn('[Deal Controller] Prisma client not available, skipping save');
+      } else {
+        const savedDeal = await prisma.deal.create({
+        data: {
+          ean,
+          productName: productData?.title || `Product ${ean}`,
+          quantity,
+          buyPrice,
+          currency,
+          supplierRegion,
+          dealScore: evaluation.dealScore.overall,
+          netMargin: evaluation.bestChannel?.marginPercent || 0,
+          demandConfidence: evaluation.dealScore.breakdown?.demandConfidenceScore || 0,
+          volumeRisk: evaluation.dealScore.breakdown?.volumeRiskScore || 0,
+          dataReliability: evaluation.dealScore.breakdown?.dataReliabilityScore || 0,
+          decision: evaluation.decision,
+          explanation: evaluation.explanation || null,
+          bestChannel: evaluation.bestChannel?.channel || null,
+          bestMarketplace: evaluation.bestChannel?.marketplace || null,
+          bestMarginPercent: evaluation.bestChannel?.marginPercent || null,
+          bestCurrency: evaluation.bestChannel?.currency || null,
+          evaluationData: responseData.evaluation,
+          productData: productData || null,
+          marketData: responseData.marketData,
+          assumptions: formattedAssumptions
+        }
+        });
+
+        // Add deal ID to response
+        responseData.dealId = savedDeal.id;
+
+        // Save assumption overrides to AssumptionOverride table if provided
+        if (assumptionOverrides && (assumptionOverrides.shippingOverrides || assumptionOverrides.dutyOverrides || assumptionOverrides.feeOverrides)) {
+          try {
+            // Check if override already exists for this deal
+            const existingOverride = await prisma.assumptionOverride.findFirst({
+              where: { dealId: savedDeal.id }
+            });
+
+            let oldOverrideValues = null;
+            if (existingOverride) {
+              oldOverrideValues = {
+                shippingOverrides: existingOverride.shippingOverrides,
+                dutyOverrides: existingOverride.dutyOverrides,
+                feeOverrides: existingOverride.feeOverrides
+              };
+            }
+
+            if (existingOverride) {
+              // Update existing override and track history
+              await prisma.assumptionOverride.update({
+                where: { id: existingOverride.id },
+                data: {
+                  shippingOverrides: assumptionOverrides.shippingOverrides || existingOverride.shippingOverrides,
+                  dutyOverrides: assumptionOverrides.dutyOverrides || existingOverride.dutyOverrides,
+                  feeOverrides: assumptionOverrides.feeOverrides || existingOverride.feeOverrides,
+                  updatedAt: new Date()
+                }
+              });
+
+              // Track assumption changes in history
+              if (oldOverrideValues) {
+                const changes = [];
+                if (JSON.stringify(oldOverrideValues.shippingOverrides) !== JSON.stringify(assumptionOverrides.shippingOverrides)) {
+                  changes.push({
+                    dealId: savedDeal.id,
+                    assumptionType: 'shipping',
+                    oldValue: oldOverrideValues.shippingOverrides,
+                    newValue: assumptionOverrides.shippingOverrides,
+                    changedBy: 'system'
+                  });
+                }
+                if (JSON.stringify(oldOverrideValues.dutyOverrides) !== JSON.stringify(assumptionOverrides.dutyOverrides)) {
+                  changes.push({
+                    dealId: savedDeal.id,
+                    assumptionType: 'duty',
+                    oldValue: oldOverrideValues.dutyOverrides,
+                    newValue: assumptionOverrides.dutyOverrides,
+                    changedBy: 'system'
+                  });
+                }
+                if (JSON.stringify(oldOverrideValues.feeOverrides) !== JSON.stringify(assumptionOverrides.feeOverrides)) {
+                  changes.push({
+                    dealId: savedDeal.id,
+                    assumptionType: 'fee',
+                    oldValue: oldOverrideValues.feeOverrides,
+                    newValue: assumptionOverrides.feeOverrides,
+                    changedBy: 'system'
+                  });
+                }
+
+                // Save history entries
+                for (const change of changes) {
+                  await prisma.assumptionHistory.create({
+                    data: change
+                  });
+                }
+              }
+            } else {
+              // Create new override linked to this deal
+              await prisma.assumptionOverride.create({
+                data: {
+                  dealId: savedDeal.id,
+                  shippingOverrides: assumptionOverrides.shippingOverrides || null,
+                  dutyOverrides: assumptionOverrides.dutyOverrides || null,
+                  feeOverrides: assumptionOverrides.feeOverrides || null
+                }
+              });
+
+              // Track initial override creation in history
+              if (assumptionOverrides.shippingOverrides) {
+                await prisma.assumptionHistory.create({
+                  data: {
+                    dealId: savedDeal.id,
+                    assumptionType: 'shipping',
+                    oldValue: null,
+                    newValue: assumptionOverrides.shippingOverrides,
+                    changedBy: 'system'
+                  }
+                });
+              }
+              if (assumptionOverrides.dutyOverrides) {
+                await prisma.assumptionHistory.create({
+                  data: {
+                    dealId: savedDeal.id,
+                    assumptionType: 'duty',
+                    oldValue: null,
+                    newValue: assumptionOverrides.dutyOverrides,
+                    changedBy: 'system'
+                  }
+                });
+              }
+              if (assumptionOverrides.feeOverrides) {
+                await prisma.assumptionHistory.create({
+                  data: {
+                    dealId: savedDeal.id,
+                    assumptionType: 'fee',
+                    oldValue: null,
+                    newValue: assumptionOverrides.feeOverrides,
+                    changedBy: 'system'
+                  }
+                });
+              }
+            }
+          } catch (overrideError) {
+            console.error('[Deal Controller] Error saving assumption overrides:', overrideError);
+            // Continue even if override save fails
+          }
+        }
+      }
+    } catch (dbError) {
+      console.error('[Deal Controller] Error saving deal to database:', dbError);
+      // Continue even if save fails - don't break the API response
+    }
 
     res.status(200).json({
       success: true,
       message: 'Deal analyzed successfully',
-      data: {
-        input: {
-          ean,
-          quantity,
-          buyPrice,
-          currency,
-          supplierRegion
-        },
-        product: productData,
-        evaluation: {
-          dealScore: evaluation.dealScore.overall,
-          scoreBreakdown: evaluation.dealScore.breakdown,
-          decision: evaluation.decision,
-          explanation: evaluation.explanation,
-          bestChannel: evaluation.bestChannel,
-          channelAnalysis: evaluation.channelAnalysis,
-          allocation: evaluation.allocationRecommendation,
-          negotiationSupport: evaluation.negotiationSupport || null,
-          sourcingSuggestions: evaluation.sourcingSuggestions || null,
-          compliance: evaluation.compliance || null
-        },
-        marketData: {
-          amazonMarketsFound: Object.keys(amazonPricing),
-          ebayMarketsFound: Object.keys(ebayPricing)
-        }
-      }
+      data: responseData
     });
 
   } catch (error) {
@@ -212,6 +395,105 @@ export const analyzeDeal = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/v1/deals
+ * 
+ * Get all saved deals/products
+ */
+export const getDeals = async (req, res) => {
+  try {
+    const prisma = getPrisma();
+    if (!prisma || !prisma.deal) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database not available. Please run Prisma migration first.',
+        error: 'Prisma client not initialized'
+      });
+    }
+    const { limit = 100, offset = 0, orderBy = 'analyzedAt', order = 'desc' } = req.query;
+
+    const deals = await prisma.deal.findMany({
+      take: parseInt(limit),
+      skip: parseInt(offset),
+      orderBy: {
+        [orderBy]: order
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: deals,
+      count: deals.length
+    });
+  } catch (error) {
+    console.error('[Deal Controller] Error fetching deals:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching deals',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * DELETE /api/v1/deals/:id
+ * 
+ * Delete a saved deal/product
+ */
+export const deleteDeal = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Deal ID is required'
+      });
+    }
+
+    const prisma = getPrisma();
+    if (!prisma || !prisma.deal) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database not available',
+        error: 'Prisma client not initialized'
+      });
+    }
+
+    // Check if deal exists
+    const deal = await prisma.deal.findUnique({
+      where: { id }
+    });
+
+    if (!deal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Deal not found'
+      });
+    }
+
+    // Delete the deal
+    await prisma.deal.delete({
+      where: { id }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Deal deleted successfully',
+      data: { id }
+    });
+  } catch (error) {
+    console.error('[Deal Controller] Error deleting deal:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting deal',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export default {
-  analyzeDeal
+  analyzeDeal,
+  getDeals,
+  deleteDeal
 };

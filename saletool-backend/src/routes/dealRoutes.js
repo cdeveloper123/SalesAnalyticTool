@@ -1,13 +1,12 @@
 import express from 'express';
-import { analyzeDeal } from '../controllers/dealController.js';
+import { analyzeDeal, getDeals, deleteDeal } from '../controllers/dealController.js';
 
 const router = express.Router();
 
-/**
- * POST /api/v1/deals/analyze
- * 
- * Analyze a product deal across multiple channels
- */
+router.get('/', getDeals);
+
 router.post('/analyze', analyzeDeal);
+
+router.delete('/:id', deleteDeal);
 
 export default router;

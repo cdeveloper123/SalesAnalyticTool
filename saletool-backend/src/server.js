@@ -23,8 +23,13 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database connection
-connectDB();
+connectDB()
+  .then(() => {
+    console.log('Database connection established');
+  })
+  .catch((error) => {
+    console.error('Failed to connect to database:', error);
+  });
 
 // Routes
 app.use('/api/v1', routes);

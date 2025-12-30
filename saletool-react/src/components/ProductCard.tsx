@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle } from 'react-icons/fi';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight } from 'react-icons/fi';
 import { Product } from '../types/product';
 
 interface ProductCardProps {
   product: Product;
+  onDelete?: () => void;
 }
 
 const getDecisionConfig = (decision: Product['decision']) => {
@@ -60,39 +61,73 @@ const formatCurrency = (amount: number, currency: string) => {
   }
 };
 
-function ProductCard({ product }: ProductCardProps) {
+function ProductCard({ product, onDelete }: ProductCardProps) {
   const [isChannelsCollapsed, setIsChannelsCollapsed] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const decisionConfig = getDecisionConfig(product.decision);
   const DecisionIcon = decisionConfig.icon;
   const scoreColors = getScoreColor(product.deal_quality_score);
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card expansion when clicking delete
+    if (onDelete) {
+      onDelete();
+    }
+  };
+
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-300">
-      {/* Header Section */}
-      <div className="bg-gray-800/50 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">
-              {product.productName || `Product ${product.ean}`}
-            </h2>
-            <div className="flex items-center gap-2">
-              <FiHash className="text-gray-500" size={14} />
-              <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
+      {/* Header Section - Clickable to expand/collapse */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full bg-gray-800/50 border-b border-gray-700 px-6 py-4 hover:bg-gray-750 transition-colors text-left"
+      >
+        <div className="flex justify-between">
+          <div className="flex-1 flex items-center gap-3">
+            {isExpanded ? (
+              <FiChevronDown className="text-gray-400 flex-shrink-0" size={20} />
+            ) : (
+              <FiChevronRight className="text-gray-400 flex-shrink-0" size={20} />
+            )}
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">
+                {product.productName || `Product ${product.ean}`}
+              </h2>
+              <div className="flex items-center gap-2">
+                <FiHash className="text-gray-500" size={14} />
+                <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
+              </div>
             </div>
           </div>
 
-          {/* Deal Score Badge */}
-          <div className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border ${scoreColors.bg} ${scoreColors.border} min-w-[80px]`}>
-            <span className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Score</span>
-            <span className={`text-3xl font-bold ${scoreColors.text}`}>
-              {product.deal_quality_score}%
-            </span>
+          <div className="flex items-center gap-3">
+            {/* Delete Button */}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                title="Delete product"
+              >
+                <FiTrash2 size={18} />
+              </button>
+            )}
+
+            {/* Deal Score Badge */}
+            <div className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border ${scoreColors.bg} ${scoreColors.border} min-w-[80px]`}>
+              <span className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Score</span>
+              <span className={`text-3xl font-bold ${scoreColors.text}`}>
+                {product.deal_quality_score}%
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </button>
 
-      {/* Main Content */}
-      <div className="p-6 space-y-6">
+      {/* Main Content - Collapsible */}
+      {isExpanded && (
+        <div className="p-6 space-y-6">
         {/* Top Row: Decision & Best Channel */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Decision Card */}
@@ -301,7 +336,7 @@ function ProductCard({ product }: ProductCardProps) {
                                 <div className="flex items-center justify-between pt-1 border-t border-gray-700/30">
                                   <span className="text-xs text-gray-400">Absorption Cap:</span>
                                   <span className="text-xs font-semibold text-purple-400">
-                                    {(channel as any).demand.absorptionCapacity} units/mo
+                                    {Math.round((channel as any).demand.absorptionCapacity)} units/mo
                                   </span>
                                 </div>
                               )}
@@ -395,7 +430,7 @@ function ProductCard({ product }: ProductCardProps) {
                       (c: any) => `${c.channel}-${c.marketplace}` === channel
                     );
                     const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
-                    const channelDetail = product.allocation.channelDetails?.[channel];
+                    const channelDetail = product.allocation?.channelDetails?.[channel];
                     
                     return (
                       <div
@@ -408,7 +443,7 @@ function ProductCard({ product }: ProductCardProps) {
                         </div>
                         {absorptionCap > 0 && (
                           <div className="text-xs text-gray-400 mb-1">
-                            Absorption Capacity: <span className="text-gray-300 font-medium">{absorptionCap} units/month</span>
+                            Absorption Capacity: <span className="text-gray-300 font-medium">{Math.round(absorptionCap)} units/month</span>
                             {' • '}
                             Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
                           </div>
@@ -440,9 +475,9 @@ function ProductCard({ product }: ProductCardProps) {
                 )}
                 
                 {/* Skipped Markets */}
-                {product.allocation.channelDetails && 
+                {product.allocation?.channelDetails && 
                  Object.entries(product.allocation.channelDetails)
-                   .filter(([channel]) => !product.allocation.allocated[channel])
+                   .filter(([channel]) => !product.allocation?.allocated[channel])
                    .map(([channel, detail]) => (
                      <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
                        <div className="flex justify-between items-center mb-1">
@@ -605,6 +640,7 @@ function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

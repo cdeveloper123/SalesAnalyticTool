@@ -331,16 +331,32 @@ function processEbayChannel(marketplace, pricing, buyPrice, currency, quantity) 
 /**
  * Process Amazon channel with landed cost (buy price + duty + shipping)
  */
-function processAmazonChannelWithLandedCost(marketplace, pricing, productData, landedCost, currency, quantity) {
+function processAmazonChannelWithLandedCost(marketplace, pricing, productData, landedCost, currency, quantity, feeOverrides = null) {
   if (!pricing || !pricing.buyBoxPrice) return null;
 
-  // Calculate Amazon fees
+  // Get marketplace-specific fee overrides
+  const marketFeeOverrides = feeOverrides ? 
+    (Array.isArray(feeOverrides) ? feeOverrides.filter(o => o.marketplace?.toUpperCase() === marketplace.toUpperCase()) : 
+     (feeOverrides.marketplace?.toUpperCase() === marketplace.toUpperCase() ? feeOverrides : null)) : null;
+
+  // Calculate Amazon fees with overrides
   const fees = feeCalculator.calculateFees(
     marketplace,
     pricing.buyBoxPrice,
     productData?.category?.[marketplace] || productData?.category,
-    productData?.dimensions?.weightKg || 0.5
+    productData?.dimensions || { weightKg: productData?.dimensions?.weightKg || 0.5 },
+    marketFeeOverrides
   );
+  
+  // Debug: Log if fee override was applied
+  if (marketFeeOverrides && fees.isOverridden) {
+    console.log(`[MultiChannel Evaluator] Fee override applied for ${marketplace}:`, {
+      originalReferralRate: fees.overrideMetadata?.originalReferralRate,
+      newReferralRate: fees.breakdown?.referralRate,
+      originalNetProceeds: fees.overrideMetadata?.originalNetProceeds,
+      newNetProceeds: fees.netProceeds
+    });
+  }
 
   // Estimate demand
   const demand = demandEstimator.estimateDemand(marketplace, pricing);
@@ -404,7 +420,7 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
 /**
  * Process eBay channel with landed cost
  */
-function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, currency, quantity) {
+function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, currency, quantity, feeOverrides = null) {
   if (!pricing || !pricing.buyBoxPrice) return null;
 
   // Calculate eBay fees
@@ -467,8 +483,14 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
 
 /**
  * Multi-Channel Deal Evaluation
+ * 
+ * @param {object} input - Deal input parameters
+ * @param {object} productData - Product data
+ * @param {object} amazonPricing - Amazon pricing data
+ * @param {object} ebayPricing - eBay pricing data
+ * @param {object} assumptionOverrides - Optional assumption overrides
  */
-export function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing) {
+export function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing, assumptionOverrides = null) {
   const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN' } = input;
 
   // Get product weight (default 0.5kg)
@@ -479,12 +501,37 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   const landedCosts = {};
   const destinations = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
 
-  for (const dest of destinations) {
-    // Calculate duty (per unit)
-    const dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category);
+  // Extract overrides
+  const shippingOverrides = assumptionOverrides?.shippingOverrides || null;
+  const dutyOverrides = assumptionOverrides?.dutyOverrides || null;
+  const feeOverrides = assumptionOverrides?.feeOverrides || null;
 
-    // Calculate shipping (per unit, using air freight as default)
-    const shippingResult = shippingCalculator.calculateBulkShipping(weightKg, quantity, supplierRegion, dest, 'air');
+  for (const dest of destinations) {
+    // Calculate duty (per unit) with overrides
+    const dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category, dutyOverrides);
+    
+    // Debug: Log if duty override was applied
+    if (dutyOverrides && dutyResult.isOverridden) {
+      console.log(`[MultiChannel Evaluator] Duty override applied for ${supplierRegion}->${dest}:`, {
+        originalRate: dutyResult.overrideMetadata?.originalDutyRate,
+        newRate: dutyResult.dutyRate,
+        originalAmount: dutyResult.overrideMetadata?.originalDutyAmount,
+        newAmount: dutyResult.dutyAmount
+      });
+    }
+
+    // Calculate shipping (per unit, using air freight as default) with overrides
+    const shippingResult = shippingCalculator.calculateBulkShipping(weightKg, quantity, supplierRegion, dest, 'air', shippingOverrides);
+    
+    // Debug: Log if shipping override was applied
+    if (shippingOverrides && shippingResult.isOverridden) {
+      console.log(`[MultiChannel Evaluator] Shipping override applied for ${supplierRegion}->${dest}:`, {
+        originalRate: shippingResult.overrideMetadata?.originalRatePerKg,
+        newRate: shippingResult.ratePerKg,
+        originalCost: shippingResult.overrideMetadata?.originalShippingCost,
+        newCost: shippingResult.perUnitShippingCost
+      });
+    }
 
     // Total landed cost per unit in source currency
     const landedCost = buyPrice + dutyResult.dutyAmount + shippingResult.perUnitShippingCost;
@@ -506,7 +553,7 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   if (amazonPricing) {
     for (const [marketplace, pricing] of Object.entries(amazonPricing)) {
       const landed = landedCosts[marketplace] || landedCosts['US'];
-      const channel = processAmazonChannelWithLandedCost(marketplace, pricing, productData, landed, currency, quantity);
+      const channel = processAmazonChannelWithLandedCost(marketplace, pricing, productData, landed, currency, quantity, feeOverrides);
       if (channel) allChannels.push(channel);
     }
   }
@@ -515,7 +562,7 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   if (ebayPricing) {
     for (const [marketplace, pricing] of Object.entries(ebayPricing)) {
       const landed = landedCosts[marketplace] || landedCosts['US'];
-      const channel = processEbayChannelWithLandedCost(marketplace, pricing, landed, currency, quantity);
+      const channel = processEbayChannelWithLandedCost(marketplace, pricing, landed, currency, quantity, feeOverrides);
       if (channel) allChannels.push(channel);
     }
   }
@@ -639,7 +686,7 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
 
   // Calculate total absorption across all recommended channels
   const recommendedChannels = allChannels.filter(c => c.recommendation === 'Sell');
-  const totalAbsorption = recommendedChannels.reduce((sum, c) => sum + (c.demand.absorptionCapacity || 0), 0);
+  const totalAbsorption = recommendedChannels.reduce((sum, c) => sum + (c.demand?.absorptionCapacity || 0), 0);
   const overallMonthsToSell = totalAbsorption > 0 ? quantity / totalAbsorption : 999;
 
   const volumeRiskScore = overallMonthsToSell <= 1 ? 100
@@ -785,7 +832,8 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     allocationDetails[channelKey] = channelRationale;
   }
 
-  // Add skipped channels to details
+  // Add skipped channels to details - include all channels that weren't allocated
+  // First, add skipped recommended channels (those in sortedByMargin but not allocated)
   for (const channel of sortedByMargin) {
     const key = `${channel.channel}-${channel.marketplace}`;
     if (allocation[key]) continue;
@@ -796,6 +844,30 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
     } else if (absorptionCapacity > 0 && !allocation[key]) {
       allocationDetails[key] = `Skipped ${key} (${channel.marginPercent.toFixed(1)}% margin, ${(quantity / absorptionCapacity).toFixed(1)} months to sell) - lower priority than allocated channels.`;
     }
+  }
+  
+  // Add channels that weren't recommended (recommendation === 'Avoid') - these weren't considered for allocation
+  for (const channel of allChannels) {
+    const key = `${channel.channel}-${channel.marketplace}`;
+    if (allocation[key] || channel.recommendation === 'Sell') continue; // Skip if already allocated or recommended
+    
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    let reason = '';
+    
+    if (channel.marginPercent < THRESHOLDS.minMarginPercent) {
+      reason = `Not allocated: ${key} has margin of ${channel.marginPercent.toFixed(1)}% (below ${THRESHOLDS.minMarginPercent}% threshold). `;
+    } else {
+      reason = `Not allocated: ${key} not recommended for selling. `;
+    }
+    
+    if (absorptionCapacity === 0) {
+      reason += `No reliable demand data available.`;
+    } else {
+      const monthsToSell = quantity / absorptionCapacity;
+      reason += `Estimated ${monthsToSell.toFixed(1)} months to sell through quantity.`;
+    }
+    
+    allocationDetails[key] = reason;
   }
 
   // Build overall rationale explaining the hybrid strategy (concise one-liner)

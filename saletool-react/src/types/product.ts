@@ -74,6 +74,7 @@ export interface Compliance {
 }
 
 export interface Product {
+  id?: string; // Deal ID from database
   ean: string;
   productName?: string;
   deal_quality_score: number;

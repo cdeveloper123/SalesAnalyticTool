@@ -4,6 +4,9 @@ import toast from 'react-hot-toast';
 import Input from './Input';
 import Select from './Select';
 import Button from './Button';
+import AssumptionControlPanel from './AssumptionControlPanel';
+import AssumptionPresetManager from './AssumptionPresetManager';
+import type { AssumptionOverrides } from '../types/assumptions';
 
 export interface ProductInput {
   ean: string;
@@ -11,6 +14,7 @@ export interface ProductInput {
   buy_price: number;
   currency: string;
   supplier_region: string;
+  assumptionOverrides?: AssumptionOverrides;
 }
 
 interface AddProductFormProps {
@@ -85,7 +89,11 @@ const validateEAN = (ean: string): { isValid: boolean; error?: string } => {
   }
 };
 
-function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormProps) {
+function AddProductForm({ 
+  onSubmit, 
+  onClose, 
+  onLoadingStart
+}: AddProductFormProps) {
   const [formData, setFormData] = useState<ProductInput>({
     ean: '',
     quantity: 0,
@@ -95,6 +103,7 @@ function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormPro
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eanError, setEanError] = useState<string | undefined>();
+  const [assumptionOverrides, setAssumptionOverrides] = useState<AssumptionOverrides>({});
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -200,7 +209,7 @@ function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormPro
     onClose();
     
     try {
-      await onSubmit(formData);
+      await onSubmit({ ...formData, assumptionOverrides });
       toast.success('Product analyzed successfully!');
     } catch (err) {
       toast.error(
@@ -213,7 +222,6 @@ function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormPro
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-
       <Input
         label="EAN / GTIN / UPC"
         name="ean"
@@ -272,6 +280,22 @@ function AddProductForm({ onSubmit, onClose, onLoadingStart }: AddProductFormPro
           onChange={handleChange}
           required
           options={REGION_OPTIONS}
+        />
+      </div>
+
+      <div className="mt-6 space-y-4">
+        <AssumptionControlPanel
+          overrides={assumptionOverrides}
+          onChange={setAssumptionOverrides}
+          supplierRegion={formData.supplier_region}
+        />
+        
+        <AssumptionPresetManager
+          currentOverrides={assumptionOverrides}
+          onApplyPreset={(overrides) => {
+            setAssumptionOverrides(overrides);
+            toast.success('Preset applied successfully!');
+          }}
         />
       </div>
 

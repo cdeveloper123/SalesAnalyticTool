@@ -11,9 +11,83 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Placeholder model - will be replaced with actual models
-// This allows Prisma Client to be generated
-model Placeholder {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
+// Assumption Override Models
+model AssumptionOverride {
+  id            String   @id @default(uuid())
+  dealId        String?  // Optional: link to a specific deal
+  sessionId     String?  // Optional: link to a session
+  
+  // Shipping overrides
+  shippingOverrides Json? // { origin, destination, method, ratePerKg, transitDays, minCharge }
+  
+  // Duty overrides
+  dutyOverrides     Json? // { origin, destination, hsCode, rate, amount, calculationMethod }
+  
+  // Fee overrides
+  feeOverrides      Json? // { marketplace, referralRate, fbaFee, closingFee, paymentFee }
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AssumptionPreset {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  shippingOverrides Json?
+  dutyOverrides     Json?
+  feeOverrides      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AssumptionHistory {
+  id            String   @id @default(uuid())
+  dealId       String?
+  assumptionType String  // 'shipping', 'duty', 'fee'
+  oldValue     Json?
+  newValue     Json?
+  changedBy    String?
+  createdAt     DateTime @default(now())
+}
+
+// Deal/Product Model - Stores analyzed deals
+model Deal {
+  id                String   @id @default(uuid())
+  ean               String
+  productName       String?
+  quantity          Int
+  buyPrice          Float
+  currency          String
+  supplierRegion    String
+  
+  // Analysis results
+  dealScore         Int      // Overall deal quality score
+  netMargin         Float
+  demandConfidence  Int
+  volumeRisk        Int
+  dataReliability   Int
+  decision          String   // 'Buy', 'Renegotiate', 'Source Elsewhere', 'Pass'
+  explanation       String?
+  
+  // Best channel info
+  bestChannel       String?  // Channel name
+  bestMarketplace   String?  // Marketplace code
+  bestMarginPercent Float?
+  bestCurrency      String?
+  
+  // Full evaluation data (stored as JSON for flexibility)
+  evaluationData    Json     // Complete evaluation result
+  productData       Json?    // Product information
+  marketData        Json?    // Market data (Amazon, eBay)
+  assumptions       Json?    // Assumptions used
+  
+  // Timestamps
+  analyzedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([ean])
+  @@index([analyzedAt])
+  @@index([decision])
 }

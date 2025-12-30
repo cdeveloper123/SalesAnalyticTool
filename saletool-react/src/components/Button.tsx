@@ -16,6 +16,7 @@ function Button({ children, variant = 'primary', isLoading, className = '', ...p
 
   return (
     <button
+      type={props.type || 'button'}
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
       {...props}
     >

@@ -9,6 +9,8 @@
  * Uses 2024-2025 tariff rates
  */
 
+import { applyDutyOverrides } from './dutyOverrideService.js';
+
 // Common HS Code categories and their typical duty rates
 // Source: US HTS, UK Trade Tariff, EU TARIC (2024-2025)
 const DUTY_RATES = {
@@ -153,8 +155,14 @@ const CATEGORY_MAPPING = {
 
 /**
  * Calculate import duty for a product
+ * 
+ * @param {number} productValue - Product value
+ * @param {string} origin - Origin country code
+ * @param {string} destination - Destination country code
+ * @param {string} category - Product category
+ * @param {object} overrides - Optional duty overrides
  */
-export function calculateDuty(productValue, origin, destination, category = 'default') {
+export function calculateDuty(productValue, origin, destination, category = 'default', overrides = null) {
   // Normalize inputs
   origin = origin?.toUpperCase() || 'CN';
   destination = destination?.toUpperCase() || 'US';
@@ -173,7 +181,7 @@ export function calculateDuty(productValue, origin, destination, category = 'def
 
   const dutyAmount = productValue * dutyRate;
 
-  return {
+  const result = {
     origin,
     destination,
     category: dutyCategory,
@@ -182,13 +190,27 @@ export function calculateDuty(productValue, origin, destination, category = 'def
     productValue,
     dutyAmount: Number(dutyAmount.toFixed(2))
   };
+
+  // Apply overrides if provided
+  if (overrides) {
+    return applyDutyOverrides(productValue, origin, destination, category, result, overrides);
+  }
+
+  return result;
 }
 
 /**
  * Calculate duty for multiple units
+ * 
+ * @param {number} unitPrice - Price per unit
+ * @param {number} quantity - Number of units
+ * @param {string} origin - Origin country code
+ * @param {string} destination - Destination country code
+ * @param {string} category - Product category
+ * @param {object} overrides - Optional duty overrides
  */
-export function calculateTotalDuty(unitPrice, quantity, origin, destination, category) {
-  const singleDuty = calculateDuty(unitPrice, origin, destination, category);
+export function calculateTotalDuty(unitPrice, quantity, origin, destination, category, overrides = null) {
+  const singleDuty = calculateDuty(unitPrice, origin, destination, category, overrides);
 
   return {
     ...singleDuty,

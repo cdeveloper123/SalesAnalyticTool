@@ -1,0 +1,393 @@
+{
+  "US": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.com",
+    "country": "US",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Example Product - Mock Data",
+      "price": {
+        "value": 29.99,
+        "currency": "USD"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "In Stock",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Electronics",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Electronics",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 5945,
+          "category": "Electronics Accessories & Supplies"
+        }
+      ],
+      "recent_sales": "500+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.com",
+        "condition": "New",
+        "price": {
+          "value": 29.99,
+          "currency": "USD"
+        },
+        "availability": {
+          "raw": "In Stock",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.com",
+        "condition": "New",
+        "is_prime": true,
+        "price": {
+          "value": 29.99,
+          "currency": "USD"
+        }
+      }
+    }
+  },
+  "UK": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.co.uk",
+    "country": "UK",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Example Product - Mock Data",
+      "price": {
+        "value": 24.99,
+        "currency": "GBP"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "In Stock",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Electronics",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Electronics",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 7245,
+          "category": "Electronics Accessories & Supplies"
+        }
+      ],
+      "recent_sales": "400+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.co.uk",
+        "condition": "New",
+        "price": {
+          "value": 24.99,
+          "currency": "GBP"
+        },
+        "availability": {
+          "raw": "In Stock",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.co.uk",
+        "condition": "New",
+        "is_prime": true,
+        "price": {
+          "value": 24.99,
+          "currency": "GBP"
+        }
+      }
+    }
+  },
+  "DE": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.de",
+    "country": "DE",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Beispielprodukt - Mock-Daten",
+      "price": {
+        "value": 27.99,
+        "currency": "EUR"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "Auf Lager",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Elektronik",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Elektronik",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 8545,
+          "category": "Elektronik Zubehör"
+        }
+      ],
+      "recent_sales": "350+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.de",
+        "condition": "Neu",
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        },
+        "availability": {
+          "raw": "Auf Lager",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.de",
+        "condition": "Neu",
+        "is_prime": true,
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        }
+      }
+    }
+  },
+  "FR": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.fr",
+    "country": "FR",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Exemple de produit - Données fictives",
+      "price": {
+        "value": 27.99,
+        "currency": "EUR"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "En stock",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Électronique",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Électronique",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 9245,
+          "category": "Accessoires Électroniques"
+        }
+      ],
+      "recent_sales": "300+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.fr",
+        "condition": "Neuf",
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        },
+        "availability": {
+          "raw": "En stock",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.fr",
+        "condition": "Neuf",
+        "is_prime": true,
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        }
+      }
+    }
+  },
+  "IT": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.it",
+    "country": "IT",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Prodotto di esempio - Dati mock",
+      "price": {
+        "value": 27.99,
+        "currency": "EUR"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "Disponibile",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Elettronica",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Elettronica",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 10445,
+          "category": "Accessori Elettronici"
+        }
+      ],
+      "recent_sales": "250+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.it",
+        "condition": "Nuovo",
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        },
+        "availability": {
+          "raw": "Disponibile",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.it",
+        "condition": "Nuovo",
+        "is_prime": true,
+        "price": {
+          "value": 27.99,
+          "currency": "EUR"
+        }
+      }
+    }
+  },
+  "AU": {
+    "success": true,
+    "source": "amazon",
+    "domain": "amazon.com.au",
+    "country": "AU",
+    "lookupMethod": "gtin",
+    "product": {
+      "asin": "B08N5WRWNW",
+      "title": "Example Product - Mock Data",
+      "price": {
+        "value": 39.99,
+        "currency": "AUD"
+      },
+      "main_image": "https://via.placeholder.com/500",
+      "images": [
+        "https://via.placeholder.com/500"
+      ],
+      "rating": 4.5,
+      "reviews_total": 1234,
+      "ratings_total": 1234,
+      "availability": {
+        "raw": "In Stock",
+        "type": "in_stock"
+      },
+      "categories": [
+        {
+          "name": "Electronics",
+          "id": "172282"
+        }
+      ],
+      "main_category": {
+        "name": "Electronics",
+        "id": "172282"
+      },
+      "bestsellers_rank": [
+        {
+          "rank": 11445,
+          "category": "Electronics Accessories & Supplies"
+        }
+      ],
+      "recent_sales": "200+ bought in past month",
+      "variations": [],
+      "fba_offers": {
+        "merchant": "Amazon.com.au",
+        "condition": "New",
+        "price": {
+          "value": 39.99,
+          "currency": "AUD"
+        },
+        "availability": {
+          "raw": "In Stock",
+          "type": "in_stock"
+        }
+      },
+      "buybox_winner": {
+        "merchant": "Amazon.com.au",
+        "condition": "New",
+        "is_prime": true,
+        "price": {
+          "value": 39.99,
+          "currency": "AUD"
+        }
+      }
+    }
+  }
+}
+

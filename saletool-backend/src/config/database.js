@@ -53,6 +53,15 @@ const connectDB = async () => {
 
 export const getPrisma = () => {
   if (!prisma) {
+    console.error('[Database] Prisma client not initialized. Make sure connectDB() was called and completed.');
+    // Try to initialize if not already done (fallback)
+    if (process.env.DATABASE_URL) {
+      console.warn('[Database] Attempting to initialize Prisma client...');
+      prisma = new PrismaClient({
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      });
+      return prisma;
+    }
     throw new Error('Database not connected. Call connectDB() first.');
   }
   return prisma;

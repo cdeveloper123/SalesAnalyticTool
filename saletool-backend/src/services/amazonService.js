@@ -1,4 +1,27 @@
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Data source mode is now passed as parameter from frontend
+
+// Load mock data
+let mockData = null;
+const loadMockData = () => {
+  if (mockData) return mockData;
+  try {
+    const mockDataPath = path.join(__dirname, '../data/amazonMockData.json');
+    const fileContent = fs.readFileSync(mockDataPath, 'utf8');
+    mockData = JSON.parse(fileContent);
+    return mockData;
+  } catch (error) {
+    console.error('[Amazon Service] Error loading mock data:', error);
+    return {};
+  }
+};
 
 const getAmazonDomain = (country) => {
   const countryMap = {
@@ -74,14 +97,51 @@ const getProductByASIN = async (apiKey, amazonDomain, asin) => {
   }
 };
 
-export const getAmazonProductData = async (ean, country = 'US') => {
+export const getAmazonProductData = async (ean, country = 'US', dataSourceMode = 'live') => {
   try {
+    // MOCK MODE: Return mock data
+    if (dataSourceMode === 'mock') {
+      console.log(`[Amazon Service] Using MOCK data for EAN: ${ean}, Country: ${country}`);
+      const mockData = loadMockData();
+      const mockResult = mockData[country] || mockData['US'] || null;
+      
+      if (mockResult) {
+        return {
+          ...mockResult,
+          dataSource: 'mock',
+          ean: ean, // Include the EAN in response
+        };
+      }
+      
+      return {
+        source: 'amazon',
+        success: false,
+        domain: getAmazonDomain(country),
+        country: country,
+        dataSource: 'mock',
+        message: 'Mock data not available for this country',
+      };
+    }
+
+    // LIVE MODE: Fetch from API
     const apiKey = process.env.RAINFOREST_API_KEY;
     if (!apiKey) {
+      // If no API key, fallback to mock data
+      console.log('[Amazon Service] No API key, falling back to mock data');
+      const mockData = loadMockData();
+      const mockResult = mockData[country] || mockData['US'] || null;
+      if (mockResult) {
+        return {
+          ...mockResult,
+          dataSource: 'mock-fallback',
+          ean: ean,
+        };
+      }
       return {
         source: 'amazon',
         success: false,
         error: 'API key not configured',
+        dataSource: dataSourceMode,
       };
     }
 
@@ -92,7 +152,7 @@ export const getAmazonProductData = async (ean, country = 'US') => {
     console.log('GTIN Result------------------------>>>>>:', gtinResult);
     
     if (gtinResult.success) {
-      return {
+      const result = {
         source: 'amazon',
         success: true,
         domain: amazonDomain,
@@ -100,7 +160,15 @@ export const getAmazonProductData = async (ean, country = 'US') => {
         lookupMethod: 'gtin',
         data: gtinResult.data,
         product: gtinResult.product,
+        dataSource: 'live',
       };
+      
+      // Cache the result if in cached mode
+      if (dataSourceMode === 'cached') {
+        dataCache.set(cacheKey, result);
+      }
+      
+      return result;
     }
 
     console.log('ASIN WILL BE CALLED------------------------>>>>>');
@@ -110,7 +178,7 @@ export const getAmazonProductData = async (ean, country = 'US') => {
 
     console.log('ASIN Result------------------------>>>>>:', asinResult);
     if (asinResult.success) {
-      return {
+      const result = {
         source: 'amazon',
         success: true,
         domain: amazonDomain,
@@ -118,7 +186,15 @@ export const getAmazonProductData = async (ean, country = 'US') => {
         lookupMethod: 'asin',
         data: asinResult.data,
         product: asinResult.product,
+        dataSource: 'live',
       };
+      
+      // Cache the result if in cached mode
+      if (dataSourceMode === 'cached') {
+        dataCache.set(cacheKey, result);
+      }
+      
+      return result;
     }
 
     return {
@@ -126,14 +202,29 @@ export const getAmazonProductData = async (ean, country = 'US') => {
       success: false,
       domain: amazonDomain,
       country: country,
+      dataSource: 'live',
       message: 'Product not found',
     };
   } catch (error) {
     console.error(`Rainforest API Error: ${error.message}`);
+    
+    // If API fails, try mock data as fallback
+    console.log('[Amazon Service] API error, falling back to mock data');
+    const mockData = loadMockData();
+    const mockResult = mockData[country] || mockData['US'] || null;
+    if (mockResult) {
+      return {
+        ...mockResult,
+        dataSource: 'mock-fallback',
+        ean: ean,
+      };
+    }
+    
     return {
       source: 'amazon',
       success: false,
       error: error.message,
+      dataSource: dataSourceMode,
     };
   }
 };
