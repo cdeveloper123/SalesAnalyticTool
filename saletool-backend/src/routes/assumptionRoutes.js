@@ -6,7 +6,8 @@ import {
   createPreset,
   listPresets,
   applyPreset,
-  deletePreset
+  deletePreset,
+  getHistory
 } from '../controllers/assumptionController.js';
 
 const router = express.Router();
@@ -49,9 +50,16 @@ router.post('/presets/:id/apply', applyPreset);
 router.delete('/presets/:id', deletePreset);
 
 /**
+ * GET /api/v1/assumptions/history/:dealId
+ * Get assumption change history for a deal
+ * NOTE: Must come before /:dealId route to avoid route conflict
+ */
+router.get('/history/:dealId', getHistory);
+
+/**
  * GET /api/v1/assumptions/:dealId
  * Get all assumptions used in a calculation
- * NOTE: Must come AFTER /presets routes to avoid route conflict
+ * NOTE: Must come AFTER /presets and /history routes to avoid route conflict
  */
 router.get('/:dealId', getAssumptions);
 

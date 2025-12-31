@@ -118,6 +118,8 @@ function Dashboard() {
             negotiationSupport: evaluation.negotiationSupport,
             sourcingSuggestions: evaluation.sourcingSuggestions,
             compliance: evaluation.compliance,
+            // Include assumptions with history
+            assumptions: deal.assumptions as Product['assumptions'],
           };
         });
         

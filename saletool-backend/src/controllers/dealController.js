@@ -420,10 +420,43 @@ export const getDeals = async (req, res) => {
       }
     });
 
+    // Fetch assumption history for each deal
+    const dealsWithHistory = await Promise.all(
+      deals.map(async (deal) => {
+        try {
+          const history = await prisma.assumptionHistory.findMany({
+            where: { dealId: deal.id },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+          });
+
+          // Add history to assumptions
+          const assumptions = deal.assumptions || {};
+          assumptions.history = history.map(h => ({
+            id: h.id,
+            dealId: h.dealId,
+            assumptionType: h.assumptionType,
+            oldValue: h.oldValue,
+            newValue: h.newValue,
+            changedBy: h.changedBy,
+            timestamp: h.createdAt.toISOString()
+          }));
+
+          return {
+            ...deal,
+            assumptions
+          };
+        } catch (historyError) {
+          console.warn(`[Deal Controller] Could not fetch history for deal ${deal.id}:`, historyError.message);
+          return deal;
+        }
+      })
+    );
+
     res.status(200).json({
       success: true,
-      data: deals,
-      count: deals.length
+      data: dealsWithHistory,
+      count: dealsWithHistory.length
     });
   } catch (error) {
     console.error('[Deal Controller] Error fetching deals:', error);

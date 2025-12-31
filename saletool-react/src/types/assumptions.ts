@@ -107,5 +107,16 @@ export interface AssumptionsResponse {
   };
   details: AssumptionDetails;
   overrides: AssumptionOverrides;
+  history?: AssumptionHistoryEntry[];
+}
+
+export interface AssumptionHistoryEntry {
+  id: string;
+  dealId?: string;
+  assumptionType: 'shipping' | 'duty' | 'fee';
+  oldValue: unknown;
+  newValue: unknown;
+  changedBy?: string;
+  timestamp: string;
 }
 

@@ -5,6 +5,8 @@
  * Tracks assumption versions and changes
  */
 
+import { getPrisma } from '../config/database.js';
+
 const ASSUMPTION_VERSION = '1.0.0';
 const ASSUMPTION_SET_DATE = '2025-01-01';
 
@@ -106,24 +108,96 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
 }
 
 /**
- * Track assumption change in history
+ * Track assumption change in history and persist to database
  * 
  * @param {string} dealId - Deal ID (optional)
  * @param {string} assumptionType - Type of assumption ('shipping', 'duty', 'fee')
  * @param {object} oldValue - Previous assumption value
  * @param {object} newValue - New assumption value
  * @param {string} changedBy - User ID or identifier (optional)
- * @returns {object} - History entry
+ * @returns {object} - History entry (persisted to database)
  */
-export function trackAssumptionChange(dealId, assumptionType, oldValue, newValue, changedBy = null) {
-  return {
+export async function trackAssumptionChange(dealId, assumptionType, oldValue, newValue, changedBy = null) {
+  const historyEntry = {
     dealId: dealId || null,
     assumptionType,
-    oldValue,
-    newValue,
-    changedBy: changedBy || 'system',
+    oldValue: oldValue || null,
+    newValue: newValue || null,
+    changedBy: changedBy || 'user'
+  };
+
+  // Persist to database
+  try {
+    const prisma = getPrisma();
+    if (prisma && prisma.assumptionHistory) {
+      const saved = await prisma.assumptionHistory.create({
+        data: historyEntry
+      });
+      return {
+        ...saved,
+        timestamp: saved.createdAt.toISOString()
+      };
+    }
+  } catch (error) {
+    console.error('[AssumptionVisibility] Error persisting history:', error.message);
+  }
+
+  // Return in-memory object as fallback
+  return {
+    ...historyEntry,
     timestamp: new Date().toISOString()
   };
+}
+
+/**
+ * Get assumption change history for a deal
+ * 
+ * @param {string} dealId - Deal ID
+ * @param {number} limit - Maximum number of entries to return (default 50)
+ * @returns {array} - Array of history entries
+ */
+export async function getAssumptionHistory(dealId, limit = 50) {
+  try {
+    const prisma = getPrisma();
+    if (!prisma || !prisma.assumptionHistory) {
+      return [];
+    }
+
+    const history = await prisma.assumptionHistory.findMany({
+      where: { dealId },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    return history.map(h => ({
+      id: h.id,
+      dealId: h.dealId,
+      assumptionType: h.assumptionType,
+      oldValue: h.oldValue,
+      newValue: h.newValue,
+      changedBy: h.changedBy,
+      timestamp: h.createdAt.toISOString()
+    }));
+  } catch (error) {
+    console.error('[AssumptionVisibility] Error getting history:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Compare two override objects and detect if there are actual changes
+ * 
+ * @param {object} oldValue - Previous override value
+ * @param {object} newValue - New override value
+ * @returns {boolean} - True if values are different
+ */
+export function hasOverrideChanged(oldValue, newValue) {
+  // Handle null/undefined cases
+  if (!oldValue && !newValue) return false;
+  if (!oldValue || !newValue) return true;
+  
+  // Deep comparison using JSON stringify
+  return JSON.stringify(oldValue) !== JSON.stringify(newValue);
 }
 
 /**
@@ -158,6 +232,8 @@ export default {
   getAssumptionVersion,
   getAllAssumptionsUsed,
   trackAssumptionChange,
+  getAssumptionHistory,
+  hasOverrideChanged,
   formatAssumptionsForDisplay
 };
 

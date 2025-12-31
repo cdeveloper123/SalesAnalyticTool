@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight } from 'react-icons/fi';
 import { Product } from '../types/product';
+import AssumptionHistory from './AssumptionHistory';
 
 interface ProductCardProps {
   product: Product;
@@ -639,6 +640,11 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
             </div>
           )}
         </div>
+
+        {/* Assumption Change History */}
+        {product.assumptions?.history && product.assumptions.history.length > 0 && (
+          <AssumptionHistory history={product.assumptions.history} />
+        )}
       </div>
       )}
     </div>

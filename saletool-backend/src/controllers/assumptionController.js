@@ -5,7 +5,11 @@
  */
 
 import { getPrisma } from '../config/database.js';
-import assumptionVisibilityService from '../services/assumptionVisibilityService.js';
+import assumptionVisibilityService, { 
+  trackAssumptionChange, 
+  hasOverrideChanged,
+  getAssumptionHistory 
+} from '../services/assumptionVisibilityService.js';
 
 /**
  * Create or update assumption overrides
@@ -30,7 +34,27 @@ export const createOverride = async (req, res) => {
     }
 
     let override;
+    const historyEntries = [];
+    const effectiveDealId = dealId || existingOverride?.dealId || null;
+
     if (existingOverride) {
+      // Track changes before updating
+      if (shippingOverrides && hasOverrideChanged(existingOverride.shippingOverrides, shippingOverrides)) {
+        historyEntries.push(
+          trackAssumptionChange(effectiveDealId, 'shipping', existingOverride.shippingOverrides, shippingOverrides)
+        );
+      }
+      if (dutyOverrides && hasOverrideChanged(existingOverride.dutyOverrides, dutyOverrides)) {
+        historyEntries.push(
+          trackAssumptionChange(effectiveDealId, 'duty', existingOverride.dutyOverrides, dutyOverrides)
+        );
+      }
+      if (feeOverrides && hasOverrideChanged(existingOverride.feeOverrides, feeOverrides)) {
+        historyEntries.push(
+          trackAssumptionChange(effectiveDealId, 'fee', existingOverride.feeOverrides, feeOverrides)
+        );
+      }
+
       // Update existing override
       override = await prisma.assumptionOverride.update({
         where: { id: existingOverride.id },
@@ -41,8 +65,11 @@ export const createOverride = async (req, res) => {
           updatedAt: new Date()
         }
       });
+
+      // Wait for all history tracking to complete
+      await Promise.all(historyEntries);
     } else {
-      // Create new override
+      // Create new override - track initial creation
       override = await prisma.assumptionOverride.create({
         data: {
           dealId: dealId || null,
@@ -52,6 +79,17 @@ export const createOverride = async (req, res) => {
           feeOverrides: feeOverrides || null
         }
       });
+
+      // Track initial override creation
+      if (shippingOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'shipping', null, shippingOverrides);
+      }
+      if (dutyOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'duty', null, dutyOverrides);
+      }
+      if (feeOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'fee', null, feeOverrides);
+      }
     }
 
     res.status(200).json({
@@ -329,8 +367,22 @@ export const applyPreset = async (req, res) => {
       });
     }
 
+    const effectiveDealId = dealId || existingOverride?.dealId || null;
+    const changedByPreset = `preset:${preset.name}`;
+
     let override;
     if (existingOverride) {
+      // Track changes from applying preset
+      if (preset.shippingOverrides && hasOverrideChanged(existingOverride.shippingOverrides, preset.shippingOverrides)) {
+        await trackAssumptionChange(effectiveDealId, 'shipping', existingOverride.shippingOverrides, preset.shippingOverrides, changedByPreset);
+      }
+      if (preset.dutyOverrides && hasOverrideChanged(existingOverride.dutyOverrides, preset.dutyOverrides)) {
+        await trackAssumptionChange(effectiveDealId, 'duty', existingOverride.dutyOverrides, preset.dutyOverrides, changedByPreset);
+      }
+      if (preset.feeOverrides && hasOverrideChanged(existingOverride.feeOverrides, preset.feeOverrides)) {
+        await trackAssumptionChange(effectiveDealId, 'fee', existingOverride.feeOverrides, preset.feeOverrides, changedByPreset);
+      }
+
       override = await prisma.assumptionOverride.update({
         where: { id: existingOverride.id },
         data: {
@@ -350,6 +402,17 @@ export const applyPreset = async (req, res) => {
           feeOverrides: preset.feeOverrides
         }
       });
+
+      // Track initial preset application
+      if (preset.shippingOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'shipping', null, preset.shippingOverrides, changedByPreset);
+      }
+      if (preset.dutyOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'duty', null, preset.dutyOverrides, changedByPreset);
+      }
+      if (preset.feeOverrides) {
+        await trackAssumptionChange(effectiveDealId, 'fee', null, preset.feeOverrides, changedByPreset);
+      }
     }
 
     res.status(200).json({
@@ -423,6 +486,39 @@ export const deletePreset = async (req, res) => {
   }
 };
 
+/**
+ * Get assumption change history for a deal
+ * GET /api/v1/assumptions/history/:dealId
+ */
+export const getHistory = async (req, res) => {
+  try {
+    const { dealId } = req.params;
+    const { limit } = req.query;
+
+    if (!dealId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Deal ID is required'
+      });
+    }
+
+    const historyLimit = limit ? parseInt(limit, 10) : 50;
+    const history = await getAssumptionHistory(dealId, historyLimit);
+
+    res.status(200).json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    console.error('[Assumption Controller] Error getting history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export default {
   createOverride,
   getOverride,
@@ -430,6 +526,7 @@ export default {
   createPreset,
   listPresets,
   applyPreset,
-  deletePreset
+  deletePreset,
+  getHistory
 };
 

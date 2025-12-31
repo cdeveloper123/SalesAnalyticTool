@@ -109,4 +109,16 @@ export interface Product {
   negotiationSupport?: NegotiationSupport;
   sourcingSuggestions?: SourcingSuggestions;
   compliance?: Compliance;
+  // Assumptions and history
+  assumptions?: {
+    history?: Array<{
+      id: string;
+      dealId?: string;
+      assumptionType: 'shipping' | 'duty' | 'fee';
+      oldValue: unknown;
+      newValue: unknown;
+      changedBy?: string;
+      timestamp: string;
+    }>;
+  };
 }
