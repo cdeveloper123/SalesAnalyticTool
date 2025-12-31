@@ -3,10 +3,23 @@ import { FiTrendingUp, FiPackage, FiDollarSign } from 'react-icons/fi';
 interface LoaderProps {
   message?: string;
   subMessage?: string;
+  steps?: string[];
 }
 
-function Loader({ message = 'Analyzing Deal...', subMessage }: LoaderProps) {
+function Loader({ 
+  message = 'Analyzing Deal...', 
+  subMessage,
+  steps 
+}: LoaderProps) {
   const defaultSubMessage = 'Fetching prices from Amazon & eBay, calculating fees, duties, and shipping...';
+  const defaultSteps = [
+    'Fetching product data...',
+    'Analyzing market prices...',
+    'Calculating margins...',
+    'Generating allocation plan...'
+  ];
+
+  const displaySteps = steps || defaultSteps;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/95 backdrop-blur-md">
@@ -63,22 +76,21 @@ function Loader({ message = 'Analyzing Deal...', subMessage }: LoaderProps) {
 
           {/* Progress Steps */}
           <div className="space-y-3 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-              <span className="text-sm text-gray-300">Fetching product data...</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              <span className="text-sm text-gray-300">Analyzing market prices...</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              <span className="text-sm text-gray-300">Calculating margins...</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" style={{ animationDelay: '0.6s' }}></div>
-              <span className="text-sm text-gray-300">Generating allocation plan...</span>
-            </div>
+            {displaySteps.map((step, index) => {
+              // Original color scheme: blue, purple, green, yellow
+              const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-yellow-500'];
+              const colorClass = colors[index % colors.length];
+              
+              return (
+                <div key={index} className="flex items-center gap-3">
+                  <div 
+                    className={`w-2 h-2 rounded-full ${colorClass} animate-pulse`}
+                    style={{ animationDelay: `${index * 0.2}s` }}
+                  ></div>
+                  <span className="text-sm text-gray-300">{step}</span>
+                </div>
+              );
+            })}
           </div>
 
           {/* Message */}

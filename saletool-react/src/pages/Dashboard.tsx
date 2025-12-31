@@ -257,7 +257,28 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Full-screen Loader */}
-      {(isLoading || isLoadingDeals) && <Loader />}
+      {isLoading && (
+        <Loader 
+          message="Analyzing Deal..."
+          subMessage="Fetching prices from Amazon & eBay, calculating fees, duties, and shipping..."
+          steps={[
+            'Fetching product data...',
+            'Analyzing market prices...',
+            'Calculating margins...',
+            'Generating allocation plan...'
+          ]}
+        />
+      )}
+      {isLoadingDeals && !isLoading && (
+        <Loader 
+          message="Loading Products..."
+          subMessage="Fetching your saved deals from the database..."
+          steps={[
+            'Loading saved deals...',
+            'Preparing dashboard...'
+          ]}
+        />
+      )}
 
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700">
