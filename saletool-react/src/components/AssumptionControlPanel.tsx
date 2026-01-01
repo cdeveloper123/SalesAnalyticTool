@@ -76,25 +76,28 @@ export default function AssumptionControlPanel({
 
   // Track if we're updating from user input (to prevent useEffect from overwriting)
   const isUserInputRef = useRef(false);
-  const prevOverridesRef = useRef<AssumptionOverrides>(overrides);
+  const prevOverridesRef = useRef<AssumptionOverrides>({});
+  const isInitialMountRef = useRef(true);
   
-  // Sync internal state with overrides prop when it changes (e.g., when preset is applied)
-  // Only sync if the change came from outside (preset applied), not from user input
+  // Sync internal state with overrides prop when it changes (e.g., when preset is applied or modal loads)
+  // Only sync if the change came from outside (preset applied, initial load), not from user input
   useEffect(() => {
     // Skip if this change was triggered by user input
     if (isUserInputRef.current) {
       isUserInputRef.current = false;
       prevOverridesRef.current = overrides;
+      isInitialMountRef.current = false;
       return;
     }
     
     const prevOverrides = prevOverridesRef.current;
+    const isInitialLoad = isInitialMountRef.current;
     const hasShippingChanged = JSON.stringify(prevOverrides.shippingOverrides) !== JSON.stringify(overrides.shippingOverrides);
     const hasDutyChanged = JSON.stringify(prevOverrides.dutyOverrides) !== JSON.stringify(overrides.dutyOverrides);
     const hasFeesChanged = JSON.stringify(prevOverrides.feeOverrides) !== JSON.stringify(overrides.feeOverrides);
     
-    // Only update shipping if shipping overrides actually changed
-    if (hasShippingChanged) {
+    // Only update shipping if shipping overrides actually changed or this is initial load
+    if (hasShippingChanged || isInitialLoad) {
       if (overrides.shippingOverrides) {
         const shippingOverrides = Array.isArray(overrides.shippingOverrides) 
           ? overrides.shippingOverrides 
@@ -109,12 +112,14 @@ export default function AssumptionControlPanel({
             transitDays: firstOverride.transitDays,
             minCharge: firstOverride.minCharge,
           });
-          // Auto-expand panel when preset is applied
-          setIsExpanded(true);
-          setActiveTab('shipping');
+          // Auto-expand panel when preset is applied or initial load with overrides
+          if (isInitialLoad || hasShippingChanged) {
+            setIsExpanded(true);
+            setActiveTab('shipping');
+          }
         }
-      } else {
-        // Only reset to defaults if shipping overrides were removed
+      } else if (!isInitialLoad) {
+        // Only reset to defaults if shipping overrides were removed (not on initial load)
         setShippingOverride({
           origin: supplierRegion,
           destination: 'US',
@@ -123,8 +128,8 @@ export default function AssumptionControlPanel({
       }
     }
 
-    // Only update duty if duty overrides actually changed
-    if (hasDutyChanged) {
+    // Only update duty if duty overrides actually changed or this is initial load
+    if (hasDutyChanged || isInitialLoad) {
       if (overrides.dutyOverrides) {
         const dutyOverrides = Array.isArray(overrides.dutyOverrides)
           ? overrides.dutyOverrides
@@ -139,14 +144,18 @@ export default function AssumptionControlPanel({
             rate: firstOverride.rate,
             amount: firstOverride.amount,
           });
-          // Auto-expand panel when preset is applied
-          setIsExpanded(true);
-          if (!hasShippingChanged) {
-            setActiveTab('duty');
+          // Auto-expand panel when preset is applied or initial load with overrides
+          if (isInitialLoad || hasDutyChanged) {
+            setIsExpanded(true);
+            if (!hasShippingChanged && !isInitialLoad) {
+              setActiveTab('duty');
+            } else if (isInitialLoad && !overrides.shippingOverrides) {
+              setActiveTab('duty');
+            }
           }
         }
-      } else {
-        // Only reset to defaults if duty overrides were removed
+      } else if (!isInitialLoad) {
+        // Only reset to defaults if duty overrides were removed (not on initial load)
         setDutyOverride({
           origin: supplierRegion,
           destination: 'US',
@@ -155,8 +164,8 @@ export default function AssumptionControlPanel({
       }
     }
 
-    // Only update fees if fee overrides actually changed
-    if (hasFeesChanged) {
+    // Only update fees if fee overrides actually changed or this is initial load
+    if (hasFeesChanged || isInitialLoad) {
       if (overrides.feeOverrides) {
         const feeOverrides = Array.isArray(overrides.feeOverrides)
           ? overrides.feeOverrides
@@ -171,14 +180,18 @@ export default function AssumptionControlPanel({
             paymentFee: firstOverride.paymentFee,
             feeScheduleVersion: firstOverride.feeScheduleVersion,
           });
-          // Auto-expand panel when preset is applied
-          setIsExpanded(true);
-          if (!hasShippingChanged && !hasDutyChanged) {
-            setActiveTab('fees');
+          // Auto-expand panel when preset is applied or initial load with overrides
+          if (isInitialLoad || hasFeesChanged) {
+            setIsExpanded(true);
+            if (!hasShippingChanged && !hasDutyChanged && !isInitialLoad) {
+              setActiveTab('fees');
+            } else if (isInitialLoad && !overrides.shippingOverrides && !overrides.dutyOverrides) {
+              setActiveTab('fees');
+            }
           }
         }
-      } else {
-        // Only reset to defaults if fee overrides were removed
+      } else if (!isInitialLoad) {
+        // Only reset to defaults if fee overrides were removed (not on initial load)
         setFeeOverride({
           marketplace: 'US',
         });
@@ -187,6 +200,7 @@ export default function AssumptionControlPanel({
     
     // Update ref for next comparison
     prevOverridesRef.current = overrides;
+    isInitialMountRef.current = false;
   }, [overrides, supplierRegion]);
 
   const handleShippingChange = (field: keyof ShippingOverride, value: any) => {
@@ -221,21 +235,40 @@ export default function AssumptionControlPanel({
     // Mark as user input to prevent useEffect from overwriting
     isUserInputRef.current = true;
     
+    // Only save if origin and destination are set (required fields)
+    if (!updated.origin || !updated.destination) {
+      return;
+    }
+    
     const dutyOverrides = Array.isArray(overrides.dutyOverrides)
       ? [...overrides.dutyOverrides]
       : overrides.dutyOverrides ? [overrides.dutyOverrides] : [];
     
+    // Find existing override for this exact route
     const existingIndex = dutyOverrides.findIndex(
       o => o.origin === updated.origin && o.destination === updated.destination
     );
     
     if (existingIndex >= 0) {
+      // Update existing override for this route
       dutyOverrides[existingIndex] = updated;
     } else {
-      dutyOverrides.push(updated);
+      // Add new override only if it has required fields and a value to override
+      const hasOverrideValue = updated.amount !== undefined || 
+                               updated.rate !== undefined || 
+                               updated.hsCode !== undefined ||
+                               updated.calculationMethod !== 'category';
+      
+      if (hasOverrideValue) {
+        dutyOverrides.push(updated);
+      }
     }
     
-    onChange({ ...overrides, dutyOverrides });
+    // Only update if there are overrides to save
+    onChange({ 
+      ...overrides, 
+      dutyOverrides: dutyOverrides.length > 0 ? dutyOverrides : undefined 
+    });
   };
 
   const handleFeeChange = (field: keyof FeeOverride, value: any) => {

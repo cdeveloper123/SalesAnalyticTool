@@ -1,11 +1,16 @@
-import { useState } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings } from 'react-icons/fi';
 import { Product } from '../types/product';
 import AssumptionHistory from './AssumptionHistory';
+import AssumptionVisibility from './AssumptionVisibility';
+import EditAssumptionsModal from './EditAssumptionsModal';
+import { getAssumptions } from '../services/assumptionService';
+import type { AssumptionsResponse } from '../types/assumptions';
 
 interface ProductCardProps {
-  product: Product;
+  product: Product & { supplierRegion?: string };
   onDelete?: () => void;
+  onUpdate?: () => void; // Callback to refresh product data after update
 }
 
 const getDecisionConfig = (decision: Product['decision']) => {
@@ -62,12 +67,39 @@ const formatCurrency = (amount: number, currency: string) => {
   }
 };
 
-function ProductCard({ product, onDelete }: ProductCardProps) {
+function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
   const [isChannelsCollapsed, setIsChannelsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [assumptions, setAssumptions] = useState<AssumptionsResponse | null>(null);
+  const [isLoadingAssumptions, setIsLoadingAssumptions] = useState(false);
   const decisionConfig = getDecisionConfig(product.decision);
   const DecisionIcon = decisionConfig.icon;
   const scoreColors = getScoreColor(product.deal_quality_score);
+
+  // Get supplier region from product or extract from assumptions
+  const getSupplierRegion = (): string => {
+    // First try to get from product (if passed from Dashboard)
+    if ((product as any).supplierRegion) {
+      return (product as any).supplierRegion;
+    }
+    
+    // Try to get from assumptions details
+    if (product.assumptions?.history) {
+      // Check first history entry for shipping origin
+      const shippingHistory = product.assumptions.history.find(
+        h => h.assumptionType === 'shipping' && h.newValue
+      );
+      if (shippingHistory?.newValue && typeof shippingHistory.newValue === 'object') {
+        const newValue = shippingHistory.newValue as any;
+        if (newValue.origin) {
+          return newValue.origin;
+        }
+      }
+    }
+    
+    return 'CN'; // Default to China
+  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card expansion when clicking delete
@@ -75,6 +107,36 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
       onDelete();
     }
   };
+
+  const handleEditAssumptions = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card expansion when clicking edit
+    setIsEditModalOpen(true);
+  };
+
+  const loadAssumptions = async () => {
+    if (!product.id) return;
+    
+    setIsLoadingAssumptions(true);
+    try {
+      const result = await getAssumptions(product.id);
+      if (result.success && result.data) {
+        setAssumptions(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading assumptions:', error);
+      // Don't show error to user - just don't display assumptions
+    } finally {
+      setIsLoadingAssumptions(false);
+    }
+  };
+
+  // Load assumptions when card is expanded and has dealId
+  useEffect(() => {
+    if (isExpanded && product.id && !assumptions) {
+      loadAssumptions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, product.id]);
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-300">
@@ -103,6 +165,18 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Edit Assumptions Button */}
+            {product.id && (
+              <button
+                type="button"
+                onClick={handleEditAssumptions}
+                className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                title="Edit assumption overrides"
+              >
+                <FiSettings size={18} />
+              </button>
+            )}
+
             {/* Delete Button */}
             {onDelete && (
               <button
@@ -641,11 +715,70 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
           )}
         </div>
 
+        {/* Current Assumptions & Overrides */}
+        {product.id && (
+          <div>
+            {isLoadingAssumptions ? (
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <FiPackage className="animate-pulse text-gray-400" size={24} />
+                    <span className="text-gray-400 text-sm">Loading assumptions...</span>
+                  </div>
+                </div>
+              </div>
+            ) : assumptions ? (
+              <AssumptionVisibility assumptions={assumptions} />
+            ) : (
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FiInfo className="text-gray-400" />
+                    <h3 className="text-lg font-semibold text-gray-300">Assumptions Used</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadAssumptions}
+                    className="text-sm text-blue-400 hover:text-blue-300"
+                  >
+                    Load Assumptions
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Assumption Change History */}
         {product.assumptions?.history && product.assumptions.history.length > 0 && (
           <AssumptionHistory history={product.assumptions.history} />
         )}
       </div>
+      )}
+
+      {/* Edit Assumptions Modal */}
+      {product.id && (
+        <EditAssumptionsModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            // Reload assumptions after closing modal (in case changes were made)
+            if (assumptions) {
+              setAssumptions(null);
+              loadAssumptions();
+            }
+          }}
+          dealId={product.id}
+          supplierRegion={getSupplierRegion()}
+          onSave={() => {
+            // Reload assumptions after save
+            setAssumptions(null);
+            if (onUpdate) {
+              onUpdate();
+            }
+            loadAssumptions();
+          }}
+        />
       )}
     </div>
   );

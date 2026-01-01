@@ -11,6 +11,38 @@ import assumptionVisibilityService from '../services/assumptionVisibilityService
 import { getPrisma } from '../config/database.js';
 
 /**
+ * Check if override has actual values (not empty array or empty object)
+ */
+function hasActualOverrideValues(override) {
+  if (!override) return false;
+  
+  // Handle arrays
+  if (Array.isArray(override)) {
+    return override.length > 0 && override.some(item => {
+      if (!item || typeof item !== 'object') return false;
+      // Check if object has any meaningful properties (excluding empty strings, null, undefined)
+      return Object.keys(item).some(key => {
+        const value = item[key];
+        return value !== null && value !== undefined && value !== '';
+      });
+    });
+  }
+  
+  // Handle objects
+  if (typeof override === 'object') {
+    const keys = Object.keys(override);
+    if (keys.length === 0) return false;
+    // Check if object has any meaningful values
+    return keys.some(key => {
+      const value = override[key];
+      return value !== null && value !== undefined && value !== '';
+    });
+  }
+  
+  return true;
+}
+
+/**
  * POST /api/v1/analyze
  * 
  * Analyze a deal across multiple channels (Amazon + eBay)
@@ -189,6 +221,7 @@ export const analyzeDeal = async (req, res) => {
       { ean, quantity, buyPrice, currency, supplierRegion }
     );
 
+    // Format for API response (but store raw assumptions in DB)
     const formattedAssumptions = assumptionVisibilityService.formatAssumptionsForDisplay(assumptions);
 
     // Prepare response data
@@ -248,7 +281,7 @@ export const analyzeDeal = async (req, res) => {
           evaluationData: responseData.evaluation,
           productData: productData || null,
           marketData: responseData.marketData,
-          assumptions: formattedAssumptions
+          assumptions: assumptions  // Store raw assumptions (not formatted) so we can format on retrieval
         }
         });
 
@@ -333,40 +366,9 @@ export const analyzeDeal = async (req, res) => {
                 }
               });
 
-              // Track initial override creation in history
-              if (assumptionOverrides.shippingOverrides) {
-                await prisma.assumptionHistory.create({
-                  data: {
-                    dealId: savedDeal.id,
-                    assumptionType: 'shipping',
-                    oldValue: null,
-                    newValue: assumptionOverrides.shippingOverrides,
-                    changedBy: 'system'
-                  }
-                });
-              }
-              if (assumptionOverrides.dutyOverrides) {
-                await prisma.assumptionHistory.create({
-                  data: {
-                    dealId: savedDeal.id,
-                    assumptionType: 'duty',
-                    oldValue: null,
-                    newValue: assumptionOverrides.dutyOverrides,
-                    changedBy: 'system'
-                  }
-                });
-              }
-              if (assumptionOverrides.feeOverrides) {
-                await prisma.assumptionHistory.create({
-                  data: {
-                    dealId: savedDeal.id,
-                    assumptionType: 'fee',
-                    oldValue: null,
-                    newValue: assumptionOverrides.feeOverrides,
-                    changedBy: 'system'
-                  }
-                });
-              }
+              // Don't create history for initial override creation on new products
+              // History should only track changes AFTER the initial creation
+              // This prevents showing history for brand new products
             }
           } catch (overrideError) {
             console.error('[Deal Controller] Error saving assumption overrides:', overrideError);
@@ -503,6 +505,26 @@ export const deleteDeal = async (req, res) => {
         success: false,
         message: 'Deal not found'
       });
+    }
+
+    // Delete related assumption overrides
+    try {
+      await prisma.assumptionOverride.deleteMany({
+        where: { dealId: id }
+      });
+    } catch (overrideError) {
+      console.warn(`[Deal Controller] Could not delete overrides for deal ${id}:`, overrideError.message);
+      // Continue with deal deletion even if override deletion fails
+    }
+
+    // Delete related assumption history
+    try {
+      await prisma.assumptionHistory.deleteMany({
+        where: { dealId: id }
+      });
+    } catch (historyError) {
+      console.warn(`[Deal Controller] Could not delete history for deal ${id}:`, historyError.message);
+      // Continue with deal deletion even if history deletion fails
     }
 
     // Delete the deal

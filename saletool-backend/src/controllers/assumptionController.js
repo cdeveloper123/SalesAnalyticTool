@@ -10,6 +10,41 @@ import assumptionVisibilityService, {
   hasOverrideChanged,
   getAssumptionHistory 
 } from '../services/assumptionVisibilityService.js';
+import { getAmazonProductData } from '../services/amazonService.js';
+import ebayService from '../services/ebayService.js';
+import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
+
+/**
+ * Check if override has actual values (not empty array or empty object)
+ */
+function hasActualOverrideValues(override) {
+  if (!override) return false;
+  
+  // Handle arrays
+  if (Array.isArray(override)) {
+    return override.length > 0 && override.some(item => {
+      if (!item || typeof item !== 'object') return false;
+      // Check if object has any meaningful properties (excluding empty strings, null, undefined)
+      return Object.keys(item).some(key => {
+        const value = item[key];
+        return value !== null && value !== undefined && value !== '';
+      });
+    });
+  }
+  
+  // Handle objects
+  if (typeof override === 'object') {
+    const keys = Object.keys(override);
+    if (keys.length === 0) return false;
+    // Check if object has any meaningful values
+    return keys.some(key => {
+      const value = override[key];
+      return value !== null && value !== undefined && value !== '';
+    });
+  }
+  
+  return true;
+}
 
 /**
  * Create or update assumption overrides
@@ -69,7 +104,8 @@ export const createOverride = async (req, res) => {
       // Wait for all history tracking to complete
       await Promise.all(historyEntries);
     } else {
-      // Create new override - track initial creation
+      // Create new override - don't track history for initial creation
+      // History should only track changes AFTER the initial creation
       override = await prisma.assumptionOverride.create({
         data: {
           dealId: dealId || null,
@@ -80,15 +116,21 @@ export const createOverride = async (req, res) => {
         }
       });
 
-      // Track initial override creation
-      if (shippingOverrides) {
-        await trackAssumptionChange(effectiveDealId, 'shipping', null, shippingOverrides);
-      }
-      if (dutyOverrides) {
-        await trackAssumptionChange(effectiveDealId, 'duty', null, dutyOverrides);
-      }
-      if (feeOverrides) {
-        await trackAssumptionChange(effectiveDealId, 'fee', null, feeOverrides);
+      // Don't create history for initial override creation
+      // History will be created when the override is modified later
+    }
+
+    // If dealId exists and overrides were updated, recalculate the deal
+    if (dealId && (existingOverride || override)) {
+      try {
+        await recalculateDealWithNewOverrides(dealId, {
+          shippingOverrides: shippingOverrides || override.shippingOverrides,
+          dutyOverrides: dutyOverrides || override.dutyOverrides,
+          feeOverrides: feeOverrides || override.feeOverrides
+        });
+      } catch (recalcError) {
+        console.error('[Assumption Controller] Error recalculating deal:', recalcError);
+        // Don't fail the request if recalculation fails
       }
     }
 
@@ -207,9 +249,19 @@ export const getAssumptions = async (req, res) => {
     });
 
     // Format assumptions from deal data
-    const assumptions = deal.assumptions 
-      ? assumptionVisibilityService.formatAssumptionsForDisplay(deal.assumptions)
-      : {
+    // Check if assumptions are already formatted (have 'details' key) or raw (have 'shipping' key)
+    let assumptions;
+    if (deal.assumptions) {
+      // Check if it's already formatted (has 'details' key) or raw (has 'shipping' key at root)
+      if (deal.assumptions.details) {
+        // Already formatted, use as-is
+        assumptions = deal.assumptions;
+      } else if (deal.assumptions.shipping || deal.assumptions.duty || deal.assumptions.fees) {
+        // Raw format, need to format it
+        assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(deal.assumptions);
+      } else {
+        // Empty or invalid, create default
+        assumptions = {
           version: assumptionVisibilityService.getAssumptionVersion(),
           timestamp: deal.analyzedAt.toISOString(),
           summary: {
@@ -230,6 +282,31 @@ export const getAssumptions = async (req, res) => {
             feeOverrides: override.feeOverrides
           } : {}
         };
+      }
+    } else {
+      // No assumptions stored, create default structure
+      assumptions = {
+        version: assumptionVisibilityService.getAssumptionVersion(),
+        timestamp: deal.analyzedAt.toISOString(),
+        summary: {
+          shippingRoutes: 0,
+          dutyRoutes: 0,
+          feeMarketplaces: 0,
+          hasOverrides: !!override
+        },
+        details: {
+          shipping: {},
+          duty: {},
+          fees: {},
+          currency: {}
+        },
+        overrides: override ? {
+          shippingOverrides: override.shippingOverrides,
+          dutyOverrides: override.dutyOverrides,
+          feeOverrides: override.feeOverrides
+        } : {}
+      };
+    }
 
     // Add history to response
     assumptions.history = history.map(h => ({
@@ -485,6 +562,124 @@ export const deletePreset = async (req, res) => {
     });
   }
 };
+
+/**
+ * Recalculate deal with new assumption overrides
+ * 
+ * @param {string} dealId - Deal ID
+ * @param {object} assumptionOverrides - New assumption overrides
+ */
+async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
+  const prisma = getPrisma();
+  if (!prisma || !prisma.deal) {
+    throw new Error('Database not available');
+  }
+
+  // Get the deal
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId }
+  });
+
+  if (!deal) {
+    throw new Error('Deal not found');
+  }
+
+  // Get product data and market data from deal
+  const productData = deal.productData;
+  const marketData = deal.marketData || {};
+  const amazonPricing = {};
+  const ebayPricing = {};
+
+  // Reconstruct pricing data from evaluationData (we'll use existing sell prices)
+  const evaluationData = deal.evaluationData || {};
+  const channelAnalysis = evaluationData.channelAnalysis || [];
+  
+  // Extract pricing from existing channel analysis
+  channelAnalysis.forEach(channel => {
+    const marketplace = channel.marketplace || channel.market;
+    if (!marketplace || !channel.sellPrice) return;
+    
+    if (channel.channel === 'Amazon' || !channel.channel) {
+      amazonPricing[marketplace] = {
+        buyBoxPrice: channel.sellPrice,
+        currency: channel.currency || 'USD',
+      };
+    } else if (channel.channel === 'eBay') {
+      ebayPricing[marketplace] = {
+        buyBoxPrice: channel.sellPrice,
+        currency: channel.currency || 'USD',
+      };
+    }
+  });
+
+  // If no pricing found, try to get from marketData
+  if (Object.keys(amazonPricing).length === 0 && marketData.amazonMarketsFound) {
+    // Fallback: we'd need to fetch fresh data, but for now use existing
+    console.warn(`[Recalculate] No Amazon pricing found for deal ${dealId}, using existing evaluation data`);
+  }
+
+  // Re-run evaluation with new overrides
+  const evaluation = evaluateMultiChannel(
+    {
+      ean: deal.ean,
+      quantity: deal.quantity,
+      buyPrice: deal.buyPrice,
+      currency: deal.currency,
+      supplierRegion: deal.supplierRegion
+    },
+    productData,
+    amazonPricing,
+    ebayPricing,
+    assumptionOverrides
+  );
+
+  // Extract assumptions used in calculation
+  const assumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+    evaluation,
+    assumptionOverrides,
+    {
+      ean: deal.ean,
+      quantity: deal.quantity,
+      buyPrice: deal.buyPrice,
+      currency: deal.currency,
+      supplierRegion: deal.supplierRegion
+    }
+  );
+
+  // Update deal with new evaluation results
+  await prisma.deal.update({
+    where: { id: dealId },
+    data: {
+      dealScore: evaluation.dealScore.overall,
+      netMargin: evaluation.bestChannel?.marginPercent || 0,
+      demandConfidence: evaluation.dealScore.breakdown?.demandConfidenceScore || 0,
+      volumeRisk: evaluation.dealScore.breakdown?.volumeRiskScore || 0,
+      dataReliability: evaluation.dealScore.breakdown?.dataReliabilityScore || 0,
+      decision: evaluation.decision,
+      explanation: evaluation.explanation || null,
+      bestChannel: evaluation.bestChannel?.channel || null,
+      bestMarketplace: evaluation.bestChannel?.marketplace || null,
+      bestMarginPercent: evaluation.bestChannel?.marginPercent || null,
+      bestCurrency: evaluation.bestChannel?.currency || null,
+      evaluationData: {
+        dealScore: evaluation.dealScore.overall,
+        scoreBreakdown: evaluation.dealScore.breakdown,
+        decision: evaluation.decision,
+        explanation: evaluation.explanation,
+        bestChannel: evaluation.bestChannel,
+        channelAnalysis: evaluation.channelAnalysis,
+        allocation: evaluation.allocationRecommendation,
+        negotiationSupport: evaluation.negotiationSupport || null,
+        sourcingSuggestions: evaluation.sourcingSuggestions || null,
+        compliance: evaluation.compliance || null
+      },
+      assumptions: assumptions, // Store raw assumptions
+      analyzedAt: new Date() // Update analysis timestamp
+    }
+  });
+
+  console.log(`[Assumption Controller] Deal ${dealId} recalculated with new overrides`);
+}
 
 /**
  * Get assumption change history for a deal

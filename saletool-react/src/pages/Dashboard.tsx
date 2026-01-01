@@ -26,6 +26,7 @@ interface DealFromDB {
   bestMarketplace: string | null;
   bestMarginPercent: number | null;
   bestCurrency: string | null;
+  supplierRegion?: string;
   evaluationData: {
     channelAnalysis?: Array<{
       demand?: {
@@ -121,7 +122,9 @@ function Dashboard() {
             compliance: evaluation.compliance,
             // Include assumptions with history
             assumptions: deal.assumptions as Product['assumptions'],
-          };
+            // Store supplierRegion for use in EditAssumptionsModal
+            supplierRegion: deal.supplierRegion || 'CN',
+          } as Product & { supplierRegion?: string };
         });
         
         setProducts(convertedProducts);
@@ -348,6 +351,7 @@ function Dashboard() {
                     key={product.id || `${product.ean}-${index}`} 
                     product={product}
                     onDelete={product.id ? () => handleDeleteProduct(product.id!) : undefined}
+                    onUpdate={fetchSavedDeals}
                   />
                 ))}
               </div>
