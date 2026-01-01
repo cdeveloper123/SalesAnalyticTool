@@ -180,16 +180,11 @@ export const getOverride = async (req, res) => {
       });
     }
 
-    if (!override) {
-      return res.status(404).json({
-        success: false,
-        message: 'Override not found'
-      });
-    }
-
+    // Return 200 with null data if no override exists (not an error - just no overrides set yet)
     res.status(200).json({
       success: true,
-      data: override
+      data: override || null,
+      message: override ? undefined : 'No overrides found'
     });
   } catch (error) {
     console.error('[Assumption Controller] Error getting override:', error);

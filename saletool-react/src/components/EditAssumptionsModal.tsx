@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FiLoader } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Modal from './Modal';
@@ -27,17 +27,7 @@ export default function EditAssumptionsModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load existing overrides when modal opens
-  useEffect(() => {
-    if (isOpen && dealId) {
-      loadOverrides();
-    } else {
-      // Reset when modal closes
-      setOverrides({});
-    }
-  }, [isOpen, dealId]);
-
-  const loadOverrides = async () => {
+  const loadOverrides = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await getOverrides(undefined, dealId);
@@ -51,22 +41,34 @@ export default function EditAssumptionsModal({
           feeOverrides: overrideData.feeOverrides || undefined,
         });
       } else {
-        // No existing overrides, start with empty
+        // No existing overrides, start with empty (this is normal, not an error)
         setOverrides({});
       }
     } catch (error) {
       console.error('Error loading overrides:', error);
-      // If 404, that's fine - no overrides exist yet
-      if (error instanceof Error && error.message.includes('404')) {
+      // If 404 or "not found", that's expected - no overrides exist yet, don't show error
+      if (error instanceof Error && (error.message.includes('404') || error.message.includes('not found'))) {
+        // No overrides exist - this is normal, not an error
         setOverrides({});
       } else {
+        // Only show error for actual errors (network, server errors, etc.)
         toast.error('Failed to load existing overrides');
         setOverrides({});
       }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dealId]);
+
+  // Load existing overrides when modal opens
+  useEffect(() => {
+    if (isOpen && dealId) {
+      loadOverrides();
+    } else {
+      // Reset when modal closes
+      setOverrides({});
+    }
+  }, [isOpen, dealId, loadOverrides]);
 
   const handleSave = async () => {
     if (!dealId) {

@@ -37,12 +37,16 @@ export default function AssumptionPresetManager({
       if (response.success && response.data) {
         setPresets(Array.isArray(response.data) ? response.data : []);
       } else {
-        console.warn('Presets response format unexpected:', response);
+        // Empty response is fine - just means no presets exist yet
         setPresets([]);
       }
     } catch (error) {
       console.error('Error loading presets:', error);
-      toast.error('Failed to load presets');
+      // Only show error for actual errors, not for empty results or 404
+      if (error instanceof Error && !error.message.includes('404') && !error.message.includes('not found')) {
+        toast.error('Failed to load presets');
+      }
+      // Always set empty array on error (no presets available)
       setPresets([]);
     } finally {
       setIsLoading(false);
