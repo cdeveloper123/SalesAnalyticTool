@@ -7,6 +7,7 @@ import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
 import Loader from '../components/Loader';
 import DataSourceToggle, { DataSourceMode } from '../components/DataSourceToggle';
+import VersionInfo from '../components/VersionInfo';
 import { Product } from '../types/product';
 import { API_ENDPOINTS } from '../config/api';
 
@@ -257,7 +258,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* Full-screen Loader */}
       {isLoading && (
         <Loader 
@@ -367,6 +368,17 @@ function Dashboard() {
           onLoadingStart={() => setIsLoading(true)}
         />
       </Modal>
+      {/* Footer with version info */}
+      <footer className="bg-gray-800 border-t border-gray-700 mt-auto">
+        <div className="max-w-7xl mx-auto px-6 py-3">
+          <div className="flex items-center justify-between">
+            <VersionInfo />
+            <span className="text-xs text-gray-500">
+              Sales Analytic Tool
+            </span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
