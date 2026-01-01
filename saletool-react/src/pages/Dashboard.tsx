@@ -307,7 +307,7 @@ function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-10">
         <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-700">
             <div className="flex items-center justify-between">
