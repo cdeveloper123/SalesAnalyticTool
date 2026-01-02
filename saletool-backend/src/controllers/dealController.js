@@ -225,13 +225,13 @@ export const analyzeDeal = async (req, res) => {
     // Track backend logic: Multi-channel evaluation
     const evaluation = await perfLogger.trackLogic(
       'evaluateMultiChannel',
-      () => Promise.resolve(evaluateMultiChannel(
+      () => evaluateMultiChannel(
       { ean, quantity, buyPrice, currency, supplierRegion },
       productData,
       amazonPricing,
       ebayPricing,
       assumptionOverrides
-      )),
+      ),
       { ean, channelsCount: Object.keys(amazonPricing).length + Object.keys(ebayPricing).length }
     );
 

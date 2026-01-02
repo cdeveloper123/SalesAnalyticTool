@@ -614,7 +614,7 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
   }
 
   // Re-run evaluation with new overrides
-  const evaluation = evaluateMultiChannel(
+  const evaluation = await evaluateMultiChannel(
     {
       ean: deal.ean,
       quantity: deal.quantity,
@@ -709,6 +709,51 @@ export const getHistory = async (req, res) => {
   }
 };
 
+/**
+ * Suggest HS code based on category and product name
+ * POST /api/v1/assumptions/suggest-hs-code
+ */
+export const suggestHsCode = async (req, res) => {
+  try {
+    const { category, productName } = req.body;
+
+    if (!category && !productName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category or product name is required'
+      });
+    }
+
+    // Import HS code service
+    const { lookupHSCode, getHSCodeInfo, validateHSCode } = await import('../services/hsCodeService.js');
+
+    // Look up HS code
+    const result = lookupHSCode(category, productName);
+
+    // Get additional info about the HS code
+    const hsInfo = result.hsCode ? getHSCodeInfo(result.hsCode) : null;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        hsCode: result.hsCode,
+        source: result.source,
+        confidence: result.confidence,
+        chapter: hsInfo?.chapter || null,
+        chapterDescription: hsInfo?.chapterDescription || null,
+        formattedCode: hsInfo?.fullCode || result.hsCode
+      }
+    });
+  } catch (error) {
+    console.error('[Assumption Controller] Error suggesting HS code:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error suggesting HS code',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export default {
   createOverride,
   getOverride,
@@ -717,6 +762,7 @@ export default {
   listPresets,
   applyPreset,
   deletePreset,
-  getHistory
+  getHistory,
+  suggestHsCode
 };
 

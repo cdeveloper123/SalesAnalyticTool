@@ -490,12 +490,13 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
  * @param {object} ebayPricing - eBay pricing data
  * @param {object} assumptionOverrides - Optional assumption overrides
  */
-export function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing, assumptionOverrides = null) {
+export async function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing, assumptionOverrides = null) {
   const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN' } = input;
 
   // Get product weight (default 0.5kg)
   const weightKg = productData?.dimensions?.weightKg || 0.5;
   const category = productData?.category || 'default';
+  const productName = productData?.title || productData?.productName || '';
 
   // Calculate duty and shipping for each destination
   const landedCosts = {};
@@ -506,18 +507,52 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   const dutyOverrides = assumptionOverrides?.dutyOverrides || null;
   const feeOverrides = assumptionOverrides?.feeOverrides || null;
 
+  // Check if any duty override has HS code (need async calculation)
+  const hasHsCodeOverride = dutyOverrides && (
+    Array.isArray(dutyOverrides) 
+      ? dutyOverrides.some(o => o.hsCode || o.calculationMethod === 'hscode')
+      : (dutyOverrides.hsCode || dutyOverrides.calculationMethod === 'hscode')
+  );
+
   for (const dest of destinations) {
-    // Calculate duty (per unit) with overrides
-    const dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category, dutyOverrides);
+    let dutyResult;
     
-    // Debug: Log if duty override was applied
-    if (dutyOverrides && dutyResult.isOverridden) {
-      console.log(`[MultiChannel Evaluator] Duty override applied for ${supplierRegion}->${dest}:`, {
-        originalRate: dutyResult.overrideMetadata?.originalDutyRate,
-        newRate: dutyResult.dutyRate,
-        originalAmount: dutyResult.overrideMetadata?.originalDutyAmount,
-        newAmount: dutyResult.dutyAmount
+    // Find matching duty override for this route
+    const matchingOverride = dutyOverrides 
+      ? (Array.isArray(dutyOverrides) 
+          ? dutyOverrides.find(o => o.destination?.toUpperCase() === dest)
+          : (dutyOverrides.destination?.toUpperCase() === dest ? dutyOverrides : null))
+      : null;
+    
+    // Use async HS code lookup if override has HS code
+    if (matchingOverride?.hsCode || matchingOverride?.calculationMethod === 'hscode') {
+      // Use async calculateDutyWithHSCode for real-time API lookup
+      dutyResult = await dutyCalculator.calculateDutyWithHSCode(buyPrice, supplierRegion, dest, {
+        hsCode: matchingOverride.hsCode,
+        category: category,
+        productName: productName,
+        overrides: matchingOverride
       });
+      
+      console.log(`[MultiChannel Evaluator] HS Code duty lookup for ${supplierRegion}->${dest}:`, {
+        hsCode: matchingOverride.hsCode || 'auto-detected',
+        rate: dutyResult.dutyRate,
+        ratePercent: dutyResult.dutyPercent,
+        source: dutyResult.source || 'api'
+      });
+    } else {
+      // Use standard category-based calculation
+      dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category, dutyOverrides);
+      
+      // Debug: Log if duty override was applied
+      if (dutyOverrides && dutyResult.isOverridden) {
+        console.log(`[MultiChannel Evaluator] Duty override applied for ${supplierRegion}->${dest}:`, {
+          originalRate: dutyResult.overrideMetadata?.originalDutyRate,
+          newRate: dutyResult.dutyRate,
+          originalAmount: dutyResult.overrideMetadata?.originalDutyAmount,
+          newAmount: dutyResult.dutyAmount
+        });
+      }
     }
 
     // Calculate shipping (per unit, using air freight as default) with overrides
@@ -540,6 +575,8 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
       buyPrice,
       duty: dutyResult.dutyAmount,
       dutyPercent: dutyResult.dutyRate * 100,
+      hsCode: dutyResult.hsCode || null,
+      dutySource: dutyResult.source || 'category',
       shipping: shippingResult.perUnitShippingCost,
       totalLandedCost: Number(landedCost.toFixed(2)),
       currency

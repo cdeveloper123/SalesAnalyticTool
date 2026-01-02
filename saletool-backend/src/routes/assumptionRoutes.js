@@ -7,10 +7,18 @@ import {
   listPresets,
   applyPreset,
   deletePreset,
-  getHistory
+  getHistory,
+  suggestHsCode
 } from '../controllers/assumptionController.js';
 
 const router = express.Router();
+
+/**
+ * POST /api/v1/assumptions/suggest-hs-code
+ * Suggest HS code based on product category and name
+ */
+router.post('/suggest-hs-code', suggestHsCode);
+
 
 /**
  * POST /api/v1/assumptions/overrides

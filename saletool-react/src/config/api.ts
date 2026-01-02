@@ -11,6 +11,7 @@ export const API_ENDPOINTS = {
   ASSUMPTIONS_PRESETS: `${API_BASE_URL}/api/v1/assumptions/presets`,
   ASSUMPTIONS_PRESET_APPLY: (id: string) => `${API_BASE_URL}/api/v1/assumptions/presets/${id}/apply`,
   ASSUMPTIONS_PRESET_DELETE: (id: string) => `${API_BASE_URL}/api/v1/assumptions/presets/${id}`,
+  ASSUMPTIONS_SUGGEST_HS_CODE: `${API_BASE_URL}/api/v1/assumptions/suggest-hs-code`,
   DATA_SOURCE: `${API_BASE_URL}/api/v1/data-source`,
 };
 

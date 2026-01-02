@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiChevronDown, FiChevronUp, FiSettings, FiRotateCcw } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiSettings, FiRotateCcw, FiZap } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import Input from './Input';
 import Select from './Select';
 import Button from './Button';
+import { suggestHsCode } from '../services/assumptionService';
 import type {
   AssumptionOverrides,
   ShippingOverride,
@@ -14,6 +16,8 @@ interface AssumptionControlPanelProps {
   overrides: AssumptionOverrides;
   onChange: (overrides: AssumptionOverrides) => void;
   supplierRegion?: string;
+  productCategory?: string;  // For HS code suggestion
+  productName?: string;      // For HS code suggestion
 }
 
 const REGIONS = [
@@ -50,10 +54,13 @@ const DUTY_CALCULATION_METHODS = [
 export default function AssumptionControlPanel({
   overrides,
   onChange,
-  supplierRegion = 'CN'
+  supplierRegion = 'CN',
+  productCategory,
+  productName
 }: AssumptionControlPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'shipping' | 'duty' | 'fees'>('shipping');
+  const [isSuggestingHsCode, setIsSuggestingHsCode] = useState(false);
 
   // Shipping override state
   const [shippingOverride, setShippingOverride] = useState<ShippingOverride>({
@@ -323,6 +330,34 @@ export default function AssumptionControlPanel({
     onChange({ ...overrides, feeOverrides: feeOverrides && feeOverrides.length > 0 ? feeOverrides : undefined });
   };
 
+  const handleSuggestHsCode = async () => {
+    if (!productCategory && !productName) {
+      toast.error('Product category or name is required to suggest HS code');
+      return;
+    }
+
+    setIsSuggestingHsCode(true);
+    try {
+      const result = await suggestHsCode(productCategory, productName);
+      if (result.success && result.data.hsCode) {
+        handleDutyChange('hsCode', result.data.hsCode);
+        
+        const confidenceEmoji = result.data.confidence === 'high' ? '🎯' : 
+                                result.data.confidence === 'medium' ? '✓' : '?';
+        toast.success(
+          `${confidenceEmoji} HS Code: ${result.data.hsCode}\n${result.data.chapterDescription || 'Suggested based on ' + result.data.source}`
+        );
+      } else {
+        toast.error('Could not suggest HS code for this product');
+      }
+    } catch (error) {
+      console.error('Error suggesting HS code:', error);
+      toast.error('Failed to suggest HS code');
+    } finally {
+      setIsSuggestingHsCode(false);
+    }
+  };
+
   const hasOverrides = 
     (overrides.shippingOverrides && (Array.isArray(overrides.shippingOverrides) ? overrides.shippingOverrides.length > 0 : true)) ||
     (overrides.dutyOverrides && (Array.isArray(overrides.dutyOverrides) ? overrides.dutyOverrides.length > 0 : true)) ||
@@ -473,14 +508,31 @@ export default function AssumptionControlPanel({
                 options={DUTY_CALCULATION_METHODS}
               />
               {dutyOverride.calculationMethod === 'hscode' && (
-                <Input
-                  label="HS Code (6-10 digits)"
-                  type="text"
-                  value={dutyOverride.hsCode || ''}
-                  onChange={(e) => handleDutyChange('hsCode', e.target.value)}
-                  placeholder="e.g., 847130"
-                  pattern="[0-9]{6,10}"
-                />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      label="HS Code (6-10 digits)"
+                      type="text"
+                      value={dutyOverride.hsCode || ''}
+                      onChange={(e) => handleDutyChange('hsCode', e.target.value)}
+                      placeholder="e.g., 9504500000"
+                      pattern="[0-9]{6,10}"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleSuggestHsCode}
+                      disabled={isSuggestingHsCode || (!productCategory && !productName)}
+                      className="flex items-center gap-1 whitespace-nowrap"
+                      title={productCategory || productName ? 'Suggest HS code based on product' : 'Product category/name required'}
+                    >
+                      <FiZap size={14} />
+                      {isSuggestingHsCode ? 'Suggesting...' : 'Suggest'}
+                    </Button>
+                  </div>
+                </div>
               )}
               {dutyOverride.calculationMethod === 'hscode' && (
                 <Input
