@@ -8,6 +8,7 @@ import ProductCard from '../components/ProductCard';
 import Loader from '../components/Loader';
 import DataSourceToggle, { DataSourceMode } from '../components/DataSourceToggle';
 import VersionInfo from '../components/VersionInfo';
+import Pagination from '../components/Pagination';
 import { Product } from '../types/product';
 import { API_ENDPOINTS } from '../config/api';
 
@@ -57,16 +58,22 @@ function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingDeals, setIsLoadingDeals] = useState(true);
   const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('mock');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const itemsPerPage = 5;
 
-  // Fetch saved deals on page load
+  // Fetch saved deals when page changes
   useEffect(() => {
-    fetchSavedDeals();
-  }, []);
+    fetchSavedDeals(currentPage);
+  }, [currentPage]);
 
-  const fetchSavedDeals = async () => {
+  const fetchSavedDeals = async (page: number = 1) => {
     setIsLoadingDeals(true);
     try {
-      const response = await fetch(API_ENDPOINTS.DEALS, {
+      const offset = (page - 1) * itemsPerPage;
+      const url = `${API_ENDPOINTS.DEALS}?limit=${itemsPerPage}&offset=${offset}&orderBy=analyzedAt&order=desc`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -128,6 +135,10 @@ function Dashboard() {
         });
         
         setProducts(convertedProducts);
+        // Update total count from backend response
+        if (result.total !== undefined) {
+          setTotalCount(result.total);
+        }
       }
     } catch (error) {
       console.error('Error fetching saved deals:', error);
@@ -161,7 +172,24 @@ function Dashboard() {
       }
 
       // Remove from local state
-      setProducts(products.filter(p => p.id !== dealId));
+      const updatedProducts = products.filter(p => p.id !== dealId);
+      setProducts(updatedProducts);
+      
+      // Update total count
+      setTotalCount(prev => Math.max(0, prev - 1));
+      
+      // Adjust page if current page becomes empty
+      const newTotalPages = Math.ceil((totalCount - 1) / itemsPerPage);
+      if (currentPage > newTotalPages && newTotalPages > 0) {
+        setCurrentPage(newTotalPages);
+      } else if (updatedProducts.length === 0 && currentPage > 1) {
+        // If current page is empty and not on page 1, go to previous page
+        setCurrentPage(prev => Math.max(1, prev - 1));
+      } else {
+        // Refresh current page to get updated data
+        fetchSavedDeals(currentPage);
+      }
+      
       toast.success('Product deleted successfully');
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -199,57 +227,11 @@ function Dashboard() {
       console.log('Deal analysis result:', result);
       
       if (result.data?.evaluation) {
-        const ev = result.data.evaluation;
-        const prod = result.data.product;
-        
-        // Get landed cost from first channel
-        const firstChannel = ev.channelAnalysis?.[0];
-        const landedCost = firstChannel?.landedCost || undefined;
-        
-        const newProduct: Product = {
-          id: result.data?.dealId, // Include deal ID if available
-          ean: data.ean,
-          productName: prod?.title || ev.productTitle || `Product ${data.ean}`,
-          deal_quality_score: ev.dealScore?.overall || ev.dealScore || 0,
-          net_margin: ev.bestChannel.marginPercent,
-          demand_confidence: ev.scoreBreakdown?.demandConfidenceScore || ev.dealScore?.breakdown?.demandConfidenceScore || 50,
-          volume_risk: 100 - (ev.scoreBreakdown?.volumeRiskScore || ev.dealScore?.breakdown?.volumeRiskScore || 50),
-          data_reliability: ev.scoreBreakdown?.dataReliabilityScore || ev.dealScore?.breakdown?.dataReliabilityScore || 50,
-          decision: ev.decision,
-          explanation: ev.explanation,
-          bestChannel: {
-            channel: ev.bestChannel.channel,
-            marketplace: ev.bestChannel.marketplace,
-            marginPercent: ev.bestChannel.marginPercent,
-            currency: ev.bestChannel.currency,
-          },
-          channels: ev.channelAnalysis || [],
-          // Extract monthly sales from best channel's demand data
-          monthlySales: ev.channelAnalysis?.[0]?.demand?.estimatedMonthlySales ? {
-            low: ev.channelAnalysis[0].demand.estimatedMonthlySales.low || 0,
-            mid: ev.channelAnalysis[0].demand.estimatedMonthlySales.mid || 0,
-            high: ev.channelAnalysis[0].demand.estimatedMonthlySales.high || 0,
-            source: ev.channelAnalysis[0].demand.actualSalesSource || ev.channelAnalysis[0].demand.methodology || 'Estimated',
-          } : undefined,
-          allocation: ev.allocationRecommendation ? {
-            allocated: ev.allocationRecommendation.allocated,
-            hold: ev.allocationRecommendation.hold,
-            rationale: ev.allocationRecommendation.rationale,
-            channelDetails: ev.allocationRecommendation.channelDetails,
-          } : (ev.allocation ? {
-            allocated: ev.allocation.allocated,
-            hold: ev.allocation.hold,
-            rationale: ev.allocation.rationale,
-            channelDetails: ev.allocation.channelDetails,
-          } : undefined),
-          landedCost,
-          negotiationSupport: ev.negotiationSupport || undefined,
-          sourcingSuggestions: ev.sourcingSuggestions || undefined,
-          compliance: ev.compliance || undefined,
-        };
-        // Add new product to the beginning of the list
-        setProducts([newProduct, ...products]);
-        // Note: The deal is already saved to DB by the backend
+        // Update total count
+        setTotalCount(prev => prev + 1);
+        // Reset to page 1 to show the newly added product
+        setCurrentPage(1);
+        // Note: The deal is already saved to DB by the backend, fetchSavedDeals will be called by useEffect when currentPage changes
       } else {
         console.error('No evaluation data in response');
       }
@@ -316,7 +298,7 @@ function Dashboard() {
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Products</h2>
               <span className="text-sm text-gray-400">
-                {products.length} {products.length === 1 ? 'item' : 'items'}
+                {totalCount} {totalCount === 1 ? 'item' : 'items'}
               </span>
             </div>
           </div>
@@ -344,18 +326,30 @@ function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="p-6">
-              <div className="space-y-6">
-                {products.map((product, index) => (
-                  <ProductCard 
-                    key={product.id || `${product.ean}-${index}`} 
-                    product={product}
-                    onDelete={product.id ? () => handleDeleteProduct(product.id!) : undefined}
-                    onUpdate={fetchSavedDeals}
-                  />
-                ))}
+            <>
+              <div className="p-6">
+                <div className="space-y-6">
+                  {products.map((product, index) => (
+                    <ProductCard 
+                      key={product.id || `${product.ean}-${index}`} 
+                      product={product}
+                      onDelete={product.id ? () => handleDeleteProduct(product.id!) : undefined}
+                      onUpdate={() => fetchSavedDeals(currentPage)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+              
+              {totalCount > itemsPerPage && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalCount / itemsPerPage)}
+                  totalItems={totalCount}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </>
           )}
         </div>
       </main>

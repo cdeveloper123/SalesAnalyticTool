@@ -414,6 +414,9 @@ export const getDeals = async (req, res) => {
     }
     const { limit = 100, offset = 0, orderBy = 'analyzedAt', order = 'desc' } = req.query;
 
+    // Get total count of all deals (for pagination)
+    const totalCount = await prisma.deal.count();
+
     const deals = await prisma.deal.findMany({
       take: parseInt(limit),
       skip: parseInt(offset),
@@ -458,7 +461,10 @@ export const getDeals = async (req, res) => {
     res.status(200).json({
       success: true,
       data: dealsWithHistory,
-      count: dealsWithHistory.length
+      count: dealsWithHistory.length,
+      total: totalCount,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
     });
   } catch (error) {
     console.error('[Deal Controller] Error fetching deals:', error);

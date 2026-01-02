@@ -157,7 +157,7 @@ export default function AssumptionPresetManager({
               No presets saved yet. Save your current assumptions to create one.
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
               {presets.map((preset) => (
                 <div
                   key={preset.id}

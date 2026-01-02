@@ -40,7 +40,7 @@ function Modal({ isOpen, onClose, title, children }: ModalProps) {
             <IoClose size={24} />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)] custom-scrollbar">
           {children}
         </div>
       </div>
