@@ -9,7 +9,7 @@
       "asin": "B08N5WRWNW",
       "title": "Example Product - Mock Data",
       "price": {
-        "value": 29.99,
+        "value": 150.00,
         "currency": "USD"
       },
       "main_image": "https://via.placeholder.com/500",
@@ -45,7 +45,7 @@
         "merchant": "Amazon.com",
         "condition": "New",
         "price": {
-          "value": 29.99,
+          "value": 150.00,
           "currency": "USD"
         },
         "availability": {
@@ -58,7 +58,7 @@
         "condition": "New",
         "is_prime": true,
         "price": {
-          "value": 29.99,
+          "value": 150.00,
           "currency": "USD"
         }
       }

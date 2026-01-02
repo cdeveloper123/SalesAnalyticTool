@@ -677,11 +677,41 @@ export function evaluateMultiChannel(input, productData, amazonPricing, ebayPric
   const bestChannel = allChannels[0];
 
   // Convert best channel to USD for scoring
-  const buyPriceUSD = currencyService.toUSD(buyPrice, currency);
   const bestNetProceedsUSD = currencyService.toUSD(bestChannel.netProceeds, bestChannel.currency);
 
-  // Calculate overall scores
-  const marginScore = calculateMarginScore(bestNetProceedsUSD, buyPriceUSD);
+  // Get landed cost for best channel (in source currency) and convert to USD
+  // Priority: 1) bestChannel.landedCost.total, 2) landedCosts lookup, 3) fallback to buyPrice
+  // This ensures overrides (duty, shipping) are properly reflected in the score
+  let bestLandedCostTotal;
+  if (bestChannel.landedCost?.total !== undefined && bestChannel.landedCost.total !== null) {
+    // Use the landed cost from the channel (includes all overrides)
+    bestLandedCostTotal = bestChannel.landedCost.total;
+  } else if (landedCosts[bestChannel.marketplace]?.totalLandedCost !== undefined) {
+    // Fallback to direct lookup from landedCosts (includes overrides)
+    bestLandedCostTotal = landedCosts[bestChannel.marketplace].totalLandedCost;
+  } else {
+    // Last resort: use buy price (shouldn't happen in normal flow)
+    console.warn(`[MultiChannel Evaluator] Could not find landed cost for ${bestChannel.marketplace}, using buy price`);
+    bestLandedCostTotal = buyPrice;
+  }
+  
+  const bestLandedCostUSD = currencyService.toUSD(bestLandedCostTotal, currency);
+
+  // Debug: Log landed cost used for scoring (to verify overrides are applied)
+  if (assumptionOverrides?.dutyOverrides || assumptionOverrides?.shippingOverrides) {
+    console.log(`[MultiChannel Evaluator] Score calculation - Best channel: ${bestChannel.channel}-${bestChannel.marketplace}`, {
+      landedCostSource: bestChannel.landedCost?.total !== undefined ? 'channel.landedCost.total' : 'landedCosts lookup',
+      landedCostSourceCurrency: bestLandedCostTotal,
+      landedCostUSD: bestLandedCostUSD,
+      netProceedsUSD: bestNetProceedsUSD,
+      buyPrice: buyPrice,
+      hasDutyOverrides: !!assumptionOverrides?.dutyOverrides,
+      hasShippingOverrides: !!assumptionOverrides?.shippingOverrides
+    });
+  }
+
+  // Calculate overall scores using landed cost (not just buy price) to properly reflect overrides
+  const marginScore = calculateMarginScore(bestNetProceedsUSD, bestLandedCostUSD);
   const demandScore = calculateDemandScore(bestChannel.demand);
 
   // Calculate total absorption across all recommended channels

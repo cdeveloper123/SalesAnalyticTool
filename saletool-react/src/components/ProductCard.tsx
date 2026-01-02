@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings } from 'react-icons/fi';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings, FiCopy } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import { Product } from '../types/product';
 import AssumptionHistory from './AssumptionHistory';
 import AssumptionVisibility from './AssumptionVisibility';
@@ -113,6 +114,17 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
     setIsEditModalOpen(true);
   };
 
+  const handleCopyEAN = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card expansion when clicking copy
+    try {
+      await navigator.clipboard.writeText(product.ean);
+      toast.success('EAN copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy EAN:', error);
+      toast.error('Failed to copy EAN');
+    }
+  };
+
   const loadAssumptions = async () => {
     if (!product.id) return;
     
@@ -160,6 +172,14 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
               <div className="flex items-center gap-2">
                 <FiHash className="text-gray-500" size={14} />
                 <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
+                <button
+                  type="button"
+                  onClick={handleCopyEAN}
+                  className="p-1 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
+                  title="Copy EAN to clipboard"
+                >
+                  <FiCopy size={14} />
+                </button>
               </div>
             </div>
           </div>
