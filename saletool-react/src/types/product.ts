@@ -121,4 +121,17 @@ export interface Product {
       timestamp: string;
     }>;
   };
+  // Performance metrics (only totals, no detailed breakdowns)
+  performanceMetrics?: {
+    total: number;
+    db: {
+      total: number;
+    };
+    api: {
+      total: number;
+    };
+    logic: {
+      total: number;
+    };
+  };
 }

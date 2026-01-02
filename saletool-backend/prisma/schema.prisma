@@ -81,6 +81,7 @@ model Deal {
   productData       Json?    // Product information
   marketData        Json?    // Market data (Amazon, eBay)
   assumptions       Json?    // Assumptions used
+  performanceMetrics Json?   // Performance logging: { total, db: { total, operations }, api: { total, calls }, logic: { total, operations } }
   
   // Timestamps
   analyzedAt        DateTime @default(now())

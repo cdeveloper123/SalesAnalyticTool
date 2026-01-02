@@ -9,6 +9,7 @@ import ebayService from '../services/ebayService.js';
 import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
 import assumptionVisibilityService from '../services/assumptionVisibilityService.js';
 import { getPrisma } from '../config/database.js';
+import PerformanceLogger from '../utils/performanceLogger.js';
 
 /**
  * Check if override has actual values (not empty array or empty object)
@@ -57,6 +58,9 @@ function hasActualOverrideValues(override) {
  * }
  */
 export const analyzeDeal = async (req, res) => {
+  // Initialize performance logger
+  const perfLogger = new PerformanceLogger();
+  
   try {
     const { 
       ean, 
@@ -106,7 +110,13 @@ export const analyzeDeal = async (req, res) => {
           continue;
         }
 
-        const amazonResult = await getAmazonProductData(ean, market, dataSourceMode);
+        // Track Amazon API call
+        const amazonResult = await perfLogger.trackAPI(
+          'Amazon',
+          `getProductData-${market}`,
+          () => getAmazonProductData(ean, market, dataSourceMode),
+          { market, ean }
+        );
 
         if (amazonResult.success && amazonResult.product) {
           productFoundInAnyMarket = true;
@@ -178,7 +188,13 @@ export const analyzeDeal = async (req, res) => {
     if (productFoundInAnyMarket) {
       for (const market of ebayMarkets) {
         try {
-          const ebayResult = await ebayService.getProductPricingByEAN(ean, market);
+          // Track eBay API call
+          const ebayResult = await perfLogger.trackAPI(
+            'eBay',
+            `getProductPricingByEAN-${market}`,
+            () => ebayService.getProductPricingByEAN(ean, market),
+            { market, ean }
+          );
 
           if (ebayResult) {
             ebayPricing[market] = {
@@ -206,23 +222,34 @@ export const analyzeDeal = async (req, res) => {
       });
     }
 
-    const evaluation = evaluateMultiChannel(
+    // Track backend logic: Multi-channel evaluation
+    const evaluation = await perfLogger.trackLogic(
+      'evaluateMultiChannel',
+      () => Promise.resolve(evaluateMultiChannel(
       { ean, quantity, buyPrice, currency, supplierRegion },
       productData,
       amazonPricing,
       ebayPricing,
       assumptionOverrides
+      )),
+      { ean, channelsCount: Object.keys(amazonPricing).length + Object.keys(ebayPricing).length }
     );
 
-    // Extract assumptions used in calculation
-    const assumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+    // Track assumption processing logic
+    const assumptions = await perfLogger.trackLogic(
+      'getAllAssumptionsUsed',
+      () => Promise.resolve(assumptionVisibilityService.getAllAssumptionsUsed(
       evaluation,
       assumptionOverrides,
       { ean, quantity, buyPrice, currency, supplierRegion }
+      ))
     );
 
     // Format for API response (but store raw assumptions in DB)
-    const formattedAssumptions = assumptionVisibilityService.formatAssumptionsForDisplay(assumptions);
+    const formattedAssumptions = await perfLogger.trackLogic(
+      'formatAssumptionsForDisplay',
+      () => Promise.resolve(assumptionVisibilityService.formatAssumptionsForDisplay(assumptions))
+    );
 
     // Prepare response data
     const responseData = {
@@ -259,7 +286,9 @@ export const analyzeDeal = async (req, res) => {
       if (!prisma || !prisma.deal) {
         console.warn('[Deal Controller] Prisma client not available, skipping save');
       } else {
-        const savedDeal = await prisma.deal.create({
+        const savedDeal = await perfLogger.trackDB(
+          'deal.create',
+          () => prisma.deal.create({
         data: {
           ean,
           productName: productData?.title || `Product ${ean}`,
@@ -283,7 +312,9 @@ export const analyzeDeal = async (req, res) => {
           marketData: responseData.marketData,
           assumptions: assumptions  // Store raw assumptions (not formatted) so we can format on retrieval
         }
-        });
+          }),
+          { ean }
+        );
 
         // Add deal ID to response
         responseData.dealId = savedDeal.id;
@@ -292,9 +323,13 @@ export const analyzeDeal = async (req, res) => {
         if (assumptionOverrides && (assumptionOverrides.shippingOverrides || assumptionOverrides.dutyOverrides || assumptionOverrides.feeOverrides)) {
           try {
             // Check if override already exists for this deal
-            const existingOverride = await prisma.assumptionOverride.findFirst({
+            const existingOverride = await perfLogger.trackDB(
+              'assumptionOverride.findFirst',
+              () => prisma.assumptionOverride.findFirst({
               where: { dealId: savedDeal.id }
-            });
+              }),
+              { dealId: savedDeal.id }
+            );
 
             let oldOverrideValues = null;
             if (existingOverride) {
@@ -307,7 +342,9 @@ export const analyzeDeal = async (req, res) => {
 
             if (existingOverride) {
               // Update existing override and track history
-              await prisma.assumptionOverride.update({
+              await perfLogger.trackDB(
+                'assumptionOverride.update',
+                () => prisma.assumptionOverride.update({
                 where: { id: existingOverride.id },
                 data: {
                   shippingOverrides: assumptionOverrides.shippingOverrides || existingOverride.shippingOverrides,
@@ -315,7 +352,9 @@ export const analyzeDeal = async (req, res) => {
                   feeOverrides: assumptionOverrides.feeOverrides || existingOverride.feeOverrides,
                   updatedAt: new Date()
                 }
-              });
+                }),
+                { overrideId: existingOverride.id }
+              );
 
               // Track assumption changes in history
               if (oldOverrideValues) {
@@ -350,21 +389,29 @@ export const analyzeDeal = async (req, res) => {
 
                 // Save history entries
                 for (const change of changes) {
-                  await prisma.assumptionHistory.create({
+                  await perfLogger.trackDB(
+                    'assumptionHistory.create',
+                    () => prisma.assumptionHistory.create({
                     data: change
-                  });
+                    }),
+                    { assumptionType: change.assumptionType, dealId: change.dealId }
+                  );
                 }
               }
             } else {
               // Create new override linked to this deal
-              await prisma.assumptionOverride.create({
+              await perfLogger.trackDB(
+                'assumptionOverride.create',
+                () => prisma.assumptionOverride.create({
                 data: {
                   dealId: savedDeal.id,
                   shippingOverrides: assumptionOverrides.shippingOverrides || null,
                   dutyOverrides: assumptionOverrides.dutyOverrides || null,
                   feeOverrides: assumptionOverrides.feeOverrides || null
                 }
-              });
+                }),
+                { dealId: savedDeal.id }
+              );
 
               // Don't create history for initial override creation on new products
               // History should only track changes AFTER the initial creation
@@ -375,11 +422,26 @@ export const analyzeDeal = async (req, res) => {
             // Continue even if override save fails
           }
         }
+        
+        // Update deal with final performance metrics after all DB operations
+        const finalPerformanceMetrics = perfLogger.getMetrics();
+        await perfLogger.trackDB(
+          'deal.update',
+          () => prisma.deal.update({
+            where: { id: savedDeal.id },
+            data: { performanceMetrics: finalPerformanceMetrics }
+          }),
+          { dealId: savedDeal.id }
+        );
       }
     } catch (dbError) {
       console.error('[Deal Controller] Error saving deal to database:', dbError);
       // Continue even if save fails - don't break the API response
     }
+
+    // Log performance summary
+    const perfSummary = perfLogger.getSummary();
+    console.log(`[PERF] Product ${ean} - Total: ${perfSummary.total}ms | DB: ${perfSummary.db.total}ms (${perfSummary.db.percentage}%) | API: ${perfSummary.api.total}ms (${perfSummary.api.percentage}%) | Logic: ${perfSummary.logic.total}ms (${perfSummary.logic.percentage}%)`);
 
     res.status(200).json({
       success: true,

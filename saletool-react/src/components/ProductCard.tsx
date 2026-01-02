@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings, FiCopy } from 'react-icons/fi';
+import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings, FiCopy, FiClock } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { Product } from '../types/product';
 import AssumptionHistory from './AssumptionHistory';
@@ -216,6 +216,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 {product.deal_quality_score}%
               </span>
             </div>
+
           </div>
         </div>
       </button>
@@ -277,9 +278,13 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
             <div className="text-lg font-bold text-white">{product.data_reliability}%</div>
           </div>
 
+        </div>
+
+        {/* Landed Cost & Performance Metrics Side by Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Landed Cost Breakdown */}
           {product.landedCost && (
-            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20 mt-4">
+            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20">
               <div className="flex items-center gap-2 mb-3">
                 <FiDollarSign className="text-amber-400" size={16} />
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Landed Cost</span>
@@ -299,6 +304,50 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 <div className="flex justify-between text-gray-400">
                   <span>Shipping</span>
                   <span className="text-white">${product.landedCost.shipping.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Performance Metrics Section */}
+          {product.performanceMetrics && (
+            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+              <div className="flex items-center gap-2 mb-4">
+                <FiClock className="text-blue-400" size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Performance Metrics</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Total Time */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/30">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Total Time</div>
+                  <div className="text-xl font-bold text-white">
+                    {(product.performanceMetrics.total / 1000).toFixed(2)}s
+                  </div>
+                </div>
+
+                {/* Database */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-blue-500/30">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Database</div>
+                  <div className="text-xl font-bold text-blue-400">
+                    {(product.performanceMetrics.db.total / 1000).toFixed(2)}s
+                  </div>
+                </div>
+
+                {/* API Calls */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-green-500/30">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">API Calls</div>
+                  <div className="text-xl font-bold text-green-400">
+                    {(product.performanceMetrics.api.total / 1000).toFixed(2)}s
+                  </div>
+                </div>
+
+                {/* Backend Logic */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-yellow-500/30">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Backend Logic</div>
+                  <div className="text-xl font-bold text-yellow-400">
+                    {(product.performanceMetrics.logic.total / 1000).toFixed(2)}s
+                  </div>
                 </div>
               </div>
             </div>

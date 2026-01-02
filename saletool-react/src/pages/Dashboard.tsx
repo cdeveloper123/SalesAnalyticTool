@@ -28,6 +28,7 @@ interface DealFromDB {
   bestMarginPercent: number | null;
   bestCurrency: string | null;
   supplierRegion?: string;
+  performanceMetrics?: Product['performanceMetrics'];
   evaluationData: {
     channelAnalysis?: Array<{
       demand?: {
@@ -129,6 +130,8 @@ function Dashboard() {
             compliance: evaluation.compliance,
             // Include assumptions with history
             assumptions: deal.assumptions as Product['assumptions'],
+            // Include performance metrics
+            performanceMetrics: deal.performanceMetrics,
             // Store supplierRegion for use in EditAssumptionsModal
             supplierRegion: deal.supplierRegion || 'CN',
           } as Product & { supplierRegion?: string };
@@ -231,7 +234,9 @@ function Dashboard() {
         setTotalCount(prev => prev + 1);
         // Reset to page 1 to show the newly added product
         setCurrentPage(1);
-        // Note: The deal is already saved to DB by the backend, fetchSavedDeals will be called by useEffect when currentPage changes
+        // Always fetch page 1 to show the new product immediately
+        // This ensures it works even if we're already on page 1 (useEffect won't trigger)
+        await fetchSavedDeals(1);
       } else {
         console.error('No evaluation data in response');
       }
