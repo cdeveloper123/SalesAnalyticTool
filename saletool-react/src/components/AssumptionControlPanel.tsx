@@ -18,6 +18,7 @@ interface AssumptionControlPanelProps {
   supplierRegion?: string;
   productCategory?: string;  // For HS code suggestion
   productName?: string;      // For HS code suggestion
+  showSuggestButton?: boolean; // Whether to show the HS code suggest button (default: true)
 }
 
 const REGIONS = [
@@ -56,7 +57,8 @@ export default function AssumptionControlPanel({
   onChange,
   supplierRegion = 'CN',
   productCategory,
-  productName
+  productName,
+  showSuggestButton = true // Default to true for edit mode
 }: AssumptionControlPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'shipping' | 'duty' | 'fees'>('shipping');
@@ -519,19 +521,21 @@ export default function AssumptionControlPanel({
                       pattern="[0-9]{6,10}"
                     />
                   </div>
-                  <div className="flex items-end">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleSuggestHsCode}
-                      disabled={isSuggestingHsCode || (!productCategory && !productName)}
-                      className="flex items-center gap-1 whitespace-nowrap"
-                      title={productCategory || productName ? 'Suggest HS code based on product' : 'Product category/name required'}
-                    >
-                      <FiZap size={14} />
-                      {isSuggestingHsCode ? 'Suggesting...' : 'Suggest'}
-                    </Button>
-                  </div>
+                  {showSuggestButton && (
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleSuggestHsCode}
+                        disabled={isSuggestingHsCode || (!productCategory && !productName)}
+                        className="flex items-center gap-1 whitespace-nowrap"
+                        title={productCategory || productName ? 'Suggest HS code based on product' : 'Product category/name required'}
+                      >
+                        <FiZap size={14} />
+                        {isSuggestingHsCode ? 'Suggesting...' : 'Suggest'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
               {dutyOverride.calculationMethod === 'hscode' && (
