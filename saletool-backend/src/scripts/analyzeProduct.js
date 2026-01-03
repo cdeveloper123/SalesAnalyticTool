@@ -163,7 +163,7 @@ async function analyzeProduct() {
 
     // Step 3: Run multi-channel evaluation
     console.log('\n[Step 3] Running multi-channel evaluation...');
-    const evaluation = evaluateMultiChannel(
+    const evaluation = await evaluateMultiChannel(
       { ean, quantity, buyPrice, currency, supplierRegion },
       productData,
       amazonPricing,

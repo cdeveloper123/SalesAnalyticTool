@@ -207,9 +207,9 @@ export function applyDutyOverrides(productValue, origin, destination, category, 
     dutyRate = override.rate;
     dutyAmount = productValue * dutyRate;
   } else if (calculationMethod === 'hscode' && override.hsCode) {
-    // HS code provided but no rate - use default rate for now
-    // In a full implementation, this would lookup HS code in tariff database
-    dutyRate = defaultDutyResult?.dutyRate || 0.05;
+    // HS code provided but no rate - use API lookup result from defaultDutyResult
+    // Use nullish coalescing (??) instead of OR (||) to preserve 0% (Free) rates
+    dutyRate = defaultDutyResult?.dutyRate ?? 0;
     dutyAmount = productValue * dutyRate;
   } else {
     // Fallback to default

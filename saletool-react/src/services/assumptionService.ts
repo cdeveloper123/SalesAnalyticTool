@@ -178,3 +178,37 @@ export async function deletePreset(presetId: string): Promise<{ success: boolean
   return response.json();
 }
 
+/**
+ * Suggest HS code based on product category and name
+ */
+export interface HsCodeSuggestion {
+  hsCode: string;
+  source: 'product_name' | 'category' | 'default';
+  confidence: 'high' | 'medium' | 'low';
+  chapter: string | null;
+  chapterDescription: string | null;
+  formattedCode: string;
+}
+
+export async function suggestHsCode(
+  category?: string,
+  productName?: string
+): Promise<{ success: boolean; data: HsCodeSuggestion }> {
+  const response = await fetch(API_ENDPOINTS.ASSUMPTIONS_SUGGEST_HS_CODE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      category,
+      productName,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Failed to suggest HS code: ${response.statusText}`);
+  }
+
+  return response.json();
+}

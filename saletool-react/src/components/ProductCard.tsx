@@ -839,6 +839,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
           }}
           dealId={product.id}
           supplierRegion={getSupplierRegion()}
+          productName={product.productName}
           onSave={() => {
             // Reload assumptions after save
             setAssumptions(null);

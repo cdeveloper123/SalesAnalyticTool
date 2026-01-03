@@ -13,6 +13,8 @@ interface EditAssumptionsModalProps {
   onClose: () => void;
   dealId: string;
   supplierRegion?: string;
+  productCategory?: string;  // For HS code suggestion
+  productName?: string;      // For HS code suggestion
   onSave?: () => void; // Callback to refresh data after save
 }
 
@@ -21,6 +23,8 @@ export default function EditAssumptionsModal({
   onClose,
   dealId,
   supplierRegion = 'CN',
+  productCategory,
+  productName,
   onSave
 }: EditAssumptionsModalProps) {
   const [overrides, setOverrides] = useState<AssumptionOverrides>({});
@@ -122,6 +126,8 @@ export default function EditAssumptionsModal({
             overrides={overrides}
             onChange={setOverrides}
             supplierRegion={supplierRegion}
+            productCategory={productCategory}
+            productName={productName}
           />
 
           <AssumptionPresetManager

@@ -288,6 +288,7 @@ function AddProductForm({
           overrides={assumptionOverrides}
           onChange={setAssumptionOverrides}
           supplierRegion={formData.supplier_region}
+          showSuggestButton={false}
         />
         
         <AssumptionPresetManager
