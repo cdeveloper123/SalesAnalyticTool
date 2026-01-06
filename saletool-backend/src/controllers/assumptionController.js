@@ -13,6 +13,7 @@ import assumptionVisibilityService, {
 import { getAmazonProductData } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
 import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
+import currencyService from '../services/currencyService.js';
 
 /**
  * Check if override has actual values (not empty array or empty object)
@@ -243,64 +244,145 @@ export const getAssumptions = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Get currency cache status for metadata
+    const currencyCacheStatus = currencyService.getCacheStatus();
+
+    // Get evaluation data to extract additional metadata
+    const evaluationData = deal.evaluationData || {};
+    const marketData = deal.marketData || {};
+
     // Format assumptions from deal data
     // Check if assumptions are already formatted (have 'details' key) or raw (have 'shipping' key)
     let assumptions;
     if (deal.assumptions) {
       // Check if it's already formatted (has 'details' key) or raw (has 'shipping' key at root)
       if (deal.assumptions.details) {
-        // Already formatted, use as-is
+        // Already formatted, but we need to enhance with metadata
         assumptions = deal.assumptions;
+        
+        // Enhance with data freshness, confidence, and methodology if missing
+        if (!assumptions.dataFreshness || !assumptions.sourceConfidence || !assumptions.methodology) {
+          // Re-extract assumptions with metadata from evaluation data
+          const metadata = {
+            analyzedAt: deal.analyzedAt,
+            currencyCacheStatus: currencyCacheStatus,
+            marketData: marketData
+          };
+          
+          // Re-extract assumptions with full metadata
+          const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+            evaluationData,
+            override ? {
+              shippingOverrides: override.shippingOverrides,
+              dutyOverrides: override.dutyOverrides,
+              feeOverrides: override.feeOverrides
+            } : null,
+            {
+              ean: deal.ean,
+              quantity: deal.quantity,
+              buyPrice: deal.buyPrice,
+              currency: deal.currency,
+              supplierRegion: deal.supplierRegion
+            },
+            metadata
+          );
+          
+          // Merge enhanced metadata into existing assumptions
+          assumptions.dataFreshness = enhancedAssumptions.dataFreshness || assumptions.dataFreshness || {};
+          assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || assumptions.sourceConfidence || {};
+          assumptions.methodology = enhancedAssumptions.methodology || assumptions.methodology || {};
+        }
       } else if (deal.assumptions.shipping || deal.assumptions.duty || deal.assumptions.fees) {
-        // Raw format, need to format it
-        assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(deal.assumptions);
-      } else {
-        // Empty or invalid, create default
-        assumptions = {
-          version: assumptionVisibilityService.getAssumptionVersion(),
-          timestamp: deal.analyzedAt.toISOString(),
-          summary: {
-            shippingRoutes: 0,
-            dutyRoutes: 0,
-            feeMarketplaces: 0,
-            hasOverrides: !!override
-          },
-          details: {
-            shipping: {},
-            duty: {},
-            fees: {},
-            currency: {}
-          },
-          overrides: override ? {
+        // Raw format, need to enhance with metadata and format it
+        const metadata = {
+          analyzedAt: deal.analyzedAt,
+          currencyCacheStatus: currencyCacheStatus,
+          marketData: marketData
+        };
+        
+        // Re-extract assumptions with full metadata
+        const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+          evaluationData,
+          override ? {
             shippingOverrides: override.shippingOverrides,
             dutyOverrides: override.dutyOverrides,
             feeOverrides: override.feeOverrides
-          } : {}
+          } : null,
+          {
+            ean: deal.ean,
+            quantity: deal.quantity,
+            buyPrice: deal.buyPrice,
+            currency: deal.currency,
+            supplierRegion: deal.supplierRegion
+          },
+          metadata
+        );
+        
+        assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
+        
+        // Add metadata to formatted assumptions
+        assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
+        assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
+        assumptions.methodology = enhancedAssumptions.methodology || {};
+      } else {
+        // Empty or invalid, create default with metadata
+        const metadata = {
+          analyzedAt: deal.analyzedAt,
+          currencyCacheStatus: currencyCacheStatus,
+          marketData: marketData
         };
+        
+        const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+          evaluationData,
+          override ? {
+            shippingOverrides: override.shippingOverrides,
+            dutyOverrides: override.dutyOverrides,
+            feeOverrides: override.feeOverrides
+          } : null,
+          {
+            ean: deal.ean,
+            quantity: deal.quantity,
+            buyPrice: deal.buyPrice,
+            currency: deal.currency,
+            supplierRegion: deal.supplierRegion
+          },
+          metadata
+        );
+        
+        assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
+        assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
+        assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
+        assumptions.methodology = enhancedAssumptions.methodology || {};
       }
     } else {
-      // No assumptions stored, create default structure
-      assumptions = {
-        version: assumptionVisibilityService.getAssumptionVersion(),
-        timestamp: deal.analyzedAt.toISOString(),
-        summary: {
-          shippingRoutes: 0,
-          dutyRoutes: 0,
-          feeMarketplaces: 0,
-          hasOverrides: !!override
-        },
-        details: {
-          shipping: {},
-          duty: {},
-          fees: {},
-          currency: {}
-        },
-        overrides: override ? {
+      // No assumptions stored, create with metadata
+      const metadata = {
+        analyzedAt: deal.analyzedAt,
+        currencyCacheStatus: currencyCacheStatus,
+        marketData: marketData
+      };
+      
+      const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
+        evaluationData,
+        override ? {
           shippingOverrides: override.shippingOverrides,
           dutyOverrides: override.dutyOverrides,
           feeOverrides: override.feeOverrides
-        } : {}
-      };
+        } : null,
+        {
+          ean: deal.ean,
+          quantity: deal.quantity,
+          buyPrice: deal.buyPrice,
+          currency: deal.currency,
+          supplierRegion: deal.supplierRegion
+        },
+        metadata
+      );
+      
+      assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
+      assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
+      assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
+      assumptions.methodology = enhancedAssumptions.methodology || {};
     }
 
     // Add history to response
@@ -628,6 +710,14 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
     assumptionOverrides
   );
 
+  // Get currency cache status for metadata
+  const currencyCacheStatus = currencyService.getCacheStatus();
+  const metadata = {
+    analyzedAt: new Date(),
+    currencyCacheStatus: currencyCacheStatus,
+    marketData: marketData
+  };
+
   // Extract assumptions used in calculation
   const assumptions = assumptionVisibilityService.getAllAssumptionsUsed(
     evaluation,
@@ -638,7 +728,8 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
       buyPrice: deal.buyPrice,
       currency: deal.currency,
       supplierRegion: deal.supplierRegion
-    }
+    },
+    metadata
   );
 
   // Update deal with new evaluation results

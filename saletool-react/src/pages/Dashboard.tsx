@@ -124,7 +124,25 @@ function Dashboard() {
               rationale: evaluation.allocation.rationale,
               channelDetails: evaluation.allocation.channelDetails || {},
             } : undefined,
-            landedCost: firstChannel.landedCost,
+            landedCost: firstChannel.landedCost ? (() => {
+              const lc = firstChannel.landedCost;
+              const dutyValue = typeof lc.duty === 'number' 
+                ? lc.duty 
+                : (typeof lc.duty === 'object' && lc.duty !== null && 'cost' in lc.duty 
+                    ? (lc.duty as { cost: number }).cost 
+                    : 0);
+              const shippingValue = typeof lc.shipping === 'number'
+                ? lc.shipping
+                : (typeof lc.shipping === 'object' && lc.shipping !== null && 'cost' in lc.shipping
+                    ? (lc.shipping as { cost: number }).cost
+                    : 0);
+              return {
+                buyPrice: lc.buyPrice || 0,
+                duty: dutyValue,
+                shipping: shippingValue,
+                total: lc.total || 0
+              };
+            })() : undefined,
             negotiationSupport: evaluation.negotiationSupport,
             sourcingSuggestions: evaluation.sourcingSuggestions,
             compliance: evaluation.compliance,

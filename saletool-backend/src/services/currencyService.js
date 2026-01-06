@@ -108,22 +108,51 @@ async function fetchLatestRates() {
   try {
     console.log('[CurrencyService] Fetching latest exchange rates...');
     
-    const response = await currencyApi.latest({
-      base_currency: 'USD',
-      currencies: 'EUR,GBP,CAD,AUD,JPY,AED,SAR,SGD,HKD,INR,BRL,MXN,CNY'
-    });
+    // Try API call without currencies parameter first (gets all available currencies)
+    // This avoids validation errors with currency list format
+    let response;
+    try {
+      response = await currencyApi.latest({
+        base_currency: 'USD'
+        // Don't specify currencies - API will return all available currencies
+      });
+    } catch (apiError) {
+      console.error('[CurrencyService] API call failed:', apiError.message);
+      throw apiError; // Re-throw to be caught by outer catch
+    }
     
-    if (response && response.data) {
+    // Check for error response (API returns error objects, not exceptions)
+    // Error responses have 'errors' or 'message' field
+    if (response && (response.errors || (response.message && !response.data))) {
+      console.error('[CurrencyService] API returned error:', {
+        message: response.message,
+        errors: response.errors,
+        info: response.info
+      });
+      // Don't update cache, will return fallback rates
+      return FALLBACK_RATES;
+    }
+    
+    // Check for successful response with data
+    if (response && response.data && typeof response.data === 'object') {
       // API returns rates relative to base (USD)
       // e.g., { EUR: 0.92, GBP: 0.79, ... }
-      ratesCache = {
-        rates: { USD: 1, ...response.data },
-        lastUpdated: now,
-        baseCurrency: 'USD'
-      };
+      const newRates = { USD: 1, ...response.data };
+      ratesCache.rates = newRates;
+      ratesCache.lastUpdated = now;
+      ratesCache.baseCurrency = 'USD';
       
-      console.log('[CurrencyService] Rates updated successfully');
+      // Verify cache was set correctly
+      console.log('[CurrencyService] Rates updated successfully. Cache has', Object.keys(ratesCache.rates).length, 'currencies');
+      console.log('[CurrencyService] Cache timestamp:', new Date(ratesCache.lastUpdated).toISOString());
+      console.log('[CurrencyService] Cache verification:', { 
+        hasRates: !!ratesCache.rates, 
+        lastUpdated: ratesCache.lastUpdated,
+        sampleRates: Object.keys(newRates).slice(0, 3)
+      });
       return ratesCache.rates;
+    } else {
+      console.warn('[CurrencyService] API response invalid - no data:', response);
     }
   } catch (error) {
     console.error('[CurrencyService] API error, using fallback rates:', error.message);
@@ -135,11 +164,30 @@ async function fetchLatestRates() {
 
 /**
  * Get current exchange rates (sync version using cache)
+ * Triggers background refresh if cache is expired
  */
 function getRatesSync() {
-  if (ratesCache.rates) {
+  // If cache exists and is still valid, use it
+  if (ratesCache.rates && ratesCache.lastUpdated) {
+    const now = Date.now();
+    const isExpired = (now - ratesCache.lastUpdated) >= CACHE_DURATION_MS;
+    
+    if (!isExpired) {
+      return ratesCache.rates;
+    }
+    
+    // Cache expired - trigger background refresh (fire and forget)
+    // Don't await - just trigger it so next call gets fresh rates
+    fetchLatestRates().catch(err => {
+      console.warn('[CurrencyService] Background refresh failed:', err.message);
+    });
+    
+    // Return expired cache for now (better than fallback)
     return ratesCache.rates;
   }
+  
+  // No cache - try to fetch synchronously if possible, otherwise use fallback
+  // Since we initialize on startup, this should rarely happen
   return FALLBACK_RATES;
 }
 
@@ -250,13 +298,46 @@ export function format(amount, currency) {
 /**
  * Initialize rates (call on server startup)
  */
+/**
+ * Initialize rates (call on server startup)
+ * Forces a fresh fetch from API, ignoring cache
+ */
 export async function initializeRates() {
+  // Clear cache to force fresh API fetch
+  const previousCache = ratesCache.rates;
+  ratesCache.rates = null;
+  ratesCache.lastUpdated = null;
+  
   try {
-    await fetchLatestRates();
-    console.log('[CurrencyService] Initialized with live rates');
-    return true;
+    console.log('[CurrencyService] Initializing currency rates from API...');
+    const rates = await fetchLatestRates();
+    console.log('[CurrencyService] Rates:', rates);
+    // Check if we got live rates (cache was updated) or fallback
+    // If API succeeded, ratesCache will be updated with fresh data
+    // If API failed, ratesCache remains null and fetchLatestRates returns FALLBACK_RATES
+    if (ratesCache.rates && ratesCache.lastUpdated) {
+      // Verify we didn't just get cached rates back
+      const cacheAge = Date.now() - ratesCache.lastUpdated;
+      if (cacheAge < 5000) { // Cache updated within last 5 seconds = fresh API fetch
+        console.log('[CurrencyService] Initialized with live rates from API');
+        return true;
+      }
+    }
+    
+    // API failed or returned fallback - restore previous cache if it existed
+    if (previousCache) {
+      ratesCache.rates = previousCache;
+      console.warn('[CurrencyService] API fetch failed, restored previous cache');
+    } else {
+      console.warn('[CurrencyService] API failed during initialization, will use fallback rates');
+    }
+    return false;
   } catch (error) {
-    console.error('[CurrencyService] Failed to initialize, using fallback rates');
+    // Restore previous cache if it existed
+    if (previousCache) {
+      ratesCache.rates = previousCache;
+    }
+    console.error('[CurrencyService] Failed to initialize, using fallback rates:', error.message);
     return false;
   }
 }
@@ -280,11 +361,33 @@ export function getRates() {
  * Get cache status
  */
 export function getCacheStatus() {
+  const hasCache = !!ratesCache.rates;
+  const lastUpdated = ratesCache.lastUpdated ? new Date(ratesCache.lastUpdated).toISOString() : null;
+  const cacheAgeMs = ratesCache.lastUpdated ? (Date.now() - ratesCache.lastUpdated) : null;
+  const cacheAge = cacheAgeMs !== null ? Math.floor(cacheAgeMs / 1000) + 's' : null;
+  const isExpired = ratesCache.lastUpdated ? cacheAgeMs >= CACHE_DURATION_MS : true;
+  
+  // Debug logging - only log if there's an issue
+  if (!hasCache || isExpired) {
+    console.log('[CurrencyService] Cache status check:', {
+      hasCache,
+      lastUpdated,
+      cacheAge,
+      isExpired,
+      ratesCacheState: {
+        ratesExists: !!ratesCache.rates,
+        lastUpdatedRaw: ratesCache.lastUpdated,
+        baseCurrency: ratesCache.baseCurrency,
+        sampleKeys: ratesCache.rates ? Object.keys(ratesCache.rates).slice(0, 3) : null
+      }
+    });
+  }
+  
   return {
-    hasCache: !!ratesCache.rates,
-    lastUpdated: ratesCache.lastUpdated ? new Date(ratesCache.lastUpdated).toISOString() : null,
-    cacheAge: ratesCache.lastUpdated ? Math.floor((Date.now() - ratesCache.lastUpdated) / 1000) + 's' : null,
-    isExpired: ratesCache.lastUpdated ? (Date.now() - ratesCache.lastUpdated) >= CACHE_DURATION_MS : true
+    hasCache,
+    lastUpdated,
+    cacheAge,
+    isExpired
   };
 }
 

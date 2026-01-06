@@ -77,6 +77,7 @@ export interface AssumptionDetails {
   fees: Record<string, {
     marketplace: string;
     sellPrice: number;
+    sellPriceSource?: string;
     category: string;
     referralRate: number;
     referralFee: number;
@@ -96,6 +97,39 @@ export interface AssumptionDetails {
   };
 }
 
+export interface DataFreshness {
+  source: string;
+  timestamp: string; // When calculation was performed
+  age?: string;
+  feeScheduleVersion?: string;
+  isExpired?: boolean;
+  cacheAge?: string;
+  // New fields for data source freshness
+  dataSourceLastUpdated?: string; // When the underlying data source was last updated
+  dataSourceVersion?: string; // Version of the data source
+  hsCodeMappingLastUpdated?: string; // For duty calculations using HS codes
+  feeScheduleLastUpdated?: string; // For fee calculations
+}
+
+export interface SourceConfidence {
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+  sellPriceConfidence?: string;
+}
+
+export interface Methodology {
+  calculation: string;
+  rule: string;
+  feeScheduleVersion?: string;
+  vatTreatment?: string;
+  cacheStatus?: {
+    hasCache: boolean;
+    lastUpdated: string | null;
+    cacheAge: string | null;
+    isExpired: boolean;
+  };
+}
+
 export interface AssumptionsResponse {
   version: AssumptionVersion;
   timestamp: string;
@@ -108,6 +142,9 @@ export interface AssumptionsResponse {
   details: AssumptionDetails;
   overrides: AssumptionOverrides;
   history?: AssumptionHistoryEntry[];
+  dataFreshness?: Record<string, DataFreshness>;
+  sourceConfidence?: Record<string, SourceConfidence>;
+  methodology?: Record<string, Methodology>;
 }
 
 export interface AssumptionHistoryEntry {

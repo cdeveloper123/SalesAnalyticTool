@@ -8,6 +8,7 @@ import { getAmazonProductData } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
 import { evaluateMultiChannel } from '../services/multiChannelEvaluator.js';
 import assumptionVisibilityService from '../services/assumptionVisibilityService.js';
+import currencyService from '../services/currencyService.js';
 import { getPrisma } from '../config/database.js';
 import PerformanceLogger from '../utils/performanceLogger.js';
 
@@ -236,12 +237,23 @@ export const analyzeDeal = async (req, res) => {
     );
 
     // Track assumption processing logic
+    const currencyCacheStatus = currencyService.getCacheStatus();
+    const metadata = {
+      analyzedAt: new Date(),
+      currencyCacheStatus: currencyCacheStatus,
+      marketData: {
+        amazonMarketsFound: Object.keys(amazonPricing),
+        ebayMarketsFound: Object.keys(ebayPricing)
+      }
+    };
+    
     const assumptions = await perfLogger.trackLogic(
       'getAllAssumptionsUsed',
       () => Promise.resolve(assumptionVisibilityService.getAllAssumptionsUsed(
       evaluation,
       assumptionOverrides,
-      { ean, quantity, buyPrice, currency, supplierRegion }
+      { ean, quantity, buyPrice, currency, supplierRegion },
+      metadata
       ))
     );
 

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Product } from '../types/product';
 import AssumptionHistory from './AssumptionHistory';
 import AssumptionVisibility from './AssumptionVisibility';
+import AssumptionsUsed from './AssumptionsUsed';
 import EditAssumptionsModal from './EditAssumptionsModal';
 import { getAssumptions } from '../services/assumptionService';
 import type { AssumptionsResponse } from '../types/assumptions';
@@ -797,7 +798,26 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 </div>
               </div>
             ) : assumptions ? (
-              <AssumptionVisibility assumptions={assumptions} />
+              <>
+                <AssumptionVisibility 
+                  assumptions={assumptions} 
+                  onViewHistory={() => {
+                    // Scroll to the assumption history section
+                    const historyElement = document.getElementById(`assumption-history-${product.id}`);
+                    if (historyElement) {
+                      historyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      // Also expand the history if it's collapsible
+                      const historyButton = historyElement.querySelector('button');
+                      if (historyButton) {
+                        historyButton.click();
+                      }
+                    }
+                  }}
+                />
+                <div className="mt-4">
+                  <AssumptionsUsed assumptions={assumptions} />
+                </div>
+              </>
             ) : (
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -820,7 +840,9 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
 
         {/* Assumption Change History */}
         {product.assumptions?.history && product.assumptions.history.length > 0 && (
-          <AssumptionHistory history={product.assumptions.history} />
+          <div id={`assumption-history-${product.id}`}>
+            <AssumptionHistory history={product.assumptions.history} />
+          </div>
         )}
       </div>
       )}

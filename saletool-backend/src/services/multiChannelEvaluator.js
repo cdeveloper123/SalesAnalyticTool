@@ -403,7 +403,20 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     landedCost: {
       buyPrice: landedCost.buyPrice,
       duty: landedCost.duty,
-      shipping: landedCost.shipping,
+      dutyRate: landedCost.dutyRate,
+      dutyPercent: landedCost.dutyPercent,
+      calculationMethod: landedCost.calculationMethod,
+      isOverridden: landedCost.isOverridden,
+      hsCode: landedCost.hsCode,
+      category: landedCost.category,
+      shipping: {
+        cost: landedCost.shipping,
+        method: landedCost.shippingMethod,
+        ratePerKg: landedCost.shippingRatePerKg,
+        transitDays: landedCost.shippingTransitDays,
+        minCharge: landedCost.shippingMinCharge,
+        isOverridden: landedCost.shippingIsOverridden
+      },
       total: landedCost.totalLandedCost
     },
     landedCostConverted: landedCostInMarketCurrency,
@@ -467,7 +480,20 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     landedCost: {
       buyPrice: landedCost.buyPrice,
       duty: landedCost.duty,
-      shipping: landedCost.shipping,
+      dutyRate: landedCost.dutyRate,
+      dutyPercent: landedCost.dutyPercent,
+      calculationMethod: landedCost.calculationMethod,
+      isOverridden: landedCost.isOverridden,
+      hsCode: landedCost.hsCode,
+      category: landedCost.category,
+      shipping: {
+        cost: landedCost.shipping,
+        method: landedCost.shippingMethod,
+        ratePerKg: landedCost.shippingRatePerKg,
+        transitDays: landedCost.shippingTransitDays,
+        minCharge: landedCost.shippingMinCharge,
+        isOverridden: landedCost.shippingIsOverridden
+      },
       total: landedCost.totalLandedCost
     },
     landedCostConverted: landedCostInMarketCurrency,
@@ -574,10 +600,19 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     landedCosts[dest] = {
       buyPrice,
       duty: dutyResult.dutyAmount,
+      dutyRate: dutyResult.dutyRate,
       dutyPercent: dutyResult.dutyRate * 100,
       hsCode: dutyResult.hsCode || null,
       dutySource: dutyResult.source || 'category',
+      calculationMethod: dutyResult.calculationMethod || 'category',
+      isOverridden: dutyResult.isOverridden || false,
+      category: dutyResult.category || category,
       shipping: shippingResult.perUnitShippingCost,
+      shippingMethod: shippingResult.method,
+      shippingRatePerKg: shippingResult.ratePerKg,
+      shippingTransitDays: shippingResult.transitDays,
+      shippingMinCharge: shippingResult.minCharge,
+      shippingIsOverridden: shippingResult.isOverridden || false,
       totalLandedCost: Number(landedCost.toFixed(2)),
       currency
     };
@@ -629,7 +664,20 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       withMargin.landedCost = {
         buyPrice: usLanded?.buyPrice || buyPrice,
         duty: usLanded?.duty || 0,
-        shipping: usLanded?.shipping || 0,
+        dutyRate: usLanded?.dutyRate || 0,
+        dutyPercent: usLanded?.dutyPercent || 0,
+        calculationMethod: usLanded?.calculationMethod || 'category',
+        isOverridden: usLanded?.isOverridden || false,
+        hsCode: usLanded?.hsCode || null,
+        category: usLanded?.category || category,
+        shipping: {
+          cost: usLanded?.shipping || 0,
+          method: usLanded?.shippingMethod,
+          ratePerKg: usLanded?.shippingRatePerKg,
+          transitDays: usLanded?.shippingTransitDays,
+          minCharge: usLanded?.shippingMinCharge,
+          isOverridden: usLanded?.shippingIsOverridden || false
+        },
         total: usLandedCost
       };
 
@@ -675,7 +723,20 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       withMargin.landedCost = {
         buyPrice: usLanded?.buyPrice || buyPrice,
         duty: usLanded?.duty || 0,
-        shipping: usLanded?.shipping || 0,
+        dutyRate: usLanded?.dutyRate || 0,
+        dutyPercent: usLanded?.dutyPercent || 0,
+        calculationMethod: usLanded?.calculationMethod || 'category',
+        isOverridden: usLanded?.isOverridden || false,
+        hsCode: usLanded?.hsCode || null,
+        category: usLanded?.category || category,
+        shipping: {
+          cost: usLanded?.shipping || 0,
+          method: usLanded?.shippingMethod,
+          ratePerKg: usLanded?.shippingRatePerKg,
+          transitDays: usLanded?.shippingTransitDays,
+          minCharge: usLanded?.shippingMinCharge,
+          isOverridden: usLanded?.shippingIsOverridden || false
+        },
         total: usLandedCost
       };
 

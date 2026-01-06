@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiChevronDown, FiChevronUp, FiSettings, FiRotateCcw, FiZap } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiSettings, FiZap } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Input from './Input';
 import Select from './Select';
@@ -238,7 +238,22 @@ export default function AssumptionControlPanel({
   };
 
   const handleDutyChange = (field: keyof DutyOverride, value: any) => {
-    const updated = { ...dutyOverride, [field]: value };
+    let updated = { ...dutyOverride, [field]: value };
+    
+    // When calculation method changes, clear irrelevant fields
+    if (field === 'calculationMethod') {
+      if (value === 'hscode') {
+        // Clear amount when switching to HS code method
+        updated = { ...updated, amount: undefined };
+      } else if (value === 'direct') {
+        // Clear rate and hsCode when switching to direct method
+        updated = { ...updated, rate: undefined, hsCode: undefined };
+      } else if (value === 'category') {
+        // Clear all override fields when switching to category method
+        updated = { ...updated, amount: undefined, rate: undefined, hsCode: undefined };
+      }
+    }
+    
     setDutyOverride(updated);
     
     // Mark as user input to prevent useEffect from overwriting
@@ -304,33 +319,6 @@ export default function AssumptionControlPanel({
     onChange({ ...overrides, feeOverrides });
   };
 
-  const resetShipping = () => {
-    setShippingOverride({ origin: supplierRegion, destination: 'US', method: 'air' });
-    const shippingOverrides = Array.isArray(overrides.shippingOverrides)
-      ? overrides.shippingOverrides.filter(
-          o => !(o.origin === supplierRegion && o.destination === 'US')
-        )
-      : null;
-    onChange({ ...overrides, shippingOverrides: shippingOverrides && shippingOverrides.length > 0 ? shippingOverrides : undefined });
-  };
-
-  const resetDuty = () => {
-    setDutyOverride({ origin: supplierRegion, destination: 'US', calculationMethod: 'category' });
-    const dutyOverrides = Array.isArray(overrides.dutyOverrides)
-      ? overrides.dutyOverrides.filter(
-          o => !(o.origin === supplierRegion && o.destination === 'US')
-        )
-      : null;
-    onChange({ ...overrides, dutyOverrides: dutyOverrides && dutyOverrides.length > 0 ? dutyOverrides : undefined });
-  };
-
-  const resetFees = () => {
-    setFeeOverride({ marketplace: 'US' });
-    const feeOverrides = Array.isArray(overrides.feeOverrides)
-      ? overrides.feeOverrides.filter(o => o.marketplace !== 'US')
-      : null;
-    onChange({ ...overrides, feeOverrides: feeOverrides && feeOverrides.length > 0 ? feeOverrides : undefined });
-  };
 
   const handleSuggestHsCode = async () => {
     if (!productCategory && !productName) {
@@ -475,14 +463,6 @@ export default function AssumptionControlPanel({
                   placeholder="Auto"
                 />
               </div>
-              <Button
-                variant="secondary"
-                onClick={resetShipping}
-                className="flex items-center gap-2"
-              >
-                <FiRotateCcw size={16} />
-                Reset to Defaults
-              </Button>
             </div>
           )}
 
@@ -561,14 +541,6 @@ export default function AssumptionControlPanel({
                   placeholder="Enter amount"
                 />
               )}
-              <Button
-                variant="secondary"
-                onClick={resetDuty}
-                className="flex items-center gap-2"
-              >
-                <FiRotateCcw size={16} />
-                Reset to Defaults
-              </Button>
             </div>
           )}
 
@@ -623,14 +595,6 @@ export default function AssumptionControlPanel({
                   placeholder="Auto"
                 />
               </div>
-              <Button
-                variant="secondary"
-                onClick={resetFees}
-                className="flex items-center gap-2"
-              >
-                <FiRotateCcw size={16} />
-                Reset to Defaults
-              </Button>
             </div>
           )}
         </div>

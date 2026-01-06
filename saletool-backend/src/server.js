@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/database.js';
 import routes from './routes/index.js';
+import currencyService from './services/currencyService.js';
 
 dotenv.config();
 
@@ -54,6 +55,14 @@ app.use((req, res) => {
   try {
     await connectDB();
     console.log('Database connection established');
+    
+    // Initialize currency exchange rates on startup
+    try {
+      await currencyService.initializeRates();
+      console.log('Currency exchange rates initialized');
+    } catch (error) {
+      console.warn('Failed to initialize currency rates, will use fallback rates:', error.message);
+    }
     
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
