@@ -30,6 +30,20 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
     }
   };
 
+  // Get currency symbol
+  const getCurrencySymbol = (currency?: string) => {
+    const symbols: Record<string, string> = {
+      'USD': '$',
+      'GBP': '£',
+      'EUR': '€',
+      'AUD': 'A$',
+      'CAD': 'C$',
+      'JPY': '¥',
+      'CNY': '¥'
+    };
+    return symbols[currency || 'USD'] || currency || '$';
+  };
+
   // Get confidence badge color and icon
   const getConfidenceBadge = (level?: string) => {
     switch (level?.toLowerCase()) {
@@ -294,7 +308,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-gray-300">Fees</span>
                 <span className="text-xs text-gray-500">
-                  ({Object.keys(details.fees).length} marketplace{Object.keys(details.fees).length !== 1 ? 's' : ''})
+                  ({Object.keys(details.fees).length} channel{Object.keys(details.fees).length !== 1 ? 's' : ''})
                 </span>
               </div>
               {expandedSections.fees ? (
@@ -305,25 +319,58 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
             </button>
             {expandedSections.fees && (
               <div className="p-3 space-y-3 border-t border-gray-700">
-                {Object.entries(details.fees).map(([marketplace, fee]) => {
-                  const freshnessKey = `fees_${marketplace}`;
+                {Object.entries(details.fees).map(([feeKey, fee]) => {
+                  // Parse composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay")
+                  // For backward compatibility, handle both old format (just marketplace) and new format (marketplace_channel)
+                  const isCompositeKey = feeKey.includes('_');
+                  const marketplace = isCompositeKey ? feeKey.split('_')[0] : feeKey;
+                  const channelName = fee.channel || (isCompositeKey ? feeKey.split('_')[1] : 'Unknown');
+                  
+                  // Use composite key for freshness, confidence, and methodology
+                  const freshnessKey = `fees_${feeKey}`;
                   const freshness = dataFreshness?.[freshnessKey];
                   const confidence = sourceConfidence?.[freshnessKey];
                   const method = methodology?.[freshnessKey];
                   const confidenceBadge = getConfidenceBadge(confidence?.level);
 
-                  // Find matching override to show original override values
+                  // Find matching override - try both composite key and marketplace match
                   const feeOverrideArray: FeeOverride[] = overrides?.feeOverrides 
                     ? (Array.isArray(overrides.feeOverrides) ? overrides.feeOverrides : [overrides.feeOverrides])
                     : [];
-                  const matchingOverride = feeOverrideArray.find((ov) => 
-                    ov.marketplace?.toUpperCase() === marketplace.toUpperCase()
-                  );
+                  const matchingOverride = feeOverrideArray.find((ov) => {
+                    // Try matching by marketplace_channel if override has channel field
+                    if (ov.marketplace && ov.channel) {
+                      return ov.marketplace.toUpperCase() === marketplace.toUpperCase() && 
+                             ov.channel === channelName;
+                    }
+                    // Fallback to marketplace-only match
+                    return ov.marketplace?.toUpperCase() === marketplace.toUpperCase();
+                  });
+
+                  // Determine channel type for styling
+                  const isAmazon = channelName === 'Amazon';
+                  const isEbay = channelName === 'eBay';
+                  const isRetailer = channelName === 'Retailer';
+                  const isDistributor = channelName === 'Distributor';
+                  
+                  // Get border color based on channel type
+                  const borderColor = isAmazon 
+                    ? 'border-blue-500/30 bg-blue-500/5'
+                    : isEbay
+                    ? 'border-orange-500/30 bg-orange-500/5'
+                    : isRetailer
+                    ? 'border-purple-500/30 bg-purple-500/5'
+                    : isDistributor
+                    ? 'border-cyan-500/30 bg-cyan-500/5'
+                    : 'border-gray-600/30';
+
+                  // Format display name
+                  const displayName = `${channelName}-${marketplace}`;
 
                   return (
-                    <div key={marketplace} className="bg-gray-750 rounded p-3 space-y-2">
+                    <div key={feeKey} className={`bg-gray-750 rounded-lg p-3 space-y-2 border ${borderColor}`}>
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-300">{marketplace}</span>
+                        <span className="font-medium text-gray-300">{displayName}</span>
                         {confidence && (
                           <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${confidenceBadge.bg} ${confidenceBadge.color}`}>
                             <confidenceBadge.icon size={12} />
@@ -333,25 +380,59 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                       </div>
                       
                       <div className="text-xs text-gray-400 space-y-1">
-                        <div><span className="text-gray-500">Sell Price:</span> ${fee.sellPrice.toFixed(2)}</div>
+                        <div><span className="text-gray-500">Sell Price:</span> {getCurrencySymbol(fee.currency)}{fee.sellPrice.toFixed(2)}</div>
                         {fee.sellPriceSource && <div><span className="text-gray-500">Price Source:</span> {fee.sellPriceSource}</div>}
-                        {/* Show override values if available, otherwise show calculated values */}
-                        {(matchingOverride?.referralRate !== undefined || fee.referralRate !== undefined) && (
-                          <div><span className="text-gray-500">Referral Rate:</span> {(matchingOverride?.referralRate !== undefined ? matchingOverride.referralRate * 100 : fee.referralRate * 100).toFixed(1)}%</div>
+                        
+                        {/* Amazon-specific fees */}
+                        {isAmazon && (
+                          <>
+                            {(matchingOverride?.referralRate !== undefined || fee.referralRate !== undefined) && (
+                              <div><span className="text-gray-500">Referral Rate:</span> {(matchingOverride?.referralRate !== undefined ? matchingOverride.referralRate * 100 : fee.referralRate).toFixed(1)}%</div>
+                            )}
+                            {(matchingOverride?.fbaFee !== undefined || fee.fbaFee !== undefined) && (
+                              <div><span className="text-gray-500">FBA Fee:</span> {getCurrencySymbol(fee.currency)}{(matchingOverride?.fbaFee ?? fee.fbaFee ?? 0).toFixed(2)}</div>
+                            )}
+                            {(matchingOverride?.closingFee !== undefined || fee.closingFee > 0) && (
+                              <div><span className="text-gray-500">Closing Fee:</span> {getCurrencySymbol(fee.currency)}{(matchingOverride?.closingFee ?? fee.closingFee ?? 0).toFixed(2)}</div>
+                            )}
+                          </>
                         )}
-                        {(matchingOverride?.fbaFee !== undefined || fee.fbaFee !== undefined) && (
-                          <div><span className="text-gray-500">FBA Fee:</span> ${(matchingOverride?.fbaFee ?? fee.fbaFee ?? 0).toFixed(2)}</div>
+                        
+                        {/* eBay-specific fees */}
+                        {isEbay && (
+                          <>
+                            {(fee.finalValueFee !== undefined && fee.finalValueFee > 0) && (
+                              <div><span className="text-gray-500">Final Value Fee:</span> {getCurrencySymbol(fee.currency)}{fee.finalValueFee.toFixed(2)}</div>
+                            )}
+                            {(fee.perOrderFee !== undefined && fee.perOrderFee > 0) && (
+                              <div><span className="text-gray-500">Per-Order Fee:</span> {getCurrencySymbol(fee.currency)}{fee.perOrderFee.toFixed(2)}</div>
+                            )}
+                          </>
                         )}
-                        {(matchingOverride?.closingFee !== undefined || fee.closingFee > 0) && (
-                          <div><span className="text-gray-500">Closing Fee:</span> ${(matchingOverride?.closingFee ?? fee.closingFee ?? 0).toFixed(2)}</div>
+                        
+                        {/* Retailer/Distributor fees (similar to Amazon) */}
+                        {(isRetailer || isDistributor) && (
+                          <>
+                            {(matchingOverride?.referralRate !== undefined || fee.referralRate !== undefined) && (
+                              <div><span className="text-gray-500">Referral Rate:</span> {(matchingOverride?.referralRate !== undefined ? matchingOverride.referralRate * 100 : fee.referralRate).toFixed(1)}%</div>
+                            )}
+                            {(matchingOverride?.fbaFee !== undefined || fee.fbaFee !== undefined) && (
+                              <div><span className="text-gray-500">FBA Fee:</span> {getCurrencySymbol(fee.currency)}{(matchingOverride?.fbaFee ?? fee.fbaFee ?? 0).toFixed(2)}</div>
+                            )}
+                            {(matchingOverride?.closingFee !== undefined || fee.closingFee > 0) && (
+                              <div><span className="text-gray-500">Closing Fee:</span> {getCurrencySymbol(fee.currency)}{(matchingOverride?.closingFee ?? fee.closingFee ?? 0).toFixed(2)}</div>
+                            )}
+                          </>
                         )}
+                        
+                        {/* Common fees */}
                         {matchingOverride?.paymentFee !== undefined && (
                           <div><span className="text-gray-500">Payment Fee:</span> {(matchingOverride.paymentFee * 100).toFixed(1)}%</div>
                         )}
                         {fee.vatRate > 0 && (
                           <>
                             <div><span className="text-gray-500">VAT Rate:</span> {fee.vatRate}%</div>
-                            <div><span className="text-gray-500">VAT Amount:</span> ${fee.vatAmount.toFixed(2)}</div>
+                            <div><span className="text-gray-500">VAT Amount:</span> {getCurrencySymbol(fee.currency)}{fee.vatAmount.toFixed(2)}</div>
                           </>
                         )}
                         {(matchingOverride?.feeScheduleVersion || fee.feeScheduleVersion) && (

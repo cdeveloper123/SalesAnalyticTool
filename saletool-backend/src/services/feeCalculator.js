@@ -619,7 +619,8 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
     },
     totalFees: Number(totalFees.toFixed(2)),
     netProceeds: Number(netProceeds.toFixed(2)),
-    netMarginPercent: Number(((netProceeds / sellPrice) * 100).toFixed(1))
+    netMarginPercent: Number(((netProceeds / sellPrice) * 100).toFixed(1)),
+    feeScheduleVersion: '2025-01' // Current fee schedule version
   };
 
   // Apply overrides if provided

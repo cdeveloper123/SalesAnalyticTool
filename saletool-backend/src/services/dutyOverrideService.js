@@ -135,13 +135,21 @@ export function getDutyOverrideForRoute(origin, destination, overrides) {
   const overrideArray = Array.isArray(overrides) ? overrides : [overrides];
 
   // Find matching override for this route
+  // If override.origin is missing/undefined, it applies to any origin (backward compatibility)
   const matchingOverride = overrideArray.find(override => {
     const overrideOrigin = override.origin?.toUpperCase();
     const overrideDest = override.destination?.toUpperCase();
     const routeOrigin = origin?.toUpperCase();
     const routeDest = destination?.toUpperCase();
 
-    return overrideOrigin === routeOrigin && overrideDest === routeDest;
+    // Match destination first
+    if (overrideDest !== routeDest) return false;
+    
+    // If override has no origin specified, it applies to any origin
+    if (!overrideOrigin) return true;
+    
+    // Otherwise, origin must match exactly
+    return overrideOrigin === routeOrigin;
   });
 
   if (!matchingOverride) return null;

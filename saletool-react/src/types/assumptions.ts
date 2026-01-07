@@ -24,6 +24,7 @@ export interface DutyOverride {
 
 export interface FeeOverride {
   marketplace: string; // 'US', 'UK', 'DE', etc.
+  channel?: string; // 'Amazon', 'eBay', 'Retailer', 'Distributor'
   referralRate?: number; // 0-1 for percentage
   fbaFee?: number;
   closingFee?: number;
@@ -76,6 +77,7 @@ export interface AssumptionDetails {
   }>;
   fees: Record<string, {
     marketplace: string;
+    channel?: string; // 'Amazon', 'eBay', 'Retailer', 'Distributor'
     sellPrice: number;
     sellPriceSource?: string;
     category: string;
@@ -83,10 +85,14 @@ export interface AssumptionDetails {
     referralFee: number;
     fbaFee: number;
     closingFee: number;
+    // eBay-specific fees
+    finalValueFee?: number;
+    perOrderFee?: number;
     vatRate: number;
     vatAmount: number;
     feeScheduleVersion: string;
     isOverridden: boolean;
+    currency?: string; // Currency code (USD, EUR, etc.)
   }>;
   currency?: {
     buyPriceCurrency: string;

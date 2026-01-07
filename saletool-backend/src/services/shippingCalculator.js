@@ -100,7 +100,40 @@ export function calculateShipping(weightKg, origin, destination, method = 'air',
   method = method?.toLowerCase() || 'air';
   weightKg = Number(weightKg) || 0.5; // Default 0.5 kg
   
-  // Get rates
+  // Same country = domestic shipping (much cheaper and faster than international)
+  if (origin === destination) {
+    // Domestic shipping rates (based on typical USPS, FedEx, UPS domestic rates)
+    const domesticRates = {
+      sea: { perKg: 1.50, transitDays: 5, minCharge: 25 },      // Ground shipping
+      air: { perKg: 3.00, transitDays: 2, minCharge: 15 },        // 2-day air
+      express: { perKg: 5.00, transitDays: 1, minCharge: 10 }      // Next-day express
+    };
+    
+    const methodRates = domesticRates[method] || domesticRates['air'];
+    const rawCost = weightKg * methodRates.perKg;
+    const shippingCost = Math.max(rawCost, methodRates.minCharge);
+    
+    const result = {
+      origin,
+      destination,
+      method,
+      weightKg,
+      ratePerKg: methodRates.perKg,
+      minCharge: methodRates.minCharge,
+      transitDays: methodRates.transitDays,
+      shippingCost: Number(shippingCost.toFixed(2)),
+      currency: 'USD'
+    };
+
+    // Apply overrides if provided
+    if (overrides) {
+      return applyShippingOverrides(result, overrides);
+    }
+
+    return result;
+  }
+  
+  // Get rates for international shipping
   const originRates = SHIPPING_RATES[origin] || SHIPPING_RATES['CN'];
   const destRates = originRates?.[destination] || originRates?.['US'] || {};
   const methodRates = destRates[method] || DEFAULT_RATES[method] || DEFAULT_RATES['air'];

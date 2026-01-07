@@ -248,10 +248,14 @@ function processAmazonChannel(marketplace, pricing, productData, buyPrice, curre
     fees: {
       total: fees.totalFees,
       breakdown: {
-        referral: fees.referralFee,
-        fba: fees.fbaFee,
-        vat: fees.vat
-      }
+        referralFee: fees.breakdown.referralFee,
+        referralRate: fees.breakdown.referralRate,
+        fbaFee: fees.breakdown.fbaFee,
+        closingFee: fees.breakdown.closingFee,
+        vat: fees.breakdown.vat,
+        vatRate: fees.breakdown.vatRate
+      },
+      feeScheduleVersion: fees.feeScheduleVersion || '2025-01'
     },
     netProceeds: fees.netProceeds,
     buyPriceConverted: buyPriceInMarketCurrency,
@@ -391,13 +395,20 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     marketplace,
     sellPrice: fees.sellPrice,
     currency: marketCurrency,
+    // Track sell price source for assumptions tracking
+    pricingSource: pricing.dataSource || 'api',
+    confidence: demandData.confidence || 'Medium',
     fees: {
       total: fees.totalFees,
       breakdown: {
-        referral: fees.referralFee,
-        fba: fees.fbaFee,
-        vat: fees.vat
-      }
+        referralFee: fees.breakdown.referralFee,
+        referralRate: fees.breakdown.referralRate,
+        fbaFee: fees.breakdown.fbaFee,
+        closingFee: fees.breakdown.closingFee,
+        vat: fees.breakdown.vat,
+        vatRate: fees.breakdown.vatRate
+      },
+      feeScheduleVersion: fees.feeScheduleVersion || '2025-01'
     },
     netProceeds: fees.netProceeds,
     landedCost: {
@@ -469,6 +480,9 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     marketplace,
     sellPrice: fees.sellPrice,
     currency: marketCurrency,
+    // Track sell price source for assumptions tracking
+    pricingSource: pricing.dataSource || 'live',
+    confidence: demandData.confidence || 'Medium',
     fees: {
       total: fees.totalFees,
       breakdown: {
@@ -543,11 +557,19 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   for (const dest of destinations) {
     let dutyResult;
     
-    // Find matching duty override for this route
+    // Find matching duty override for this route (must match both origin and destination)
     const matchingOverride = dutyOverrides 
       ? (Array.isArray(dutyOverrides) 
-          ? dutyOverrides.find(o => o.destination?.toUpperCase() === dest)
-          : (dutyOverrides.destination?.toUpperCase() === dest ? dutyOverrides : null))
+          ? dutyOverrides.find(o => {
+              const overrideOrigin = o.origin?.toUpperCase() || supplierRegion?.toUpperCase();
+              const overrideDest = o.destination?.toUpperCase();
+              return overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest;
+            })
+          : (() => {
+              const overrideOrigin = dutyOverrides.origin?.toUpperCase() || supplierRegion?.toUpperCase();
+              const overrideDest = dutyOverrides.destination?.toUpperCase();
+              return (overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest) ? dutyOverrides : null;
+            })())
       : null;
     
     // Use async HS code lookup if override has HS code
@@ -568,6 +590,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       });
     } else {
       // Use standard category-based calculation
+      // Pass the entire dutyOverrides object - calculateDuty will use getDutyOverrideForRoute to match correctly
       dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category, dutyOverrides);
       
       // Debug: Log if duty override was applied
@@ -577,6 +600,14 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
           newRate: dutyResult.dutyRate,
           originalAmount: dutyResult.overrideMetadata?.originalDutyAmount,
           newAmount: dutyResult.dutyAmount
+        });
+      } else if (dutyOverrides && !dutyResult.isOverridden) {
+        // Debug: Log when override exists but wasn't applied (for troubleshooting)
+        console.log(`[MultiChannel Evaluator] Duty override exists but not applied for ${supplierRegion}->${dest}:`, {
+          overrideExists: true,
+          supplierRegion,
+          destination: dest,
+          overrideStructure: Array.isArray(dutyOverrides) ? dutyOverrides.map(o => ({ origin: o.origin, destination: o.destination })) : { origin: dutyOverrides.origin, destination: dutyOverrides.destination }
         });
       }
     }
@@ -686,6 +717,12 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       withMargin.demand.absorptionCapacity = absorptionCapacity;
       withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
 
+      // Track sell price source (based on reference price source)
+      withMargin.pricingSource = hasAmazonUS 
+        ? (amazonPricing['US'].dataSource || 'api')
+        : (ebayPricing['US'].dataSource || 'live');
+      withMargin.confidence = 'Medium'; // Retailer channels use estimated pricing
+
       // Add explanation
       withMargin.explanation = generateChannelExplanation(
         'Retailer',
@@ -744,6 +781,12 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       const absorptionCapacity = Math.round((withMargin.demand?.estimatedMonthlySales?.mid || 500) * 0.20);
       withMargin.demand.absorptionCapacity = absorptionCapacity;
       withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
+
+      // Track sell price source (based on reference price source)
+      withMargin.pricingSource = hasAmazonUS 
+        ? (amazonPricing['US'].dataSource || 'api')
+        : (ebayPricing['US'].dataSource || 'live');
+      withMargin.confidence = 'Medium'; // Distributor channels use estimated pricing
 
       // Add explanation  
       withMargin.explanation = generateChannelExplanation(

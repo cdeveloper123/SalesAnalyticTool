@@ -14,7 +14,7 @@
  * Uses 2024-2025 tariff rates
  */
 
-import { applyDutyOverrides } from './dutyOverrideService.js';
+import { applyDutyOverrides, getDutyOverrideForRoute } from './dutyOverrideService.js';
 import { lookupHSCode, validateHSCode } from './hsCodeService.js';
 import { getDutyRate } from './tariffLookupService.js';
 
@@ -174,29 +174,80 @@ export function calculateDuty(productValue, origin, destination, category = 'def
   origin = origin?.toUpperCase() || 'CN';
   destination = destination?.toUpperCase() || 'US';
 
+  // Check for overrides FIRST (before same-country check)
+  // If override exists, it should be applied even for same-country routes
+  const hasOverride = overrides && getDutyOverrideForRoute(origin, destination, overrides);
+  
+  // Same country = no duty (domestic shipping) - UNLESS overridden
+  if (origin === destination && !hasOverride) {
+    const dutyCategory = CATEGORY_MAPPING[category] || category?.toLowerCase() || 'default';
+    return {
+      origin,
+      destination,
+      category: dutyCategory,
+      dutyRate: 0,
+      dutyPercent: '0.0%',
+      productValue,
+      dutyAmount: 0,
+      calculationMethod: 'category'
+    };
+  }
+
+  // Intra-EU trade = no duty - UNLESS overridden
+  const euCountries = ['DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'AT', 'PL'];
+  if (euCountries.includes(origin) && euCountries.includes(destination) && !hasOverride) {
+    const dutyCategory = CATEGORY_MAPPING[category] || category?.toLowerCase() || 'default';
+    return {
+      origin,
+      destination,
+      category: dutyCategory,
+      dutyRate: 0,
+      dutyPercent: '0.0%',
+      productValue,
+      dutyAmount: 0,
+      calculationMethod: 'category'
+    };
+  }
+
   // Map category to duty category
   const dutyCategory = CATEGORY_MAPPING[category] || category?.toLowerCase() || 'default';
 
-  // Get rates for origin → destination
-  const originRates = DUTY_RATES[origin] || DUTY_RATES['CN'];
-  const destRates = originRates?.[destination] || originRates?.['US'] || {};
+  // If override exists for same-country or intra-EU, create default 0% result first
+  let result;
+  if ((origin === destination || (euCountries.includes(origin) && euCountries.includes(destination))) && hasOverride) {
+    // Create default 0% result for same-country/intra-EU, then override will be applied
+    result = {
+      origin,
+      destination,
+      category: dutyCategory,
+      dutyRate: 0,
+      dutyPercent: '0.0%',
+      productValue,
+      dutyAmount: 0,
+      calculationMethod: 'category'
+    };
+  } else {
+    // Get rates for origin → destination
+    const originRates = DUTY_RATES[origin] || DUTY_RATES['CN'];
+    const destRates = originRates?.[destination] || originRates?.['US'] || {};
 
-  // Get rate for category
-  const dutyRate = destRates[dutyCategory] !== undefined
-    ? destRates[dutyCategory]
-    : (destRates['default'] || 0.05);
+    // Get rate for category
+    const dutyRate = destRates[dutyCategory] !== undefined
+      ? destRates[dutyCategory]
+      : (destRates['default'] || 0.05);
 
-  const dutyAmount = productValue * dutyRate;
+    const dutyAmount = productValue * dutyRate;
 
-  const result = {
-    origin,
-    destination,
-    category: dutyCategory,
-    dutyRate,
-    dutyPercent: (dutyRate * 100).toFixed(1) + '%',
-    productValue,
-    dutyAmount: Number(dutyAmount.toFixed(2))
-  };
+    result = {
+      origin,
+      destination,
+      category: dutyCategory,
+      dutyRate,
+      dutyPercent: (dutyRate * 100).toFixed(1) + '%',
+      productValue,
+      dutyAmount: Number(dutyAmount.toFixed(2))
+    };
+  }
 
   // Apply overrides if provided
   if (overrides) {

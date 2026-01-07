@@ -161,30 +161,40 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         };
       }
 
-      // Fee assumptions
+      // Fee assumptions - store per channel using composite key
       if (marketplace && channel.fees) {
         const isFeeOverridden = channel.fees.isOverridden || false;
         const sellPriceSource = channel.pricingSource || 'api';
         const sellPriceConfidence = channel.confidence || 'Medium';
         
-        assumptions.fees[marketplace] = {
+        // Use composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay")
+        const feeKey = `${marketplace}_${channelName}`;
+        
+        assumptions.fees[feeKey] = {
           marketplace,
+          channel: channelName,
           sellPrice: channel.sellPrice,
           sellPriceSource: sellPriceSource,
           category: input?.category || 'default',
+          // Amazon-specific fees
           referralRate: channel.fees.breakdown?.referralRate || 0,
           referralFee: channel.fees.breakdown?.referralFee || 0,
           fbaFee: channel.fees.breakdown?.fbaFee || 0,
           closingFee: channel.fees.breakdown?.closingFee || 0,
+          // eBay-specific fees
+          finalValueFee: channel.fees.breakdown?.finalValue || 0,
+          perOrderFee: channel.fees.breakdown?.perOrder || 0,
+          // Common fees
           vatRate: channel.fees.breakdown?.vatRate || 0,
           vatAmount: channel.fees.breakdown?.vat || 0,
           feeScheduleVersion: channel.fees.feeScheduleVersion || '2025-01',
-          isOverridden: isFeeOverridden
+          isOverridden: isFeeOverridden,
+          currency: channel.currency || 'USD'
         };
 
-        // Fee data freshness
+        // Fee data freshness - use composite key
         const feeScheduleMetadata = getDataSourceMetadata('feeSchedule');
-        assumptions.dataFreshness[`fees_${marketplace}`] = {
+        assumptions.dataFreshness[`fees_${feeKey}`] = {
           source: sellPriceSource,
           timestamp: analysisTimestamp, // When calculation was performed
           age: 'calculated_at_analysis',
@@ -193,8 +203,24 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           dataSourceVersion: isFeeOverridden ? undefined : feeScheduleMetadata?.version
         };
 
-        // Fee source confidence
-        assumptions.sourceConfidence[`fees_${marketplace}`] = {
+        // Per-marketplace sell price data source tracking - use composite key
+        assumptions.dataFreshness[`sellPrice_${feeKey}`] = {
+          source: sellPriceSource,
+          timestamp: analysisTimestamp, // When sell price was fetched/calculated
+          marketplace: marketplace,
+          channel: channelName,
+          dataSource: sellPriceSource, // 'live', 'mock', 'mock-fallback', or 'api'
+          description: sellPriceSource === 'live' 
+            ? `Live ${channelName} API data for ${marketplace}`
+            : sellPriceSource === 'mock'
+            ? `Mock ${channelName} data for ${marketplace}`
+            : sellPriceSource === 'mock-fallback'
+            ? `Mock fallback ${channelName} data for ${marketplace} (API unavailable)`
+            : `${channelName} API data for ${marketplace}`
+        };
+
+        // Fee source confidence - use composite key
+        assumptions.sourceConfidence[`fees_${feeKey}`] = {
           level: sellPriceConfidence.toLowerCase(),
           reason: isFeeOverridden
             ? 'User-provided fee overrides'
@@ -202,15 +228,26 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           sellPriceConfidence: sellPriceConfidence
         };
 
-        // Fee methodology
+        // Fee methodology - use composite key
         const vatTreatment = channel.fees.breakdown?.vatRate > 0 
           ? `VAT-inclusive pricing. VAT rate: ${channel.fees.breakdown?.vatRate}% (${marketplace} standard rate).`
           : 'VAT-exclusive pricing or no VAT applicable.';
         
-        assumptions.methodology[`fees_${marketplace}`] = {
-          calculation: isFeeOverridden
-            ? 'Manual fee overrides provided by user'
-            : `${channelName} fee structure applied: Referral fee ${(channel.fees.breakdown?.referralRate || 0) * 100}%, FBA fee ${channel.fees.breakdown?.fbaFee || 0} ${channel.currency || 'USD'}, Closing fee ${channel.fees.breakdown?.closingFee || 0} ${channel.currency || 'USD'}. ${vatTreatment}`,
+        // Build calculation message based on channel type
+        let calculationMessage;
+        if (isFeeOverridden) {
+          calculationMessage = 'Manual fee overrides provided by user';
+        } else if (channelName === 'Amazon') {
+          calculationMessage = `${channelName} fee structure applied: Referral fee ${channel.fees.breakdown?.referralRate || 0}%, FBA fee ${channel.fees.breakdown?.fbaFee || 0} ${channel.currency || 'USD'}, Closing fee ${channel.fees.breakdown?.closingFee || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
+        } else if (channelName === 'eBay') {
+          calculationMessage = `${channelName} fee structure applied: Final value fee ${channel.fees.breakdown?.finalValue || 0} ${channel.currency || 'USD'}, Per-order fee ${channel.fees.breakdown?.perOrder || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
+        } else {
+          // Retailer or Distributor
+          calculationMessage = `${channelName} fee structure applied: Referral fee ${channel.fees.breakdown?.referralRate || 0}%, FBA fee ${channel.fees.breakdown?.fbaFee || 0} ${channel.currency || 'USD'}, Closing fee ${channel.fees.breakdown?.closingFee || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
+        }
+        
+        assumptions.methodology[`fees_${feeKey}`] = {
+          calculation: calculationMessage,
           rule: isFeeOverridden ? 'user_override' : 'fee_schedule',
           feeScheduleVersion: channel.fees.feeScheduleVersion || '2025-01',
           vatTreatment: vatTreatment

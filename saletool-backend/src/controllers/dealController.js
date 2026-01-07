@@ -169,7 +169,9 @@ export const analyzeDeal = async (req, res) => {
               max: product.buybox_winner?.price?.value || 0,
               avg: product.buybox_winner?.price?.value || 0,
               trend: 'stable'
-            }
+            },
+            // Track data source for sell price tracking
+            dataSource: amazonResult.dataSource || 'live'
           };
 
           // Debug: Log key demand data
@@ -202,7 +204,9 @@ export const analyzeDeal = async (req, res) => {
               buyBoxPrice: ebayResult.buyBoxPrice,
               activeListings: ebayResult.activeListings,
               estimatedMonthlySales: ebayResult.estimatedMonthlySales,
-              confidence: ebayResult.confidence
+              confidence: ebayResult.confidence,
+              // Track data source for sell price tracking (eBay always uses live API)
+              dataSource: 'live'
             };
 
             console.log(`[eBay ${market}] Avg Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
