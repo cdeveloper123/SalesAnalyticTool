@@ -225,6 +225,44 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
       {/* Main Content - Collapsible */}
       {isExpanded && (
         <div className="p-6 space-y-6">
+        {/* Basic Inputs Section */}
+        {(product.quantity != null || product.buy_price != null || product.currency || product.supplier_region) && (
+          <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+            <div className="flex items-center gap-2 mb-4">
+              <FiInfo className="text-blue-400" size={18} />
+              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Input Parameters</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {product.quantity != null && (
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Quantity</div>
+                  <div className="text-lg font-bold text-white">{product.quantity.toLocaleString()} units</div>
+                </div>
+              )}
+              {product.buy_price != null && (
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Buy Price Per Unit</div>
+                  <div className="text-lg font-bold text-white">
+                    {formatCurrency(product.buy_price, product.currency || 'USD')}
+                  </div>
+                </div>
+              )}
+              {product.currency && (
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Currency</div>
+                  <div className="text-lg font-bold text-white">{product.currency}</div>
+                </div>
+              )}
+              {product.supplier_region && (
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Supplier Region</div>
+                  <div className="text-lg font-bold text-white">{product.supplier_region}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Top Row: Decision & Best Channel */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Decision Card */}

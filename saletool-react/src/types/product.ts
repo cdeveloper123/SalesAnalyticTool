@@ -77,6 +77,11 @@ export interface Product {
   id?: string; // Deal ID from database
   ean: string;
   productName?: string;
+  // Basic input fields
+  quantity?: number;
+  buy_price?: number;
+  currency?: string;
+  supplier_region?: string;
   deal_quality_score: number;
   net_margin: number;
   demand_confidence: number;

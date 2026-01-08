@@ -16,6 +16,10 @@ interface DealFromDB {
   id: string;
   ean: string;
   productName: string | null;
+  quantity: number;
+  buyPrice: number;
+  currency: string;
+  supplierRegion: string;
   dealScore: number;
   netMargin: number;
   demandConfidence: number;
@@ -27,7 +31,6 @@ interface DealFromDB {
   bestMarketplace: string | null;
   bestMarginPercent: number | null;
   bestCurrency: string | null;
-  supplierRegion?: string;
   performanceMetrics?: Product['performanceMetrics'];
   evaluationData: {
     channelAnalysis?: Array<{
@@ -98,6 +101,11 @@ function Dashboard() {
             id: deal.id,
             ean: deal.ean,
             productName: deal.productName || `Product ${deal.ean}`,
+            // Basic input fields
+            quantity: deal.quantity,
+            buy_price: deal.buyPrice,
+            currency: deal.currency,
+            supplier_region: deal.supplierRegion,
             deal_quality_score: deal.dealScore,
             net_margin: deal.netMargin,
             demand_confidence: deal.demandConfidence,
