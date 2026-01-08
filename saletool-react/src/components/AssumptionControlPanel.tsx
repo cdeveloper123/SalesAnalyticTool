@@ -83,6 +83,13 @@ export default function AssumptionControlPanel({
     marketplace: 'US',
   });
 
+  // Store raw string values for rate inputs to allow intermediate states like "0."
+  const [rateInputValues, setRateInputValues] = useState<{
+    dutyRate?: string;
+    referralRate?: string;
+    paymentFee?: string;
+  }>({});
+
   // Track if we're updating from user input (to prevent useEffect from overwriting)
   const isUserInputRef = useRef(false);
   const prevOverridesRef = useRef<AssumptionOverrides>({});
@@ -153,6 +160,8 @@ export default function AssumptionControlPanel({
             rate: firstOverride.rate,
             amount: firstOverride.amount,
           });
+          // Clear raw input values when syncing from outside
+          setRateInputValues(prev => ({ ...prev, dutyRate: undefined }));
           // Auto-expand panel when preset is applied or initial load with overrides
           if (isInitialLoad || hasDutyChanged) {
             setIsExpanded(true);
@@ -170,6 +179,7 @@ export default function AssumptionControlPanel({
           destination: 'US',
           calculationMethod: 'category',
         });
+        setRateInputValues(prev => ({ ...prev, dutyRate: undefined }));
       }
     }
 
@@ -189,6 +199,8 @@ export default function AssumptionControlPanel({
             paymentFee: firstOverride.paymentFee,
             feeScheduleVersion: firstOverride.feeScheduleVersion,
           });
+          // Clear raw input values when syncing from outside
+          setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined }));
           // Auto-expand panel when preset is applied or initial load with overrides
           if (isInitialLoad || hasFeesChanged) {
             setIsExpanded(true);
@@ -204,6 +216,7 @@ export default function AssumptionControlPanel({
         setFeeOverride({
           marketplace: 'US',
         });
+        setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined }));
       }
     }
     
@@ -317,6 +330,172 @@ export default function AssumptionControlPanel({
     }
     
     onChange({ ...overrides, feeOverrides });
+  };
+
+  // Validation handlers for input fields
+  const handleHsCodeKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Only allow numeric keys (0-9) and control/navigation keys
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'Home', 'End'
+    ];
+    
+    // Allow control key combinations (Ctrl+A, Ctrl+C, Ctrl+V, etc.)
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+    
+    // Allow navigation and control keys
+    if (allowedKeys.includes(e.key)) {
+      return;
+    }
+    
+    // Only allow digits 0-9
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleHsCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Remove any non-numeric characters
+    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+    
+    // Limit to 10 digits max (HS codes are 6-10 digits)
+    const limitedValue = numericValue.slice(0, 10);
+    
+    handleDutyChange('hsCode', limitedValue || undefined);
+  };
+
+  const handleHsCodeBlur = () => {
+    // Validate HS code length on blur (must be 6-10 digits)
+    if (dutyOverride.hsCode) {
+      const length = dutyOverride.hsCode.length;
+      if (length < 6 || length > 10) {
+        toast.error(`HS Code must be 6-10 digits. Current length: ${length}`);
+        // Clear invalid value
+        handleDutyChange('hsCode', undefined);
+      }
+    }
+  };
+
+  const handleRateKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, currentValue: string) => {
+    // Only allow numeric keys (0-9), decimal point, and control/navigation keys
+    const allowedKeys = [
+      'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'Home', 'End'
+    ];
+    
+    // Allow control key combinations (Ctrl+A, Ctrl+C, Ctrl+V, etc.)
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+    
+    // Allow navigation and control keys
+    if (allowedKeys.includes(e.key)) {
+      return;
+    }
+    
+    // Allow decimal point only if not already present
+    if (e.key === '.' && !currentValue.includes('.')) {
+      return;
+    }
+    
+    // Only allow digits 0-9
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleDutyRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    // Remove any non-numeric characters except decimal point
+    value = value.replace(/[^0-9.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = value.split('.');
+    if (parts.length > 2) {
+      value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Store raw string value to allow intermediate states like "0."
+    setRateInputValues(prev => ({ ...prev, dutyRate: value }));
+    
+    // If empty, clear the value
+    if (value === '') {
+      handleDutyChange('rate', undefined);
+      return;
+    }
+    
+    // Allow intermediate states like "." or "0." while typing
+    if (value === '.' || value.endsWith('.')) {
+      // Don't parse yet, just store the raw string
+      return;
+    }
+    
+    // Parse and validate range (0-1) for complete values
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      // Clamp to 0-1 range
+      if (numValue < 0) {
+        handleDutyChange('rate', 0);
+        setRateInputValues(prev => ({ ...prev, dutyRate: '0' }));
+      } else if (numValue > 1) {
+        handleDutyChange('rate', 1);
+        setRateInputValues(prev => ({ ...prev, dutyRate: '1' }));
+      } else {
+        handleDutyChange('rate', numValue);
+      }
+    }
+  };
+
+  const handleFeeRateChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'referralRate' | 'paymentFee'
+  ) => {
+    let value = e.target.value;
+    
+    // Remove any non-numeric characters except decimal point
+    value = value.replace(/[^0-9.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = value.split('.');
+    if (parts.length > 2) {
+      value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Store raw string value to allow intermediate states like "0."
+    const inputKey = field === 'referralRate' ? 'referralRate' : 'paymentFee';
+    setRateInputValues(prev => ({ ...prev, [inputKey]: value }));
+    
+    // If empty, clear the value
+    if (value === '') {
+      handleFeeChange(field, undefined);
+      return;
+    }
+    
+    // Allow intermediate states like "." or "0." while typing
+    if (value === '.' || value.endsWith('.')) {
+      // Don't parse yet, just store the raw string
+      return;
+    }
+    
+    // Parse and validate range (0-1) for complete values
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      // Clamp to 0-1 range
+      if (numValue < 0) {
+        handleFeeChange(field, 0);
+        setRateInputValues(prev => ({ ...prev, [inputKey]: '0' }));
+      } else if (numValue > 1) {
+        handleFeeChange(field, 1);
+        setRateInputValues(prev => ({ ...prev, [inputKey]: '1' }));
+      } else {
+        handleFeeChange(field, numValue);
+      }
+    }
   };
 
 
@@ -496,9 +675,13 @@ export default function AssumptionControlPanel({
                       label="HS Code (6-10 digits)"
                       type="text"
                       value={dutyOverride.hsCode || ''}
-                      onChange={(e) => handleDutyChange('hsCode', e.target.value)}
+                      onChange={handleHsCodeChange}
+                      onKeyPress={handleHsCodeKeyPress}
+                      onBlur={handleHsCodeBlur}
                       placeholder="e.g., 9504500000"
                       pattern="[0-9]{6,10}"
+                      inputMode="numeric"
+                      maxLength={10}
                     />
                   </div>
                   {showSuggestButton && (
@@ -521,12 +704,18 @@ export default function AssumptionControlPanel({
               {dutyOverride.calculationMethod === 'hscode' && (
                 <Input
                   label="Duty Rate (0-1, e.g., 0.12 for 12%)"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  max="1"
-                  value={dutyOverride.rate || ''}
-                  onChange={(e) => handleDutyChange('rate', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  type="text"
+                  inputMode="decimal"
+                  value={rateInputValues.dutyRate !== undefined ? rateInputValues.dutyRate : (dutyOverride.rate !== undefined ? dutyOverride.rate.toString() : '')}
+                  onChange={handleDutyRateChange}
+                  onKeyPress={(e) => handleRateKeyPress(e, rateInputValues.dutyRate || (dutyOverride.rate !== undefined ? dutyOverride.rate.toString() : ''))}
+                  onBlur={() => {
+                    // On blur, ensure we have a valid number or clear
+                    if (rateInputValues.dutyRate === '.' || rateInputValues.dutyRate === '') {
+                      handleDutyChange('rate', undefined);
+                      setRateInputValues(prev => ({ ...prev, dutyRate: undefined }));
+                    }
+                  }}
                   placeholder="Auto"
                 />
               )}
@@ -556,12 +745,18 @@ export default function AssumptionControlPanel({
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Referral Fee Rate (0-1, e.g., 0.15 for 15%)"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  max="1"
-                  value={feeOverride.referralRate !== undefined ? feeOverride.referralRate : ''}
-                  onChange={(e) => handleFeeChange('referralRate', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  type="text"
+                  inputMode="decimal"
+                  value={rateInputValues.referralRate !== undefined ? rateInputValues.referralRate : (feeOverride.referralRate !== undefined ? feeOverride.referralRate.toString() : '')}
+                  onChange={(e) => handleFeeRateChange(e, 'referralRate')}
+                  onKeyPress={(e) => handleRateKeyPress(e, rateInputValues.referralRate || (feeOverride.referralRate !== undefined ? feeOverride.referralRate.toString() : ''))}
+                  onBlur={() => {
+                    // On blur, ensure we have a valid number or clear
+                    if (rateInputValues.referralRate === '.' || rateInputValues.referralRate === '') {
+                      handleFeeChange('referralRate', undefined);
+                      setRateInputValues(prev => ({ ...prev, referralRate: undefined }));
+                    }
+                  }}
                   placeholder="Auto"
                 />
                 <Input
@@ -586,12 +781,18 @@ export default function AssumptionControlPanel({
                 />
                 <Input
                   label="Payment Processing Fee (0-1)"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  max="1"
-                  value={feeOverride.paymentFee !== undefined ? feeOverride.paymentFee : ''}
-                  onChange={(e) => handleFeeChange('paymentFee', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  type="text"
+                  inputMode="decimal"
+                  value={rateInputValues.paymentFee !== undefined ? rateInputValues.paymentFee : (feeOverride.paymentFee !== undefined ? feeOverride.paymentFee.toString() : '')}
+                  onChange={(e) => handleFeeRateChange(e, 'paymentFee')}
+                  onKeyPress={(e) => handleRateKeyPress(e, rateInputValues.paymentFee || (feeOverride.paymentFee !== undefined ? feeOverride.paymentFee.toString() : ''))}
+                  onBlur={() => {
+                    // On blur, ensure we have a valid number or clear
+                    if (rateInputValues.paymentFee === '.' || rateInputValues.paymentFee === '') {
+                      handleFeeChange('paymentFee', undefined);
+                      setRateInputValues(prev => ({ ...prev, paymentFee: undefined }));
+                    }
+                  }}
                   placeholder="Auto"
                 />
               </div>
