@@ -320,11 +320,18 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
             {expandedSections.fees && (
               <div className="p-3 space-y-3 border-t border-gray-700">
                 {Object.entries(details.fees).map(([feeKey, fee]) => {
-                  // Parse composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay")
+                  // Parse composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay", "US_Walmart", "US_Ingram Micro")
                   // For backward compatibility, handle both old format (just marketplace) and new format (marketplace_channel)
                   const isCompositeKey = feeKey.includes('_');
                   const marketplace = isCompositeKey ? feeKey.split('_')[0] : feeKey;
-                  const channelName = fee.channel || (isCompositeKey ? feeKey.split('_')[1] : 'Unknown');
+                  // Use retailer/distributor name from fee object if available, otherwise parse from key
+                  let channelName = fee.channel || (isCompositeKey ? feeKey.split('_')[1] : 'Unknown');
+                  // Check if fee has retailer or distributor name (for display purposes)
+                  if ((fee as any).retailer) {
+                    channelName = (fee as any).retailer;
+                  } else if ((fee as any).distributor) {
+                    channelName = (fee as any).distributor;
+                  }
                   
                   // Use composite key for freshness, confidence, and methodology
                   const freshnessKey = `fees_${feeKey}`;

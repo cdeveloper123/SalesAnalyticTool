@@ -906,6 +906,17 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     explanation += `High inventory risk: ${overallMonthsToSell.toFixed(0)}+ months to sell through quantity. `;
   }
 
+  // Helper function to get channel display name (uses retailer/distributor name if available)
+  const getChannelKey = (channel) => {
+    if (channel.retailer) {
+      return `${channel.retailer}-${channel.marketplace}`;
+    } else if (channel.distributor) {
+      return `${channel.distributor}-${channel.marketplace}`;
+    } else {
+      return `${channel.channel}-${channel.marketplace}`;
+    }
+  };
+
   // Hybrid Allocation Strategy: Balance high-margin channels with fast-absorption channels
   // Phase 1: Allocate 60-70% to highest-margin channels (profit optimization)
   // Phase 2: Allocate 30-40% to fastest-absorption channels (inventory turnover optimization)
@@ -943,7 +954,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     const allocated = Math.min(remainingQty, Math.floor(maxAllocation), availableForMargin);
 
     if (allocated > 0) {
-      const key = `${channel.channel}-${channel.marketplace}`;
+      const key = getChannelKey(channel);
       allocation[key] = (allocation[key] || 0) + allocated;
       marginAllocated += allocated;
       marginChannels.push(key);
@@ -957,7 +968,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     if (remainingQty <= 0) break;
 
     // Skip if already allocated in Phase 1
-    const key = `${channel.channel}-${channel.marketplace}`;
+    const key = getChannelKey(channel);
     if (allocation[key]) continue;
 
     const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
@@ -975,7 +986,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
   // Build detailed rationale for each allocated channel
   for (const [channelKey, allocatedQty] of Object.entries(allocation)) {
-    const channel = allChannels.find(c => `${c.channel}-${c.marketplace}` === channelKey);
+    const channel = allChannels.find(c => getChannelKey(c) === channelKey);
     if (!channel) continue;
 
     const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
@@ -1006,7 +1017,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   // Add skipped channels to details - include all channels that weren't allocated
   // First, add skipped recommended channels (those in sortedByMargin but not allocated)
   for (const channel of sortedByMargin) {
-    const key = `${channel.channel}-${channel.marketplace}`;
+    const key = getChannelKey(channel);
     if (allocation[key]) continue;
 
     const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
@@ -1019,7 +1030,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   
   // Add channels that weren't recommended (recommendation === 'Avoid') - these weren't considered for allocation
   for (const channel of allChannels) {
-    const key = `${channel.channel}-${channel.marketplace}`;
+    const key = getChannelKey(channel);
     if (allocation[key] || channel.recommendation === 'Sell') continue; // Skip if already allocated or recommended
     
     const absorptionCapacity = channel.demand?.absorptionCapacity || 0;

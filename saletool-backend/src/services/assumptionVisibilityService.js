@@ -58,7 +58,13 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
 
     channels.forEach(channel => {
       const marketplace = channel.marketplace || channel.market;
-      const channelName = channel.channel || 'Amazon';
+      // Use retailer/distributor name if available, otherwise use channel name
+      let channelName = channel.channel || 'Amazon';
+      if (channel.retailer) {
+        channelName = channel.retailer;
+      } else if (channel.distributor) {
+        channelName = channel.distributor;
+      }
       
       if (marketplace && channel.landedCost) {
         // Shipping assumptions with metadata
@@ -164,15 +170,44 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
       // Fee assumptions - store per channel using composite key
       if (marketplace && channel.fees) {
         const isFeeOverridden = channel.fees.isOverridden || false;
-        const sellPriceSource = channel.pricingSource || 'api';
+        const rawPricingSource = channel.pricingSource || 'api';
         const sellPriceConfidence = channel.confidence || 'Medium';
         
-        // Use composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay")
+        // Create descriptive price source name based on channel and raw source
+        let sellPriceSource;
+        
+        // Distributor and Retailer channels are always mocked (no real API)
+        // Check original channel type, not the display name (which could be retailer/distributor name)
+        const originalChannelType = channel.channel || 'Unknown';
+        const isMockedChannel = originalChannelType === 'Distributor' || originalChannelType === 'Retailer';
+        
+        if (isMockedChannel) {
+          // Distributor and Retailer are mocked channels - always show as Mock
+          sellPriceSource = `Mock ${channelName}`;
+        } else if (rawPricingSource === 'live') {
+          // 'live' means live API - show channel name + API
+          sellPriceSource = `${channelName} API`;
+        } else if (rawPricingSource === 'mock') {
+          sellPriceSource = `Mock ${channelName}`;
+        } else if (rawPricingSource === 'mock-fallback') {
+          sellPriceSource = `Mock ${channelName} (Fallback)`;
+        } else if (rawPricingSource === 'api') {
+          // 'api' is generic - show channel name + API
+          sellPriceSource = `${channelName} API`;
+        } else {
+          // Fallback: show channel name + raw source
+          sellPriceSource = `${channelName} (${rawPricingSource})`;
+        }
+        
+        // Use composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay", "US_Walmart", "US_Ingram Micro")
+        // Use retailer/distributor name in key if available for better identification
         const feeKey = `${marketplace}_${channelName}`;
         
         assumptions.fees[feeKey] = {
           marketplace,
-          channel: channelName,
+          channel: channel.channel || 'Unknown', // Keep original channel type (Retailer, Distributor, Amazon, eBay)
+          retailer: channel.retailer || undefined, // Store retailer name if available (Walmart, Target)
+          distributor: channel.distributor || undefined, // Store distributor name if available (Ingram Micro, Alliance Entertainment)
           sellPrice: channel.sellPrice,
           sellPriceSource: sellPriceSource,
           category: input?.category || 'default',
@@ -187,20 +222,25 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           // Common fees
           vatRate: channel.fees.breakdown?.vatRate || 0,
           vatAmount: channel.fees.breakdown?.vat || 0,
-          feeScheduleVersion: channel.fees.feeScheduleVersion || '2025-01',
+          feeScheduleVersion: (originalChannelType === 'Amazon' || originalChannelType === 'eBay') ? (channel.fees.feeScheduleVersion || '2025-01') : undefined,
           isOverridden: isFeeOverridden,
           currency: channel.currency || 'USD'
         };
 
         // Fee data freshness - use composite key
         const feeScheduleMetadata = getDataSourceMetadata('feeSchedule');
+        // Only include fee schedule info for channels that use fee schedules (Amazon, eBay)
+        // Distributors and Retailers don't use fee schedules:
+        // - Distributors: Direct B2B with no platform fees
+        // - Retailers: Fixed commission and payment fee rates (not from a schedule)
+        const shouldIncludeFeeSchedule = originalChannelType === 'Amazon' || originalChannelType === 'eBay';
         assumptions.dataFreshness[`fees_${feeKey}`] = {
-          source: sellPriceSource,
+          source: sellPriceSource, // Use descriptive source for display
           timestamp: analysisTimestamp, // When calculation was performed
           age: 'calculated_at_analysis',
-          feeScheduleVersion: channel.fees.feeScheduleVersion || '2025-01',
-          feeScheduleLastUpdated: isFeeOverridden ? undefined : feeScheduleMetadata?.lastUpdated, // When fee schedule was last updated
-          dataSourceVersion: isFeeOverridden ? undefined : feeScheduleMetadata?.version
+          feeScheduleVersion: shouldIncludeFeeSchedule ? (channel.fees.feeScheduleVersion || '2025-01') : undefined,
+          feeScheduleLastUpdated: shouldIncludeFeeSchedule && !isFeeOverridden ? feeScheduleMetadata?.lastUpdated : undefined, // When fee schedule was last updated
+          dataSourceVersion: shouldIncludeFeeSchedule && !isFeeOverridden ? feeScheduleMetadata?.version : undefined
         };
 
         // Per-marketplace sell price data source tracking - use composite key
@@ -209,12 +249,12 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           timestamp: analysisTimestamp, // When sell price was fetched/calculated
           marketplace: marketplace,
           channel: channelName,
-          dataSource: sellPriceSource, // 'live', 'mock', 'mock-fallback', or 'api'
-          description: sellPriceSource === 'live' 
+          dataSource: rawPricingSource, // Keep raw source for internal tracking ('live', 'mock', 'mock-fallback', or 'api')
+          description: rawPricingSource === 'live' 
             ? `Live ${channelName} API data for ${marketplace}`
-            : sellPriceSource === 'mock'
+            : rawPricingSource === 'mock'
             ? `Mock ${channelName} data for ${marketplace}`
-            : sellPriceSource === 'mock-fallback'
+            : rawPricingSource === 'mock-fallback'
             ? `Mock fallback ${channelName} data for ${marketplace} (API unavailable)`
             : `${channelName} API data for ${marketplace}`
         };
@@ -224,7 +264,11 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           level: sellPriceConfidence.toLowerCase(),
           reason: isFeeOverridden
             ? 'User-provided fee overrides'
-            : `Sell price from ${sellPriceSource === 'api' ? channelName + ' API' : sellPriceSource}. Fee schedule version ${channel.fees.feeScheduleVersion || '2025-01'} applied.`,
+            : originalChannelType === 'Distributor'
+            ? `Sell price from ${sellPriceSource}. Direct B2B sale with no platform fees.`
+            : originalChannelType === 'Retailer'
+            ? `Sell price from ${sellPriceSource}. Fixed commission and payment fee rates applied.`
+            : `Sell price from ${sellPriceSource}. Fee schedule version ${channel.fees.feeScheduleVersion || '2025-01'} applied.`,
           sellPriceConfidence: sellPriceConfidence
         };
 
@@ -241,15 +285,27 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           calculationMessage = `${channelName} fee structure applied: Referral fee ${channel.fees.breakdown?.referralRate || 0}%, FBA fee ${channel.fees.breakdown?.fbaFee || 0} ${channel.currency || 'USD'}, Closing fee ${channel.fees.breakdown?.closingFee || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
         } else if (channelName === 'eBay') {
           calculationMessage = `${channelName} fee structure applied: Final value fee ${channel.fees.breakdown?.finalValue || 0} ${channel.currency || 'USD'}, Per-order fee ${channel.fees.breakdown?.perOrder || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
+        } else if (originalChannelType === 'Distributor') {
+          // Distributors: Direct B2B sales with no platform fees
+          calculationMessage = `${channelName} direct B2B sale: No platform fees. Wholesale pricing based on retail reference price. ${vatTreatment}`;
+        } else if (originalChannelType === 'Retailer') {
+          // Retailers: Commission and payment fees
+          const commission = channel.fees.breakdown?.commission || 0;
+          const paymentFee = channel.fees.breakdown?.paymentFee || 0;
+          const fixedFee = channel.fees.breakdown?.fixedFee || 0;
+          const commissionPercent = channel.fees.total > 0 && channel.sellPrice > 0 
+            ? ((channel.fees.total / channel.sellPrice) * 100).toFixed(1)
+            : '0';
+          calculationMessage = `${channelName} fee structure applied: Commission ${commission.toFixed(2)} ${channel.currency || 'USD'} (${commissionPercent}%), Payment fee ${paymentFee.toFixed(2)} ${channel.currency || 'USD'}${fixedFee > 0 ? `, Fixed fee ${fixedFee.toFixed(2)} ${channel.currency || 'USD'}` : ''}. ${vatTreatment}`;
         } else {
-          // Retailer or Distributor
-          calculationMessage = `${channelName} fee structure applied: Referral fee ${channel.fees.breakdown?.referralRate || 0}%, FBA fee ${channel.fees.breakdown?.fbaFee || 0} ${channel.currency || 'USD'}, Closing fee ${channel.fees.breakdown?.closingFee || 0} ${channel.currency || 'USD'}. ${vatTreatment}`;
+          // Fallback for unknown channel types
+          calculationMessage = `${channelName} fee structure applied. ${vatTreatment}`;
         }
         
         assumptions.methodology[`fees_${feeKey}`] = {
           calculation: calculationMessage,
-          rule: isFeeOverridden ? 'user_override' : 'fee_schedule',
-          feeScheduleVersion: channel.fees.feeScheduleVersion || '2025-01',
+          rule: isFeeOverridden ? 'user_override' : (originalChannelType === 'Distributor' ? 'direct_b2b' : (originalChannelType === 'Retailer' ? 'fixed_rates' : 'fee_schedule')),
+          feeScheduleVersion: (originalChannelType === 'Amazon' || originalChannelType === 'eBay') ? (channel.fees.feeScheduleVersion || '2025-01') : undefined,
           vatTreatment: vatTreatment
         };
       }

@@ -244,63 +244,66 @@ export const getAssumptions = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Get currency cache status for metadata
+    // Get currency cache status for metadata (only for updating currency info if needed)
     const currencyCacheStatus = currencyService.getCacheStatus();
 
-    // Get evaluation data to extract additional metadata
-    const evaluationData = deal.evaluationData || {};
-    const marketData = deal.marketData || {};
-
-    // Format assumptions from deal data
-    // Check if assumptions are already formatted (have 'details' key) or raw (have 'shipping' key)
+    // Get assumptions from deal - should be fully formatted with all metadata
     let assumptions;
     if (deal.assumptions) {
-      // Check if it's already formatted (has 'details' key) or raw (has 'shipping' key at root)
-      if (deal.assumptions.details) {
-        // Already formatted, but we need to enhance with metadata
-        assumptions = deal.assumptions;
+      // Check if assumptions are fully formatted (have 'details' key and metadata)
+      if (deal.assumptions.details && deal.assumptions.dataFreshness && deal.assumptions.sourceConfidence && deal.assumptions.methodology) {
+        // Fully formatted assumptions - just return them (no recalculation needed)
+        assumptions = { ...deal.assumptions };
         
-        // Enhance with data freshness, confidence, and methodology if missing
-        if (!assumptions.dataFreshness || !assumptions.sourceConfidence || !assumptions.methodology) {
-          // Re-extract assumptions with metadata from evaluation data
-          const metadata = {
-            analyzedAt: deal.analyzedAt,
-            currencyCacheStatus: currencyCacheStatus,
-            marketData: marketData
+        // Only update currency cache status if it exists (dynamic metadata that changes over time)
+        if (assumptions.dataFreshness?.currency && currencyCacheStatus) {
+          assumptions.dataFreshness.currency = {
+            ...assumptions.dataFreshness.currency,
+            isExpired: currencyCacheStatus.isExpired,
+            cacheAge: currencyCacheStatus.cacheAge
           };
           
-          // Re-extract assumptions with full metadata
-          const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
-            evaluationData,
-            override ? {
-              shippingOverrides: override.shippingOverrides,
-              dutyOverrides: override.dutyOverrides,
-              feeOverrides: override.feeOverrides
-            } : null,
-            {
-              ean: deal.ean,
-              quantity: deal.quantity,
-              buyPrice: deal.buyPrice,
-              currency: deal.currency,
-              supplierRegion: deal.supplierRegion
-            },
-            metadata
-          );
-          
-          // Merge enhanced metadata into existing assumptions
-          assumptions.dataFreshness = enhancedAssumptions.dataFreshness || assumptions.dataFreshness || {};
-          assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || assumptions.sourceConfidence || {};
-          assumptions.methodology = enhancedAssumptions.methodology || assumptions.methodology || {};
+          // Update currency methodology if cache status changed
+          if (assumptions.methodology?.currency) {
+            const isUsingFallback = !currencyCacheStatus.hasCache || 
+                                   (currencyCacheStatus.isExpired && !currencyCacheStatus.lastUpdated);
+            const isExpiredButHasCache = currencyCacheStatus.hasCache && currencyCacheStatus.isExpired;
+            
+            let calculationMessage;
+            if (isUsingFallback) {
+              calculationMessage = `Fallback exchange rates used (hardcoded values). Base currency: USD. Rates converted using: ${deal.currency} to USD, then to target marketplace currency.`;
+            } else if (isExpiredButHasCache) {
+              calculationMessage = `Exchange rates from freecurrencyapi.com (cache expired, refreshing in background). Base currency: USD. Rates converted using: ${deal.currency} to USD, then to target marketplace currency.`;
+            } else {
+              calculationMessage = `Exchange rates fetched from freecurrencyapi.com. Base currency: USD. Rates converted using: ${deal.currency} to USD, then to target marketplace currency.`;
+            }
+            
+            assumptions.methodology.currency = {
+              ...assumptions.methodology.currency,
+              calculation: calculationMessage,
+              cacheStatus: currencyCacheStatus
+            };
+          }
         }
+      } else if (deal.assumptions.details) {
+        // Formatted but missing metadata - this shouldn't happen for new deals, but handle legacy data
+        // Just use what we have, don't re-extract
+        assumptions = { ...deal.assumptions };
+        // Ensure metadata objects exist even if empty
+        if (!assumptions.dataFreshness) assumptions.dataFreshness = {};
+        if (!assumptions.sourceConfidence) assumptions.sourceConfidence = {};
+        if (!assumptions.methodology) assumptions.methodology = {};
       } else if (deal.assumptions.shipping || deal.assumptions.duty || deal.assumptions.fees) {
-        // Raw format, need to enhance with metadata and format it
+        // Legacy raw format - only re-extract for old deals that weren't stored with full metadata
+        // This is a fallback for backward compatibility
+        const evaluationData = deal.evaluationData || {};
+        const marketData = deal.marketData || {};
         const metadata = {
           analyzedAt: deal.analyzedAt,
           currencyCacheStatus: currencyCacheStatus,
           marketData: marketData
         };
         
-        // Re-extract assumptions with full metadata
         const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
           evaluationData,
           override ? {
@@ -319,70 +322,26 @@ export const getAssumptions = async (req, res) => {
         );
         
         assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
-        
-        // Add metadata to formatted assumptions
         assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
         assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
         assumptions.methodology = enhancedAssumptions.methodology || {};
       } else {
-        // Empty or invalid, create default with metadata
-        const metadata = {
-          analyzedAt: deal.analyzedAt,
-          currencyCacheStatus: currencyCacheStatus,
-          marketData: marketData
+        // Empty or invalid - return empty structure
+        assumptions = {
+          details: {},
+          dataFreshness: {},
+          sourceConfidence: {},
+          methodology: {}
         };
-        
-        const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
-          evaluationData,
-          override ? {
-            shippingOverrides: override.shippingOverrides,
-            dutyOverrides: override.dutyOverrides,
-            feeOverrides: override.feeOverrides
-          } : null,
-          {
-            ean: deal.ean,
-            quantity: deal.quantity,
-            buyPrice: deal.buyPrice,
-            currency: deal.currency,
-            supplierRegion: deal.supplierRegion
-          },
-          metadata
-        );
-        
-        assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
-        assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
-        assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
-        assumptions.methodology = enhancedAssumptions.methodology || {};
       }
     } else {
-      // No assumptions stored, create with metadata
-      const metadata = {
-        analyzedAt: deal.analyzedAt,
-        currencyCacheStatus: currencyCacheStatus,
-        marketData: marketData
+      // No assumptions stored - return empty structure
+      assumptions = {
+        details: {},
+        dataFreshness: {},
+        sourceConfidence: {},
+        methodology: {}
       };
-      
-      const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
-        evaluationData,
-        override ? {
-          shippingOverrides: override.shippingOverrides,
-          dutyOverrides: override.dutyOverrides,
-          feeOverrides: override.feeOverrides
-        } : null,
-        {
-          ean: deal.ean,
-          quantity: deal.quantity,
-          buyPrice: deal.buyPrice,
-          currency: deal.currency,
-          supplierRegion: deal.supplierRegion
-        },
-        metadata
-      );
-      
-      assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
-      assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
-      assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
-      assumptions.methodology = enhancedAssumptions.methodology || {};
     }
 
     // Add history to response

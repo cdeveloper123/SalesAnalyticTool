@@ -261,11 +261,23 @@ export const analyzeDeal = async (req, res) => {
       ))
     );
 
-    // Format for API response (but store raw assumptions in DB)
+    // Format for API response and store fully formatted assumptions in DB
     const formattedAssumptions = await perfLogger.trackLogic(
       'formatAssumptionsForDisplay',
       () => Promise.resolve(assumptionVisibilityService.formatAssumptionsForDisplay(assumptions))
     );
+
+    // Add metadata to formatted assumptions for storage
+    const assumptionsToStore = {
+      ...formattedAssumptions,
+      dataFreshness: assumptions.dataFreshness || {},
+      sourceConfidence: assumptions.sourceConfidence || {},
+      methodology: assumptions.methodology || {},
+      version: assumptions.version,
+      timestamp: assumptions.timestamp,
+      input: assumptions.input,
+      overrides: assumptions.overrides
+    };
 
     // Prepare response data
     const responseData = {
@@ -326,7 +338,7 @@ export const analyzeDeal = async (req, res) => {
           evaluationData: responseData.evaluation,
           productData: productData || null,
           marketData: responseData.marketData,
-          assumptions: assumptions  // Store raw assumptions (not formatted) so we can format on retrieval
+          assumptions: assumptionsToStore  // Store fully formatted assumptions with all metadata to avoid recalculation
         }
           }),
           { ean }

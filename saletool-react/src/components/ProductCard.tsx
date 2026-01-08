@@ -609,9 +609,14 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 {Object.keys(product.allocation.allocated).length > 0 ? (
                   Object.entries(product.allocation.allocated).map(([channel, qty]) => {
                     // Find the channel to get absorption capacity
-                    const channelData = product.channels?.find(
-                      (c: any) => `${c.channel}-${c.marketplace}` === channel
-                    );
+                    // Channel key can be "Retailer-US", "Distributor-US", "Walmart-US", "Ingram Micro-US", etc.
+                    const channelData = product.channels?.find((c: any) => {
+                      // Try matching by retailer/distributor name first
+                      if (c.retailer && `${c.retailer}-${c.marketplace}` === channel) return true;
+                      if (c.distributor && `${c.distributor}-${c.marketplace}` === channel) return true;
+                      // Fallback to channel-marketplace format
+                      return `${c.channel}-${c.marketplace}` === channel;
+                    });
                     const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
                     const channelDetail = product.allocation?.channelDetails?.[channel];
                     
