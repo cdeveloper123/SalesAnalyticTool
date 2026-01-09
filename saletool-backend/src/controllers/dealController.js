@@ -69,6 +69,7 @@ export const analyzeDeal = async (req, res) => {
       buyPrice, 
       currency = 'USD', 
       supplierRegion = 'Unknown',
+      reclaimVat = true,
       assumptionOverrides = null,
       dataSourceMode = 'live' // Frontend sends this: 'live' or 'mock'
     } = req.body;
@@ -231,7 +232,7 @@ export const analyzeDeal = async (req, res) => {
     const evaluation = await perfLogger.trackLogic(
       'evaluateMultiChannel',
       () => evaluateMultiChannel(
-      { ean, quantity, buyPrice, currency, supplierRegion },
+      { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat },
       productData,
       amazonPricing,
       ebayPricing,
@@ -256,7 +257,7 @@ export const analyzeDeal = async (req, res) => {
       () => Promise.resolve(assumptionVisibilityService.getAllAssumptionsUsed(
       evaluation,
       assumptionOverrides,
-      { ean, quantity, buyPrice, currency, supplierRegion },
+      { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat },
       metadata
       ))
     );

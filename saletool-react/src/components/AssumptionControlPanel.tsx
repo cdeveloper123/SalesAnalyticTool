@@ -87,6 +87,7 @@ export default function AssumptionControlPanel({
   const [rateInputValues, setRateInputValues] = useState<{
     dutyRate?: string;
     referralRate?: string;
+    vatRate?: string;
     paymentFee?: string;
   }>({});
 
@@ -197,10 +198,12 @@ export default function AssumptionControlPanel({
             fbaFee: firstOverride.fbaFee,
             closingFee: firstOverride.closingFee,
             paymentFee: firstOverride.paymentFee,
+            vatRate: firstOverride.vatRate,
+            vatAmount: firstOverride.vatAmount,
             feeScheduleVersion: firstOverride.feeScheduleVersion,
           });
           // Clear raw input values when syncing from outside
-          setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined }));
+          setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined, vatRate: undefined }));
           // Auto-expand panel when preset is applied or initial load with overrides
           if (isInitialLoad || hasFeesChanged) {
             setIsExpanded(true);
@@ -216,7 +219,7 @@ export default function AssumptionControlPanel({
         setFeeOverride({
           marketplace: 'US',
         });
-        setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined }));
+        setRateInputValues(prev => ({ ...prev, referralRate: undefined, paymentFee: undefined, vatRate: undefined }));
       }
     }
     
@@ -453,7 +456,7 @@ export default function AssumptionControlPanel({
 
   const handleFeeRateChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: 'referralRate' | 'paymentFee'
+    field: 'referralRate' | 'paymentFee' | 'vatRate'
   ) => {
     let value = e.target.value;
     
@@ -467,7 +470,7 @@ export default function AssumptionControlPanel({
     }
     
     // Store raw string value to allow intermediate states like "0."
-    const inputKey = field === 'referralRate' ? 'referralRate' : 'paymentFee';
+    const inputKey = field;
     setRateInputValues(prev => ({ ...prev, [inputKey]: value }));
     
     // If empty, clear the value
@@ -787,12 +790,37 @@ export default function AssumptionControlPanel({
                   onChange={(e) => handleFeeRateChange(e, 'paymentFee')}
                   onKeyPress={(e) => handleRateKeyPress(e, rateInputValues.paymentFee || (feeOverride.paymentFee !== undefined ? feeOverride.paymentFee.toString() : ''))}
                   onBlur={() => {
-                    // On blur, ensure we have a valid number or clear
                     if (rateInputValues.paymentFee === '.' || rateInputValues.paymentFee === '') {
                       handleFeeChange('paymentFee', undefined);
                       setRateInputValues(prev => ({ ...prev, paymentFee: undefined }));
                     }
                   }}
+                  placeholder="Auto"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700/50">
+                <Input
+                  label="VAT Rate (0-1, e.g., 0.20 for 20%)"
+                  type="text"
+                  inputMode="decimal"
+                  value={rateInputValues.vatRate !== undefined ? rateInputValues.vatRate : (feeOverride.vatRate !== undefined ? feeOverride.vatRate.toString() : '')}
+                  onChange={(e) => handleFeeRateChange(e, 'vatRate')}
+                  onKeyPress={(e) => handleRateKeyPress(e, rateInputValues.vatRate || (feeOverride.vatRate !== undefined ? feeOverride.vatRate.toString() : ''))}
+                  onBlur={() => {
+                    if (rateInputValues.vatRate === '.' || rateInputValues.vatRate === '') {
+                      handleFeeChange('vatRate', undefined);
+                      setRateInputValues(prev => ({ ...prev, vatRate: undefined }));
+                    }
+                  }}
+                  placeholder="Auto (Category default)"
+                />
+                <Input
+                  label="VAT Amount (direct override)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={feeOverride.vatAmount !== undefined ? feeOverride.vatAmount : ''}
+                  onChange={(e) => handleFeeChange('vatAmount', e.target.value ? parseFloat(e.target.value) : undefined)}
                   placeholder="Auto"
                 />
               </div>

@@ -148,6 +148,9 @@ function Dashboard() {
                 buyPrice: lc.buyPrice || 0,
                 duty: dutyValue,
                 shipping: shippingValue,
+                importVat: lc.importVat || 0,
+                importVatRate: lc.importVatRate || 0,
+                reclaimVat: lc.reclaimVat ?? true,
                 total: lc.total || 0
               };
             })() : undefined,
@@ -240,6 +243,7 @@ function Dashboard() {
           buyPrice: data.buy_price,
           currency: data.currency,
           supplierRegion: data.supplier_region || 'CN',
+          reclaimVat: data.reclaimVat ?? true,
           assumptionOverrides: data.assumptionOverrides || null,
           dataSourceMode: dataSourceMode, // Send data source mode from frontend
         }),

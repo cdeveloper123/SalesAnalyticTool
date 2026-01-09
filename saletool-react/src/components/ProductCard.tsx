@@ -340,6 +340,17 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                   <span>Duty</span>
                   <span className="text-white">${product.landedCost.duty.toFixed(2)}</span>
                 </div>
+                {product.landedCost.importVat !== undefined && product.landedCost.importVat > 0 && (
+                  <div className="flex justify-between text-gray-400">
+                    <span className="flex items-center gap-1">
+                      Import VAT {product.landedCost.importVatRate !== undefined && `(${(product.landedCost.importVatRate * 100).toFixed(0)}%)`}
+                      {product.landedCost.reclaimVat && <span className="text-[10px] px-1 bg-green-500/20 text-green-400 rounded">Reclaimed</span>}
+                    </span>
+                    <span className={product.landedCost.reclaimVat ? 'text-gray-500 line-through' : 'text-white'}>
+                      ${product.landedCost.importVat.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-400">
                   <span>Shipping</span>
                   <span className="text-white">${product.landedCost.shipping.toFixed(2)}</span>
@@ -464,6 +475,13 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                             }`}>
                             {channel.marginPercent.toFixed(1)}%
                           </div>
+                          {(channel.landedCost?.importVat || 0) > 0 && channel.landedCost?.reclaimVat && (
+                            <div className="mt-1">
+                              <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase tracking-tighter shadow-sm whitespace-nowrap">
+                                VAT Reclaimed
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       {channel.recommendation && (

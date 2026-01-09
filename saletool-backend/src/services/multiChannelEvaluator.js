@@ -416,6 +416,9 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
       duty: landedCost.duty,
       dutyRate: landedCost.dutyRate,
       dutyPercent: landedCost.dutyPercent,
+      importVat: landedCost.importVat,
+      importVatRate: landedCost.importVatRate,
+      reclaimVat: landedCost.reclaimVat,
       calculationMethod: landedCost.calculationMethod,
       isOverridden: landedCost.isOverridden,
       hsCode: landedCost.hsCode,
@@ -496,6 +499,9 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
       duty: landedCost.duty,
       dutyRate: landedCost.dutyRate,
       dutyPercent: landedCost.dutyPercent,
+      importVat: landedCost.importVat,
+      importVatRate: landedCost.importVatRate,
+      reclaimVat: landedCost.reclaimVat,
       calculationMethod: landedCost.calculationMethod,
       isOverridden: landedCost.isOverridden,
       hsCode: landedCost.hsCode,
@@ -531,7 +537,7 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
  * @param {object} assumptionOverrides - Optional assumption overrides
  */
 export async function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing, assumptionOverrides = null) {
-  const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN' } = input;
+  const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN', reclaimVat = true } = input;
 
   // Get product weight (default 0.5kg)
   const weightKg = productData?.dimensions?.weightKg || 0.5;
@@ -625,14 +631,24 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       });
     }
 
+    // Calculate Import VAT
+    // Formula: (Buy Price + Shipping + Duty) * Import VAT Rate
+    // Note: US has no import VAT (State sales tax applies to final sale)
+    const importVatRate = feeCalculator.VAT_RATES[dest]?.standard || 0;
+    const importVatAmount = (buyPrice + shippingResult.perUnitShippingCost + dutyResult.dutyAmount) * importVatRate;
+
     // Total landed cost per unit in source currency
-    const landedCost = buyPrice + dutyResult.dutyAmount + shippingResult.perUnitShippingCost;
+    // If reclaiming VAT, don't add it to the final cost
+    const landedCost = buyPrice + dutyResult.dutyAmount + shippingResult.perUnitShippingCost + (reclaimVat ? 0 : importVatAmount);
 
     landedCosts[dest] = {
       buyPrice,
       duty: dutyResult.dutyAmount,
       dutyRate: dutyResult.dutyRate,
       dutyPercent: dutyResult.dutyRate * 100,
+      importVat: Number(importVatAmount.toFixed(2)),
+      importVatRate: importVatRate * 100,
+      reclaimVat: reclaimVat,
       hsCode: dutyResult.hsCode || null,
       dutySource: dutyResult.source || 'category',
       calculationMethod: dutyResult.calculationMethod || 'category',
@@ -697,6 +713,9 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         duty: usLanded?.duty || 0,
         dutyRate: usLanded?.dutyRate || 0,
         dutyPercent: usLanded?.dutyPercent || 0,
+        importVat: usLanded?.importVat || 0,
+        importVatRate: usLanded?.importVatRate || 0,
+        reclaimVat: usLanded?.reclaimVat || reclaimVat,
         calculationMethod: usLanded?.calculationMethod || 'category',
         isOverridden: usLanded?.isOverridden || false,
         hsCode: usLanded?.hsCode || null,
@@ -762,6 +781,9 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         duty: usLanded?.duty || 0,
         dutyRate: usLanded?.dutyRate || 0,
         dutyPercent: usLanded?.dutyPercent || 0,
+        importVat: usLanded?.importVat || 0,
+        importVatRate: usLanded?.importVatRate || 0,
+        reclaimVat: usLanded?.reclaimVat || reclaimVat,
         calculationMethod: usLanded?.calculationMethod || 'category',
         isOverridden: usLanded?.isOverridden || false,
         hsCode: usLanded?.hsCode || null,

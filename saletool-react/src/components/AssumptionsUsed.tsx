@@ -248,6 +248,13 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                         ) : duty.ratePercent ? (
                           <div><span className="text-gray-500">Rate:</span> {duty.ratePercent}</div>
                         ) : null}
+                        {duty.importVat !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Import VAT:</span>
+                            <span className="text-gray-300">${duty.importVat.toFixed(2)}</span>
+                            {duty.reclaimVat && <span className="text-[10px] px-1 bg-green-500/20 text-green-400 rounded">Reclaimed</span>}
+                          </div>
+                        )}
                       </div>
 
                       {/* Data Freshness */}
@@ -433,13 +440,13 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                         )}
                         
                         {/* Common fees */}
-                        {matchingOverride?.paymentFee !== undefined && (
-                          <div><span className="text-gray-500">Payment Fee:</span> {(matchingOverride.paymentFee * 100).toFixed(1)}%</div>
+                        {(matchingOverride?.paymentFee !== undefined || fee.paymentFee !== undefined) && (
+                          <div><span className="text-gray-500">Payment Fee:</span> {((matchingOverride?.paymentFee ?? fee.paymentFee ?? 0) * 100).toFixed(1)}%</div>
                         )}
-                        {fee.vatRate > 0 && (
+                        {(matchingOverride?.vatRate !== undefined || fee.vatRate > 0) && (
                           <>
-                            <div><span className="text-gray-500">VAT Rate:</span> {fee.vatRate}%</div>
-                            <div><span className="text-gray-500">VAT Amount:</span> {getCurrencySymbol(fee.currency)}{fee.vatAmount.toFixed(2)}</div>
+                            <div><span className="text-gray-500">VAT Rate:</span> {matchingOverride?.vatRate !== undefined ? (matchingOverride.vatRate * 100).toFixed(1) + '%' : fee.vatRate + '%'}</div>
+                            <div><span className="text-gray-500">VAT Amount:</span> {getCurrencySymbol(fee.currency)}{(matchingOverride?.vatAmount ?? fee.vatAmount ?? 0).toFixed(2)}</div>
                           </>
                         )}
                         {(matchingOverride?.feeScheduleVersion || fee.feeScheduleVersion) && (

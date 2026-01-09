@@ -121,6 +121,8 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           hsCode: channel.landedCost.hsCode || channel.landedCost.duty?.hsCode,
           rate: dutyRate,
           ratePercent: dutyPercent,
+          importVat: channel.landedCost.importVat,
+          reclaimVat: channel.landedCost.reclaimVat,
           calculationMethod: dutyCalculationMethod,
           isOverridden: isDutyOverridden
         };
@@ -222,6 +224,7 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           // Common fees
           vatRate: channel.fees.breakdown?.vatRate || 0,
           vatAmount: channel.fees.breakdown?.vat || 0,
+          paymentFee: channel.fees.breakdown?.paymentFee || 0,
           feeScheduleVersion: (originalChannelType === 'Amazon' || originalChannelType === 'eBay') ? (channel.fees.feeScheduleVersion || '2025-01') : undefined,
           isOverridden: isFeeOverridden,
           currency: channel.currency || 'USD'

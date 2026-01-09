@@ -14,6 +14,7 @@ export interface ProductInput {
   buy_price: number;
   currency: string;
   supplier_region: string;
+  reclaimVat?: boolean;
   assumptionOverrides?: AssumptionOverrides;
 }
 
@@ -100,6 +101,7 @@ function AddProductForm({
     buy_price: 0,
     currency: 'USD',
     supplier_region: 'US',
+    reclaimVat: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eanError, setEanError] = useState<string | undefined>();
@@ -143,7 +145,9 @@ function AddProductForm({
       [name]:
         name === 'quantity' || name === 'buy_price'
           ? parseFloat(value) || 0
-          : value,
+          : (e.target as HTMLInputElement).type === 'checkbox' 
+            ? (e.target as HTMLInputElement).checked 
+            : value,
     }));
   };
 
@@ -281,6 +285,21 @@ function AddProductForm({
           required
           options={REGION_OPTIONS}
         />
+      </div>
+      
+      <div className="flex items-center gap-3 bg-gray-700/30 p-4 rounded-lg border border-gray-600/30">
+        <input
+          type="checkbox"
+          id="reclaimVat"
+          name="reclaimVat"
+          checked={formData.reclaimVat}
+          onChange={handleChange}
+          className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+        />
+        <label htmlFor="reclaimVat" className="flex flex-col">
+          <span className="text-sm font-semibold text-gray-200">Reclaim Import VAT</span>
+          <span className="text-xs text-gray-400">Enable if business is VAT-registered. VAT will be tracked but not added to Landed Cost.</span>
+        </label>
       </div>
 
       <div className="mt-6 space-y-4">

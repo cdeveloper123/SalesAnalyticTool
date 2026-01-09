@@ -214,6 +214,8 @@ export default function AssumptionVisibility({ assumptions, onViewHistory }: Ass
                       {fee.fbaFee !== undefined && <div><span className="text-gray-500">FBA Fee:</span> ${fee.fbaFee.toFixed(2)}</div>}
                       {fee.closingFee !== undefined && fee.closingFee > 0 && <div><span className="text-gray-500">Closing Fee:</span> ${fee.closingFee.toFixed(2)}</div>}
                       {fee.paymentFee !== undefined && <div><span className="text-gray-500">Payment Fee:</span> {(fee.paymentFee * 100).toFixed(1)}%</div>}
+                      {fee.vatRate !== undefined && <div><span className="text-gray-500">VAT Rate:</span> {(fee.vatRate * 100).toFixed(1)}%</div>}
+                      {fee.vatAmount !== undefined && <div><span className="text-gray-500">VAT Amount:</span> ${fee.vatAmount.toFixed(2)}</div>}
                       {fee.feeScheduleVersion && <div><span className="text-gray-500">Schedule Version:</span> {fee.feeScheduleVersion}</div>}
                     </div>
                   </div>

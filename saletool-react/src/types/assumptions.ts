@@ -29,6 +29,8 @@ export interface FeeOverride {
   fbaFee?: number;
   closingFee?: number;
   paymentFee?: number; // 0-1 for percentage
+  vatRate?: number; // 0-1 for percentage override
+  vatAmount?: number; // Direct VAT amount override
   feeScheduleVersion?: string;
 }
 
@@ -73,6 +75,8 @@ export interface AssumptionDetails {
     rate?: number;
     ratePercent?: string;
     calculationMethod: string;
+    importVat?: number;
+    reclaimVat?: boolean;
     isOverridden: boolean;
   }>;
   fees: Record<string, {
@@ -90,6 +94,7 @@ export interface AssumptionDetails {
     perOrderFee?: number;
     vatRate: number;
     vatAmount: number;
+    paymentFee?: number;
     feeScheduleVersion: string;
     isOverridden: boolean;
     currency?: string; // Currency code (USD, EUR, etc.)

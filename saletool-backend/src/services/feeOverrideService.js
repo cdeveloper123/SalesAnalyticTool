@@ -20,7 +20,7 @@ export function validateFeeOverride(override) {
     return { valid: false, error: 'Override must be an object' };
   }
 
-  const { marketplace, referralRate, fbaFee, closingFee, paymentFee, feeScheduleVersion } = override;
+  const { marketplace, referralRate, fbaFee, closingFee, paymentFee, vatRate, vatAmount, feeScheduleVersion } = override;
 
   // Validate marketplace
   if (marketplace && typeof marketplace !== 'string') {
@@ -52,6 +52,20 @@ export function validateFeeOverride(override) {
   if (paymentFee !== undefined) {
     if (typeof paymentFee !== 'number' || paymentFee < 0 || paymentFee > 1) {
       return { valid: false, error: 'Payment processing fee must be a number between 0 and 1' };
+    }
+  }
+
+  // Validate VAT rate (0-1)
+  if (vatRate !== undefined) {
+    if (typeof vatRate !== 'number' || vatRate < 0 || vatRate > 1) {
+      return { valid: false, error: 'VAT rate must be a number between 0 and 1' };
+    }
+  }
+
+  // Validate VAT amount
+  if (vatAmount !== undefined) {
+    if (typeof vatAmount !== 'number' || vatAmount < 0) {
+      return { valid: false, error: 'VAT amount must be a non-negative number' };
     }
   }
 
@@ -99,6 +113,8 @@ export function getFeeOverrideForMarketplace(marketplace, overrides) {
     fbaFee: matchingOverride.fbaFee,
     closingFee: matchingOverride.closingFee,
     paymentFee: matchingOverride.paymentFee,
+    vatRate: matchingOverride.vatRate,
+    vatAmount: matchingOverride.vatAmount,
     feeScheduleVersion: matchingOverride.feeScheduleVersion || FEE_SCHEDULE_VERSION
   };
 }
@@ -167,9 +183,18 @@ export function applyFeeOverrides(marketplace, sellPrice, category, defaultFeeRe
   // Total fees
   const totalFees = referralFee + fbaFee + closingFee + paymentFee;
 
-  // VAT calculation (keep from default if not overridden)
-  const vatAmount = defaultFeeResult.breakdown?.vat || 0;
-  const vatRate = defaultFeeResult.breakdown?.vatRate || 0;
+  // VAT calculation (support overrides)
+  let vatAmount = defaultFeeResult.breakdown?.vat || 0;
+  let vatRate = (defaultFeeResult.breakdown?.vatRate || 0) / 100;
+
+  if (override.vatAmount !== undefined) {
+    vatAmount = override.vatAmount;
+    // If override providing amount but not rate, we can't easily calculate accurate rate without sell price context
+    // but we'll use it as-is for the amount.
+  } else if (override.vatRate !== undefined) {
+    vatRate = override.vatRate;
+    vatAmount = marketplace === 'US' ? 0 : sellPrice - (sellPrice / (1 + vatRate));
+  }
 
   // Net proceeds
   const netProceeds = sellPrice - vatAmount - totalFees;
@@ -180,7 +205,7 @@ export function applyFeeOverrides(marketplace, sellPrice, category, defaultFeeRe
     sellPrice: Number(sellPrice.toFixed(2)),
     breakdown: {
       vat: Number(vatAmount.toFixed(2)),
-      vatRate: vatRate,
+      vatRate: vatRate * 100,
       referralFee: Number(referralFee.toFixed(2)),
       referralRate: referralRate * 100,
       fbaFee: Number(fbaFee.toFixed(2)),

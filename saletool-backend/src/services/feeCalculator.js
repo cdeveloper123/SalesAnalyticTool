@@ -76,7 +76,8 @@ const REFERRAL_RATES = {
     'Software': 0.15,
     
     // Default
-    'default': 0.15
+    'default': 0.15,
+    'minimumFee': 0.30
   },
   
   UK: {
@@ -89,11 +90,23 @@ const REFERRAL_RATES = {
     'Sports & Outdoors': 0.15,
     'Beauty': 0.15,
     'Health & Personal Care': 0.15,
-    'Clothing': 0.15,
+    'Apparel': {
+      tiers: [
+        { maxPrice: 15, rate: 0.08 },
+        { maxPrice: Infinity, rate: 0.15 }
+      ]
+    },
+    'Clothing': {
+      tiers: [
+        { maxPrice: 15, rate: 0.08 },
+        { maxPrice: Infinity, rate: 0.15 }
+      ]
+    },
     'Shoes': 0.15,
     'Jewellery': 0.20,
     'Watches': 0.15,
-    'default': 0.15
+    'default': 0.15,
+    'minimumFee': 0.25
   },
   
   DE: {
@@ -106,11 +119,17 @@ const REFERRAL_RATES = {
     'Sport & Freizeit': 0.15,
     'Beauty': 0.15,
     'Drogerie & Körperpflege': 0.15,
-    'Bekleidung': 0.15,
+    'Bekleidung': {
+      tiers: [
+        { maxPrice: 15, rate: 0.08 },
+        { maxPrice: Infinity, rate: 0.15 }
+      ]
+    },
     'Schuhe': 0.15,
     'Schmuck': 0.20,
     'Uhren': 0.15,
-    'default': 0.15
+    'default': 0.15,
+    'minimumFee': 0.25
   },
   
   FR: {
@@ -122,8 +141,14 @@ const REFERRAL_RATES = {
     'Sports & Loisirs': 0.15,
     'Beauté': 0.15,
     'Santé': 0.15,
-    'Vêtements': 0.15,
-    'default': 0.15
+    'Vêtements': {
+      tiers: [
+        { maxPrice: 15, rate: 0.08 },
+        { maxPrice: Infinity, rate: 0.15 }
+      ]
+    },
+    'default': 0.15,
+    'minimumFee': 0.25
   },
   
   IT: {
@@ -135,21 +160,28 @@ const REFERRAL_RATES = {
     'Sport e tempo libero': 0.15,
     'Bellezza': 0.15,
     'Salute': 0.15,
-    'Abbigliamento': 0.15,
-    'default': 0.15
+    'Abbigliamento': {
+      tiers: [
+        { maxPrice: 15, rate: 0.08 },
+        { maxPrice: Infinity, rate: 0.15 }
+      ]
+    },
+    'default': 0.15,
+    'minimumFee': 0.25
   },
   
   AU: {
-    'Electronics': 0.08,
-    'Computers': 0.08,
-    'Video Games': 0.15,
-    'Home & Kitchen': 0.15,
-    'Toys & Games': 0.15,
-    'Sports & Outdoors': 0.15,
-    'Beauty': 0.15,
-    'Health': 0.15,
-    'Clothing': 0.15,
-    'default': 0.15
+    'Electronics': 0.07,     // 7%
+    'Computers': 0.13,       // 13%
+    'Video Games': 0.13,     // 13%
+    'Home & Kitchen': 0.13,
+    'Toys & Games': 0.13,
+    'Sports & Outdoors': 0.13,
+    'Beauty': 0.13,
+    'Health': 0.13,
+    'Clothing': 0.13,
+    'default': 0.13,
+    'minimumFee': 0.25
   }
 };
 
@@ -332,12 +364,23 @@ const FBA_SIZE_TIERS = {
 // ============================================================================
 
 const VAT_RATES = {
-  US: 0,        // No VAT (sales tax handled by states)
-  UK: 0.20,     // 20%
-  DE: 0.19,     // 19%
-  FR: 0.20,     // 20%
-  IT: 0.22,     // 22%
-  AU: 0.10      // 10% GST
+  US: { standard: 0 },        // No VAT (sales tax handled by states)
+  UK: { 
+    standard: 0.20,           // 20%
+    reduced: 0.05,            // 5% (Energy, etc.)
+    zero: 0,                  // 0% (Books, food, children clothes)
+    categories: {
+      'Books': 0,
+      'Music': 0.20,
+      'DVD': 0.20,
+      'Software': 0.20,
+      'Video': 0.20
+    }
+  },
+  DE: { standard: 0.19, reduced: 0.07 },     // 19%, 7%
+  FR: { standard: 0.20, reduced: 0.055 },    // 20%, 5.5%
+  IT: { standard: 0.22, reduced: 0.10 },     // 22%, 10%
+  AU: { standard: 0.10 }                     // 10% GST
 };
 
 // ============================================================================
@@ -443,7 +486,7 @@ function determineSizeTier(marketplace, dims, weight) {
 /**
  * Calculate FBA fee based on size tier and weight
  */
-function calculateFBAFee(marketplace, sizeTier, weight) {
+function calculateFBAFee(marketplace, sizeTier, weight, sellPrice) {
   const tiers = FBA_SIZE_TIERS[marketplace];
   if (!tiers || !tiers[sizeTier]) {
     // Default fallback
@@ -451,28 +494,33 @@ function calculateFBAFee(marketplace, sizeTier, weight) {
   }
   
   const tierConfig = tiers[sizeTier];
+  let fee = 3.50;
   
   // Fixed fee tiers (small/large standard)
   if (tierConfig.fees) {
+    let matched = false;
     for (const feeLevel of tierConfig.fees) {
       if (weight <= feeLevel.maxWeight) {
-        return feeLevel.fee;
+        fee = feeLevel.fee;
+        matched = true;
+        break;
       }
     }
     // If weight exceeds all tiers, return highest + additional
-    const maxFee = tierConfig.fees[tierConfig.fees.length - 1].fee;
-    if (tierConfig.additionalPerOz) {
-      const maxWeight = tierConfig.fees[tierConfig.fees.length - 1].maxWeight;
-      const excessWeight = weight - maxWeight;
-      const additionalUnits = Math.ceil(excessWeight / 4); // per 4oz
-      return maxFee + (additionalUnits * tierConfig.additionalPerOz);
+    if (!matched) {
+      const maxFee = tierConfig.fees[tierConfig.fees.length - 1].fee;
+      if (tierConfig.additionalPerOz) {
+        const maxWeight = tierConfig.fees[tierConfig.fees.length - 1].maxWeight;
+        const excessWeight = weight - maxWeight;
+        const additionalUnits = Math.ceil(excessWeight / 4); // per 4oz
+        fee = maxFee + (additionalUnits * tierConfig.additionalPerOz);
+      } else {
+        fee = maxFee;
+      }
     }
-    return maxFee;
-  }
-  
-  // Variable fee (bulky/extra-large)
-  if (tierConfig.baseFee) {
-    let fee = tierConfig.baseFee;
+  } else if (tierConfig.baseFee) {
+    // Variable fee (bulky/extra-large)
+    fee = tierConfig.baseFee;
     if (tierConfig.perLb && marketplace === 'US') {
       const weightLbs = weight / 16;
       if (weightLbs > 1) {
@@ -485,10 +533,15 @@ function calculateFBAFee(marketplace, sizeTier, weight) {
         fee += (weightKg - 1) * tierConfig.perKg;
       }
     }
-    return fee;
   }
   
-  return 3.50; // Default fallback
+  // Apply US Low-Price FBA Logic (2025)
+  // Products priced < $10 get a $0.77 discount in the US
+  if (marketplace === 'US' && sellPrice < 10) {
+    fee = Math.max(0.10, fee - 0.77);
+  }
+  
+  return fee;
 }
 
 /**
@@ -547,6 +600,28 @@ function isMediaCategory(category) {
   );
 }
 
+/**
+ * Get VAT rate for a marketplace and category
+ */
+function getVatRate(marketplace, category) {
+  const marketplaceVat = VAT_RATES[marketplace];
+  if (!marketplaceVat) return 0;
+  
+  if (!category) return marketplaceVat.standard || 0;
+  
+  // Check for category-specific overrides
+  if (marketplaceVat.categories) {
+    const lowerCategory = category.toLowerCase();
+    for (const [key, rate] of Object.entries(marketplaceVat.categories)) {
+      if (lowerCategory.includes(key.toLowerCase())) {
+        return rate;
+      }
+    }
+  }
+  
+  return marketplaceVat.standard || 0;
+}
+
 // ============================================================================
 // MAIN CALCULATION FUNCTIONS
 // ============================================================================
@@ -584,16 +659,24 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
   const sizeTier = determineSizeTier(marketplace, normalizedDims, normalizedWeight);
   
   // Calculate VAT
-  const vatRate = VAT_RATES[marketplace] || 0;
+  const vatRate = getVatRate(marketplace, category);
   const vatAmount = marketplace === 'US' ? 0 : sellPrice - (sellPrice / (1 + vatRate));
   const priceExVat = sellPrice - vatAmount;
   
   // Calculate referral fee
-  const referralRate = getReferralRate(marketplace, category, sellPrice);
-  const referralFee = sellPrice * referralRate;
+  let referralRate = getReferralRate(marketplace, category, sellPrice);
+  let referralFee = sellPrice * referralRate;
+  
+  // Apply minimum referral fee
+  const marketplaceRates = REFERRAL_RATES[marketplace] || REFERRAL_RATES.US;
+  if (marketplaceRates.minimumFee && referralFee < marketplaceRates.minimumFee) {
+    referralFee = marketplaceRates.minimumFee;
+    // Recalculate effective referral rate for reporting
+    referralRate = referralFee / sellPrice;
+  }
   
   // Calculate FBA fee
-  const fbaFee = calculateFBAFee(marketplace, sizeTier, normalizedWeight);
+  const fbaFee = calculateFBAFee(marketplace, sizeTier, normalizedWeight, sellPrice);
   
   // Calculate closing fee (media only)
   const closingFee = isMediaCategory(category) ? (CLOSING_FEES[marketplace] || 0) : 0;

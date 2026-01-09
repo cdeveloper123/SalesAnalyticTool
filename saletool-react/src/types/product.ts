@@ -1,6 +1,9 @@
 export interface LandedCost {
   buyPrice: number;
   duty: number;
+  importVat?: number;
+  importVatRate?: number;
+  reclaimVat?: boolean;
   shipping: number;
   total: number;
 }
