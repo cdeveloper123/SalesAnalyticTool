@@ -21,7 +21,7 @@ const RETAILERS = {
     type: 'Mass Retail',
     commissionPercent: 15,
     fixedFee: 0,
-    paymentFeePercent: 2.9,
+    paymentFeePercent: 4.3,
     requirements: {
       vendorAccount: true,
       minimumOrder: null,
@@ -74,24 +74,24 @@ const CATEGORY_ADJUSTMENTS = {
 export function getRetailerPricing(productData, amazonPrice, category = 'default') {
   const channels = [];
   const categoryAdjust = CATEGORY_ADJUSTMENTS[category] || CATEGORY_ADJUSTMENTS.default;
-  
+
   for (const [retailerId, retailer] of Object.entries(RETAILERS)) {
     // Calculate estimated sell price based on Amazon price
     const basePrice = amazonPrice * retailer.priceMultiplier * categoryAdjust.priceAdjust;
     const sellPrice = Number(basePrice.toFixed(2));
-    
+
     // Calculate fees
     const commissionFee = sellPrice * (retailer.commissionPercent / 100);
     const paymentFee = sellPrice * (retailer.paymentFeePercent / 100);
     const totalFees = commissionFee + paymentFee + retailer.fixedFee;
-    
+
     // Calculate net proceeds
     const netProceeds = sellPrice - totalFees;
-    
+
     // Estimate demand (mocked - lower than Amazon typically)
     const baseDemand = 100; // Assume 100 units/month base
     const estimatedMonthlySales = Math.round(baseDemand * categoryAdjust.demandMultiplier);
-    
+
     channels.push({
       channel: 'Retailer',
       retailer: retailer.name,
@@ -102,7 +102,9 @@ export function getRetailerPricing(productData, amazonPrice, category = 'default
         total: Number(totalFees.toFixed(2)),
         breakdown: {
           commission: Number(commissionFee.toFixed(2)),
+          commissionRate: retailer.commissionPercent / 100, // As decimal (0-1)
           paymentFee: Number(paymentFee.toFixed(2)),
+          paymentFeeRate: retailer.paymentFeePercent / 100, // As decimal (0-1)
           fixedFee: retailer.fixedFee
         }
       },
@@ -120,7 +122,7 @@ export function getRetailerPricing(productData, amazonPrice, category = 'default
       notes: `${retailer.name} typically prices ${Math.round((1 - retailer.priceMultiplier) * 100)}% below Amazon`
     });
   }
-  
+
   return channels;
 }
 
@@ -133,7 +135,7 @@ export function getRetailerPricing(productData, amazonPrice, category = 'default
 export function calculateRetailerMargin(channel, landedCost) {
   const netMargin = channel.netProceeds - landedCost;
   const marginPercent = landedCost > 0 ? (netMargin / landedCost) * 100 : 0;
-  
+
   return {
     ...channel,
     landedCostConverted: landedCost,

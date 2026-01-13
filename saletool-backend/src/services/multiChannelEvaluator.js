@@ -169,7 +169,14 @@ function generateChannelExplanation(channel, marketplace, marginPercent, fees, d
   if (demand?.confidence) {
     const demandInfo = demand.estimatedMonthlySales;
     if (demandInfo?.mid > 0) {
-      parts.push(`${demandInfo.low}-${demandInfo.high} units/month (${demand.confidence} confidence)`);
+      let demandText = `${demandInfo.low}-${demandInfo.high} units/month (${demand.confidence} confidence)`;
+
+      // Append signals for transparency (e.g. "Sold 15 units in last 90 days")
+      if (demand.signals && demand.signals.length > 0) {
+        demandText += `; ${demand.signals.join(', ')}`;
+      }
+
+      parts.push(demandText);
     }
   }
 
@@ -339,9 +346,9 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
   if (!pricing || !pricing.buyBoxPrice) return null;
 
   // Get marketplace-specific fee overrides
-  const marketFeeOverrides = feeOverrides ? 
-    (Array.isArray(feeOverrides) ? feeOverrides.filter(o => o.marketplace?.toUpperCase() === marketplace.toUpperCase()) : 
-     (feeOverrides.marketplace?.toUpperCase() === marketplace.toUpperCase() ? feeOverrides : null)) : null;
+  const marketFeeOverrides = feeOverrides ?
+    (Array.isArray(feeOverrides) ? feeOverrides.filter(o => o.marketplace?.toUpperCase() === marketplace.toUpperCase()) :
+      (feeOverrides.marketplace?.toUpperCase() === marketplace.toUpperCase() ? feeOverrides : null)) : null;
 
   // Calculate Amazon fees with overrides
   const fees = feeCalculator.calculateFees(
@@ -351,7 +358,7 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     productData?.dimensions || { weightKg: productData?.dimensions?.weightKg || 0.5 },
     marketFeeOverrides
   );
-  
+
   // Debug: Log if fee override was applied
   if (marketFeeOverrides && fees.isOverridden) {
     console.log(`[MultiChannel Evaluator] Fee override applied for ${marketplace}:`, {
@@ -472,8 +479,11 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     estimatedMonthlySales: { low: monthlySales, mid: monthlySales, high: monthlySales },
     confidence: pricing.confidence || 'Low',
     absorptionCapacity,
-    signals: [] // eBay doesn't provide detailed signals
+    signals: pricing.soldLast90Days !== undefined
+      ? [`Sold ${pricing.soldLast90Days} units in last 90 days`]
+      : []
   };
+
 
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
   const explanation = generateChannelExplanation('eBay', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation);
@@ -537,7 +547,7 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
  * @param {object} assumptionOverrides - Optional assumption overrides
  */
 export async function evaluateMultiChannel(input, productData, amazonPricing, ebayPricing, assumptionOverrides = null) {
-  const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN', reclaimVat = true } = input;
+  const { ean, quantity, buyPrice, currency = 'USD', supplierRegion = 'CN', reclaimVat = true, hsCode = null } = input;
 
   // Get product weight (default 0.5kg)
   const weightKg = productData?.dimensions?.weightKg || 0.5;
@@ -553,52 +563,57 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   const dutyOverrides = assumptionOverrides?.dutyOverrides || null;
   const feeOverrides = assumptionOverrides?.feeOverrides || null;
 
-  // Check if any duty override has HS code (need async calculation)
-  const hasHsCodeOverride = dutyOverrides && (
-    Array.isArray(dutyOverrides) 
+  // Check if we should use HS code calculation (either from input or from override)
+  const hasHsCodeOverride = hsCode || (dutyOverrides && (
+    Array.isArray(dutyOverrides)
       ? dutyOverrides.some(o => o.hsCode || o.calculationMethod === 'hscode')
       : (dutyOverrides.hsCode || dutyOverrides.calculationMethod === 'hscode')
-  );
+  ));
 
   for (const dest of destinations) {
     let dutyResult;
-    
+
     // Find matching duty override for this route (must match both origin and destination)
-    const matchingOverride = dutyOverrides 
-      ? (Array.isArray(dutyOverrides) 
-          ? dutyOverrides.find(o => {
-              const overrideOrigin = o.origin?.toUpperCase() || supplierRegion?.toUpperCase();
-              const overrideDest = o.destination?.toUpperCase();
-              return overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest;
-            })
-          : (() => {
-              const overrideOrigin = dutyOverrides.origin?.toUpperCase() || supplierRegion?.toUpperCase();
-              const overrideDest = dutyOverrides.destination?.toUpperCase();
-              return (overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest) ? dutyOverrides : null;
-            })())
+    const matchingOverride = dutyOverrides
+      ? (Array.isArray(dutyOverrides)
+        ? dutyOverrides.find(o => {
+          const overrideOrigin = o.origin?.toUpperCase() || supplierRegion?.toUpperCase();
+          const overrideDest = o.destination?.toUpperCase();
+          return overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest;
+        })
+        : (() => {
+          const overrideOrigin = dutyOverrides.origin?.toUpperCase() || supplierRegion?.toUpperCase();
+          const overrideDest = dutyOverrides.destination?.toUpperCase();
+          return (overrideOrigin === supplierRegion?.toUpperCase() && overrideDest === dest) ? dutyOverrides : null;
+        })())
       : null;
-    
-    // Use async HS code lookup if override has HS code
-    if (matchingOverride?.hsCode || matchingOverride?.calculationMethod === 'hscode') {
+
+    // Determine if we should use HS code calculation
+    // Priority: 1) Override HS code, 2) Input HS code, 3) Category-based
+    const shouldUseHSCode = matchingOverride?.hsCode || matchingOverride?.calculationMethod === 'hscode' || hsCode;
+    const effectiveHSCode = matchingOverride?.hsCode || hsCode;
+
+    if (shouldUseHSCode) {
       // Use async calculateDutyWithHSCode for real-time API lookup
       dutyResult = await dutyCalculator.calculateDutyWithHSCode(buyPrice, supplierRegion, dest, {
-        hsCode: matchingOverride.hsCode,
+        hsCode: effectiveHSCode,
         category: category,
         productName: productName,
-        overrides: matchingOverride
+        overrides: matchingOverride || null
       });
-      
+
       console.log(`[MultiChannel Evaluator] HS Code duty lookup for ${supplierRegion}->${dest}:`, {
-        hsCode: matchingOverride.hsCode || 'auto-detected',
+        hsCode: effectiveHSCode || 'auto-detected',
         rate: dutyResult.dutyRate,
         ratePercent: dutyResult.dutyPercent,
-        source: dutyResult.source || 'api'
+        source: dutyResult.source || 'api',
+        isOverride: !!matchingOverride
       });
     } else {
       // Use standard category-based calculation
       // Pass the entire dutyOverrides object - calculateDuty will use getDutyOverrideForRoute to match correctly
       dutyResult = dutyCalculator.calculateDuty(buyPrice, supplierRegion, dest, category, dutyOverrides);
-      
+
       // Debug: Log if duty override was applied
       if (dutyOverrides && dutyResult.isOverridden) {
         console.log(`[MultiChannel Evaluator] Duty override applied for ${supplierRegion}->${dest}:`, {
@@ -620,7 +635,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
     // Calculate shipping (per unit, using air freight as default) with overrides
     const shippingResult = shippingCalculator.calculateBulkShipping(weightKg, quantity, supplierRegion, dest, 'air', shippingOverrides);
-    
+
     // Debug: Log if shipping override was applied
     if (shippingOverrides && shippingResult.isOverridden) {
       console.log(`[MultiChannel Evaluator] Shipping override applied for ${supplierRegion}->${dest}:`, {
@@ -690,19 +705,19 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   // Use Amazon US price, or fallback to eBay US price if Amazon unavailable
   const hasAmazonUS = amazonPricing && amazonPricing['US'] && amazonPricing['US'].buyBoxPrice;
   const hasEbayUS = ebayPricing && ebayPricing['US'] && ebayPricing['US'].buyBoxPrice;
-  
+
   if (hasAmazonUS || hasEbayUS) {
     const usLanded = landedCosts['US'];
     const usLandedCost = usLanded?.totalLandedCost || buyPrice;
     // Use Amazon price if available, otherwise use eBay price
-    const referencePrice = hasAmazonUS 
-      ? amazonPricing['US'].buyBoxPrice 
+    const referencePrice = hasAmazonUS
+      ? amazonPricing['US'].buyBoxPrice
       : ebayPricing['US'].buyBoxPrice;
     const category = productData?.category || 'default';
-    
+
     // Get retailer pricing based on reference price
     const retailerChannels = retailerService.getRetailerPricing(productData, referencePrice, category);
-    
+
     for (const retailer of retailerChannels) {
       // Calculate margin with landed cost
       const withMargin = retailerService.calculateRetailerMargin(retailer, usLandedCost);
@@ -737,7 +752,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
 
       // Track sell price source (based on reference price source)
-      withMargin.pricingSource = hasAmazonUS 
+      withMargin.pricingSource = hasAmazonUS
         ? (amazonPricing['US'].dataSource || 'api')
         : (ebayPricing['US'].dataSource || 'live');
       withMargin.confidence = 'Medium'; // Retailer channels use estimated pricing
@@ -763,14 +778,14 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     const usLanded = landedCosts['US'];
     const usLandedCost = usLanded?.totalLandedCost || buyPrice;
     // Use Amazon price if available, otherwise use eBay price
-    const referencePrice = hasAmazonUS 
-      ? amazonPricing['US'].buyBoxPrice 
+    const referencePrice = hasAmazonUS
+      ? amazonPricing['US'].buyBoxPrice
       : ebayPricing['US'].buyBoxPrice;
     const category = productData?.category || 'default';
-    
+
     // Get distributor pricing based on reference price (they pay wholesale)
     const distributorChannels = distributorService.getDistributorPricing(productData, referencePrice, category);
-    
+
     for (const distributor of distributorChannels) {
       // Calculate margin with landed cost
       const withMargin = distributorService.calculateDistributorMargin(distributor, usLandedCost);
@@ -805,7 +820,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       withMargin.monthsToSell = absorptionCapacity > 0 ? Number((quantity / absorptionCapacity).toFixed(1)) : 999;
 
       // Track sell price source (based on reference price source)
-      withMargin.pricingSource = hasAmazonUS 
+      withMargin.pricingSource = hasAmazonUS
         ? (amazonPricing['US'].dataSource || 'api')
         : (ebayPricing['US'].dataSource || 'live');
       withMargin.confidence = 'Medium'; // Distributor channels use estimated pricing
@@ -857,7 +872,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     console.warn(`[MultiChannel Evaluator] Could not find landed cost for ${bestChannel.marketplace}, using buy price`);
     bestLandedCostTotal = buyPrice;
   }
-  
+
   const bestLandedCostUSD = currencyService.toUSD(bestLandedCostTotal, currency);
 
   // Debug: Log landed cost used for scoring (to verify overrides are applied)
@@ -1049,28 +1064,28 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       allocationDetails[key] = `Skipped ${key} (${channel.marginPercent.toFixed(1)}% margin, ${(quantity / absorptionCapacity).toFixed(1)} months to sell) - lower priority than allocated channels.`;
     }
   }
-  
+
   // Add channels that weren't recommended (recommendation === 'Avoid') - these weren't considered for allocation
   for (const channel of allChannels) {
     const key = getChannelKey(channel);
     if (allocation[key] || channel.recommendation === 'Sell') continue; // Skip if already allocated or recommended
-    
+
     const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
     let reason = '';
-    
+
     if (channel.marginPercent < THRESHOLDS.minMarginPercent) {
       reason = `Not allocated: ${key} has margin of ${channel.marginPercent.toFixed(1)}% (below ${THRESHOLDS.minMarginPercent}% threshold). `;
     } else {
       reason = `Not allocated: ${key} not recommended for selling. `;
     }
-    
+
     if (absorptionCapacity === 0) {
       reason += `No reliable demand data available.`;
     } else {
       const monthsToSell = quantity / absorptionCapacity;
       reason += `Estimated ${monthsToSell.toFixed(1)} months to sell through quantity.`;
     }
-    
+
     allocationDetails[key] = reason;
   }
 

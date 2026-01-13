@@ -91,11 +91,11 @@ async function getAuthToken() {
   try {
     // Get application access token using client credentials
     const token = await eBay.oauth2.getApplicationToken('PRODUCTION');
-    
+
     authToken = token;
     // eBay application tokens typically last 2 hours
     tokenExpiry = Date.now() + (7200 * 1000); // 2 hours
-    
+
     console.log('[eBayService] OAuth token obtained successfully');
     return authToken;
   } catch (error) {
@@ -114,7 +114,7 @@ async function getAuthToken() {
 export async function searchByEAN(ean, marketplace = 'US') {
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
-    
+
     // eBay accepts EAN-13, UPC-12, ISBN
     const results = await eBay.buy.browse.search({
       gtin: ean, // Use GTIN filter for barcode search
@@ -131,6 +131,7 @@ export async function searchByEAN(ean, marketplace = 'US') {
       price: Number(item.price?.value) || 0,  // Convert string to number
       currency: item.price?.currency || 'USD',
       itemId: item.itemId,
+      categoryName: item.categories?.[0]?.categoryName || 'Unknown',
       condition: item.condition,
       seller: {
         username: item.seller?.username,
@@ -152,7 +153,7 @@ export async function searchByEAN(ean, marketplace = 'US') {
 export async function searchByKeyword(keyword, marketplace = 'US') {
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
-    
+
     const results = await eBay.buy.browse.search({
       q: keyword,
       limit: 20,
@@ -194,7 +195,7 @@ export async function getItemDetails(itemId) {
     // Extract GTIN - check multiple possible fields
     let gtin = null;
     let gtinType = null;
-    
+
     // Method 1: Direct gtin field (array format)
     if (item.gtin && Array.isArray(item.gtin) && item.gtin.length > 0) {
       gtin = item.gtin[0].gtinValue || item.gtin[0];
@@ -233,7 +234,11 @@ export async function getItemDetails(itemId) {
       mpn: item.mpn // Manufacturer Part Number
     };
   } catch (error) {
-    console.error('[eBayService] Get item error:', error.message);
+    if (error.message.includes('not found')) {
+      console.warn('[eBayService] Item details not found (item may have ended), using search info instead');
+    } else {
+      console.error('[eBayService] Get item error:', error.message);
+    }
     return null;
   }
 }
@@ -245,17 +250,29 @@ export async function getItemDetails(itemId) {
 /**
  * Find completed (sold) items to estimate demand
  */
-export async function findCompletedItems(keyword, marketplace = 'US') {
+export async function findCompletedItems(keyword, marketplace = 'US', ean = null) {
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
-    
-    const results = await eBay.finding.findCompletedItems({
-      keywords: keyword,
+
+    // Prepare request parameters
+    const params = {
       'itemFilter(0).name': 'SoldItemsOnly',
       'itemFilter(0).value': 'true',
       'sortOrder': 'EndTimeSoonest',
       'paginationInput.entriesPerPage': 100
-    });
+    };
+
+    // If EAN is provided, use it for precise matching
+    if (ean) {
+      params.productId = {
+        '@type': 'ReferenceID',
+        '#text': ean
+      };
+    } else {
+      params.keywords = keyword;
+    }
+
+    const results = await eBay.finding.findCompletedItems(params);
 
     if (!results || !results[0]?.searchResult?.[0]?.item) {
       return { items: [], averagePrice: 0, soldCount: 0 };
@@ -270,8 +287,8 @@ export async function findCompletedItems(keyword, marketplace = 'US') {
     }));
 
     const soldPrices = items.map(i => i.soldPrice).filter(p => p > 0);
-    const averagePrice = soldPrices.length > 0 
-      ? soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length 
+    const averagePrice = soldPrices.length > 0
+      ? soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length
       : 0;
 
     return {
@@ -300,7 +317,7 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
   try {
     // Search by EAN
     const activeListings = await searchByEAN(ean, marketplace);
-    
+
     if (activeListings.length === 0) {
       console.warn('[eBayService] No listings found for EAN:', ean);
       return null;
@@ -308,12 +325,12 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
 
     // Calculate average active price (API returns USD)
     const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
-    
+
     if (activePrices.length === 0) {
       console.warn('[eBayService] No valid prices found for EAN:', ean);
       return null;
     }
-    
+
     const avgActivePriceUSD = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
 
     // Convert USD price to local marketplace currency
@@ -322,43 +339,73 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
     const minPrice = currencyService.convert(Math.min(...activePrices), 'USD', targetCurrency);
     const maxPrice = currencyService.convert(Math.max(...activePrices), 'USD', targetCurrency);
 
-    // MARKET SIZE FACTORS (relative to US baseline)
-    const marketFactors = {
-      US: 1.5,   // Largest market
-      UK: 1.0,   // Medium market  
-      DE: 1.2,   // Large EU market
-      FR: 0.8,   // Medium EU market
-      IT: 0.6,   // Smaller EU market
-      AU: 0.5    // Smaller market
-    };
-    
-    // CATEGORY/PRICE TIER MULTIPLIERS (inferred from price)
-    let categoryMultiplier = 1.0;
-    if (avgActivePrice > 100) {
-      categoryMultiplier = 1.5; // High-value items (electronics, gaming)
-    } else if (avgActivePrice > 50) {
-      categoryMultiplier = 1.2; // Mid-value items
-    } else if (avgActivePrice < 10) {
-      categoryMultiplier = 0.6; // Low-value items (lower volume)
+    // Get completed/sold items to estimate REAL demand
+    let soldData = { soldCount: 0, averagePrice: 0 };
+
+    // Prioritize EAN-based sales search, fall back to title if no results or EAN search fails
+    try {
+      soldData = await findCompletedItems(null, marketplace, ean);
+
+      // If EAN search found nothing, try searching by title
+      if (soldData.soldCount === 0 && activeListings[0]?.title) {
+        soldData = await findCompletedItems(activeListings[0].title, marketplace);
+      }
+    } catch (e) {
+      console.warn('[eBayService] Sales search error:', e.message);
+      if (activeListings[0]?.title) {
+        soldData = await findCompletedItems(activeListings[0].title, marketplace);
+      }
     }
-    
-    // COMPETITION FACTOR (more listings = higher total market demand)
-    let competitionFactor = 1.0;
-    if (activeListings.length > 20) {
-      competitionFactor = 2.0; // High competition = high demand market
-    } else if (activeListings.length > 10) {
-      competitionFactor = 1.5;
-    } else if (activeListings.length > 5) {
-      competitionFactor = 1.2;
-    } else if (activeListings.length <= 2) {
-      competitionFactor = 0.8; // Very few listings = niche/low demand
+
+    // Estimate monthly sales
+    let estimatedMonthlySales;
+
+    if (soldData.soldCount > 0) {
+      // Method A: Dynamic Data (Preferred)
+      // Avg sold count represents recent history (typically 7-90 days depending on volume)
+      // We extrapolate to 30 days based on the typical return window of the Finding API (approx 90 days max, but often less for high volume)
+      // A conservative estimate is raw sold count * 0.5 (assuming ~60 days data) or just raw count if low volume
+      estimatedMonthlySales = Math.round(soldData.soldCount * 0.4);
+    } else {
+      // Method B: Heuristic Fallback (Original Logic)
+      // MARKET SIZE FACTORS (relative to US baseline)
+      const marketFactors = {
+        US: 1.5,   // Largest market
+        UK: 1.0,   // Medium market  
+        DE: 1.2,   // Large EU market
+        FR: 0.8,   // Medium EU market
+        IT: 0.6,   // Smaller EU market
+        AU: 0.5    // Smaller market
+      };
+
+      // CATEGORY/PRICE TIER MULTIPLIERS (inferred from price)
+      let categoryMultiplier = 1.0;
+      if (avgActivePrice > 100) {
+        categoryMultiplier = 1.5; // High-value items (electronics, gaming)
+      } else if (avgActivePrice > 50) {
+        categoryMultiplier = 1.2; // Mid-value items
+      } else if (avgActivePrice < 10) {
+        categoryMultiplier = 0.6; // Low-value items (lower volume)
+      }
+
+      // COMPETITION FACTOR (more listings = higher total market demand)
+      let competitionFactor = 1.0;
+      if (activeListings.length > 20) {
+        competitionFactor = 2.0; // High competition = high demand market
+      } else if (activeListings.length > 10) {
+        competitionFactor = 1.5;
+      } else if (activeListings.length > 5) {
+        competitionFactor = 1.2;
+      } else if (activeListings.length <= 2) {
+        competitionFactor = 0.8; // Very few listings = niche/low demand
+      }
+
+      // BASE FORMULA: listings × market × category × competition × base multiplier
+      const marketFactor = marketFactors[marketplace] || 1.0;
+      const baseMultiplier = 12; // Base units per listing
+      const rawEstimate = activeListings.length * marketFactor * categoryMultiplier * competitionFactor * baseMultiplier;
+      estimatedMonthlySales = Math.round(Math.min(rawEstimate, 800)); // Cap at 800
     }
-    
-    // BASE FORMULA: listings × market × category × competition × base multiplier
-    const marketFactor = marketFactors[marketplace] || 1.0;
-    const baseMultiplier = 12; // Base units per listing
-    const rawEstimate = activeListings.length * marketFactor * categoryMultiplier * competitionFactor * baseMultiplier;
-    const estimatedMonthlySales = Math.round(Math.min(rawEstimate, 800)); // Cap at 800
 
     return {
       marketplace,
@@ -372,9 +419,13 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
       },
       activeListings: activeListings.length,
       estimatedMonthlySales,
-      confidence: activeListings.length > 20 ? 'High' : activeListings.length > 5 ? 'Medium' : 'Low',
-      currency: targetCurrency
+      confidence: soldData.soldCount > 0
+        ? (soldData.soldCount > 20 ? 'High' : 'Medium')
+        : (activeListings.length > 20 ? 'Medium' : 'Low'), // Higher confidence if we have real sold data
+      currency: targetCurrency,
+      soldLast90Days: soldData.soldCount // Add this for transparency
     };
+
   } catch (error) {
     console.error('[eBayService] Get pricing by EAN error:', error.message);
     return null;
@@ -388,18 +439,18 @@ export async function getProductPricing(keyword, marketplace = 'US') {
   try {
     // Get active listings
     const activeListings = await searchByKeyword(keyword, marketplace);
-    
+
     // Get sold items (last 30 days)
     const soldData = await findCompletedItems(keyword, marketplace);
 
     // Calculate average active price
     const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
-    const avgActivePrice = activePrices.length > 0 
-      ? activePrices.reduce((a, b) => a + b, 0) / activePrices.length 
+    const avgActivePrice = activePrices.length > 0
+      ? activePrices.reduce((a, b) => a + b, 0) / activePrices.length
       : 0;
 
     // Estimate monthly sales (sold count is typically ~7-30 days)
-    const estimatedMonthlySales = soldData.soldCount > 0 
+    const estimatedMonthlySales = soldData.soldCount > 0
       ? Math.round(soldData.soldCount * 1.5) // Approximate 30-day extrapolation
       : 0;
 
@@ -432,11 +483,11 @@ export async function getProductPricing(keyword, marketplace = 'US') {
  */
 export function calculateEbayFees(sellPrice, marketplace = 'US') {
   const fees = EBAY_FEES[marketplace] || EBAY_FEES.US;
-  
+
   const insertionFee = fees.insertionFee;
   const finalValueFee = sellPrice * fees.finalValueFee; // Includes payment processing
   const perOrderFee = fees.perOrderFee;
-  
+
   const totalFees = insertionFee + finalValueFee + perOrderFee;
   const netProceeds = sellPrice - totalFees;
 

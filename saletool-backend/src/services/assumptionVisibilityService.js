@@ -32,7 +32,7 @@ export function getAssumptionVersion() {
  * @returns {object} - Complete assumptions breakdown
  */
 export function getAllAssumptionsUsed(calculationResult, overrides = null, input = null, metadata = null) {
-  const analysisTimestamp = metadata?.analyzedAt 
+  const analysisTimestamp = metadata?.analyzedAt
     ? (metadata.analyzedAt instanceof Date ? metadata.analyzedAt.toISOString() : metadata.analyzedAt)
     : new Date().toISOString();
 
@@ -52,8 +52,8 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
 
   // Extract shipping assumptions from channel analysis
   if (calculationResult.channelAnalysis) {
-    const channels = Array.isArray(calculationResult.channelAnalysis) 
-      ? calculationResult.channelAnalysis 
+    const channels = Array.isArray(calculationResult.channelAnalysis)
+      ? calculationResult.channelAnalysis
       : Object.values(calculationResult.channelAnalysis);
 
     channels.forEach(channel => {
@@ -65,12 +65,12 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
       } else if (channel.distributor) {
         channelName = channel.distributor;
       }
-      
+
       if (marketplace && channel.landedCost) {
         // Shipping assumptions with metadata
         const shippingMethod = channel.landedCost.shipping?.method || 'air';
         const isShippingOverridden = channel.landedCost.shipping?.isOverridden || false;
-        
+
         assumptions.shipping[marketplace] = {
           origin: input?.supplierRegion || 'CN',
           destination: marketplace,
@@ -94,8 +94,8 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         // Shipping source confidence
         assumptions.sourceConfidence[`shipping_${marketplace}`] = {
           level: isShippingOverridden ? 'high' : 'medium',
-          reason: isShippingOverridden 
-            ? 'User-provided override value' 
+          reason: isShippingOverridden
+            ? 'User-provided override value'
             : 'Calculated using default shipping calculator based on route and method'
         };
 
@@ -113,7 +113,7 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         const isDutyOverridden = channel.landedCost.isOverridden || channel.landedCost.duty?.isOverridden || false;
         const dutyRate = channel.landedCost.dutyRate || channel.landedCost.duty?.dutyRate;
         const dutyPercent = channel.landedCost.dutyPercent ? `${channel.landedCost.dutyPercent}%` : (channel.landedCost.duty?.dutyPercent || '0%');
-        
+
         assumptions.duty[marketplace] = {
           origin: input?.supplierRegion || 'CN',
           destination: marketplace,
@@ -128,13 +128,13 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         };
 
         // Duty data freshness
-        const dutyMetadata = dutyCalculationMethod === 'hs_code' 
+        const dutyMetadata = dutyCalculationMethod === 'hs_code'
           ? getDataSourceMetadata('tariffLookup')
           : getDataSourceMetadata('dutyRates');
-        const hsCodeMappingMetadata = dutyCalculationMethod === 'hs_code' 
+        const hsCodeMappingMetadata = dutyCalculationMethod === 'hs_code'
           ? getDataSourceMetadata('hsCodeMapping')
           : null;
-        
+
         assumptions.dataFreshness[`duty_${marketplace}`] = {
           source: isDutyOverridden ? 'user_override' : (dutyCalculationMethod === 'hs_code' ? 'hs_code_lookup' : 'category_based'),
           timestamp: analysisTimestamp, // When calculation was performed
@@ -150,21 +150,21 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           reason: isDutyOverridden
             ? 'User-provided override value'
             : dutyCalculationMethod === 'hs_code'
-            ? 'HS code-based duty rate lookup'
-            : 'Category-based duty rate estimation'
+              ? 'HS code-based duty rate lookup'
+              : 'Category-based duty rate estimation'
         };
 
         // Duty methodology
         const dutyHsCode = channel.landedCost.hsCode || channel.landedCost.duty?.hsCode;
         const dutyCategory = channel.landedCost.category || channel.landedCost.duty?.category || input?.category || 'default';
         const dutyPercentValue = channel.landedCost.dutyPercent || channel.landedCost.duty?.dutyPercent || 0;
-        
+
         assumptions.methodology[`duty_${marketplace}`] = {
           calculation: isDutyOverridden
             ? 'Manual duty rate override provided by user'
             : dutyCalculationMethod === 'hs_code'
-            ? `HS code ${dutyHsCode || 'N/A'} used to lookup duty rate for ${marketplace}. Rate: ${dutyPercentValue}%`
-            : `Category-based duty calculation for ${dutyCategory} category in ${marketplace}. Rate: ${dutyPercentValue}%`,
+              ? `HS code ${dutyHsCode || 'N/A'} used to lookup duty rate for ${marketplace}. Rate: ${dutyPercentValue}%`
+              : `Category-based duty calculation for ${dutyCategory} category in ${marketplace}. Rate: ${dutyPercentValue}%`,
           rule: isDutyOverridden ? 'user_override' : dutyCalculationMethod
         };
       }
@@ -174,15 +174,15 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         const isFeeOverridden = channel.fees.isOverridden || false;
         const rawPricingSource = channel.pricingSource || 'api';
         const sellPriceConfidence = channel.confidence || 'Medium';
-        
+
         // Create descriptive price source name based on channel and raw source
         let sellPriceSource;
-        
+
         // Distributor and Retailer channels are always mocked (no real API)
         // Check original channel type, not the display name (which could be retailer/distributor name)
         const originalChannelType = channel.channel || 'Unknown';
         const isMockedChannel = originalChannelType === 'Distributor' || originalChannelType === 'Retailer';
-        
+
         if (isMockedChannel) {
           // Distributor and Retailer are mocked channels - always show as Mock
           sellPriceSource = `Mock ${channelName}`;
@@ -200,11 +200,11 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           // Fallback: show channel name + raw source
           sellPriceSource = `${channelName} (${rawPricingSource})`;
         }
-        
+
         // Use composite key: marketplace_channelName (e.g., "US_Amazon", "US_eBay", "US_Walmart", "US_Ingram Micro")
         // Use retailer/distributor name in key if available for better identification
         const feeKey = `${marketplace}_${channelName}`;
-        
+
         assumptions.fees[feeKey] = {
           marketplace,
           channel: channel.channel || 'Unknown', // Keep original channel type (Retailer, Distributor, Amazon, eBay)
@@ -224,7 +224,7 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           // Common fees
           vatRate: channel.fees.breakdown?.vatRate || 0,
           vatAmount: channel.fees.breakdown?.vat || 0,
-          paymentFee: channel.fees.breakdown?.paymentFee || 0,
+          paymentFee: channel.fees.breakdown?.paymentFeeRate || (channel.fees.breakdown?.paymentFee && channel.sellPrice ? channel.fees.breakdown.paymentFee / channel.sellPrice : 0),
           feeScheduleVersion: (originalChannelType === 'Amazon' || originalChannelType === 'eBay') ? (channel.fees.feeScheduleVersion || '2025-01') : undefined,
           isOverridden: isFeeOverridden,
           currency: channel.currency || 'USD'
@@ -253,13 +253,13 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           marketplace: marketplace,
           channel: channelName,
           dataSource: rawPricingSource, // Keep raw source for internal tracking ('live', 'mock', 'mock-fallback', or 'api')
-          description: rawPricingSource === 'live' 
+          description: rawPricingSource === 'live'
             ? `Live ${channelName} API data for ${marketplace}`
             : rawPricingSource === 'mock'
-            ? `Mock ${channelName} data for ${marketplace}`
-            : rawPricingSource === 'mock-fallback'
-            ? `Mock fallback ${channelName} data for ${marketplace} (API unavailable)`
-            : `${channelName} API data for ${marketplace}`
+              ? `Mock ${channelName} data for ${marketplace}`
+              : rawPricingSource === 'mock-fallback'
+                ? `Mock fallback ${channelName} data for ${marketplace} (API unavailable)`
+                : `${channelName} API data for ${marketplace}`
         };
 
         // Fee source confidence - use composite key
@@ -268,18 +268,18 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
           reason: isFeeOverridden
             ? 'User-provided fee overrides'
             : originalChannelType === 'Distributor'
-            ? `Sell price from ${sellPriceSource}. Direct B2B sale with no platform fees.`
-            : originalChannelType === 'Retailer'
-            ? `Sell price from ${sellPriceSource}. Fixed commission and payment fee rates applied.`
-            : `Sell price from ${sellPriceSource}. Fee schedule version ${channel.fees.feeScheduleVersion || '2025-01'} applied.`,
+              ? `Sell price from ${sellPriceSource}. Direct B2B sale with no platform fees.`
+              : originalChannelType === 'Retailer'
+                ? `Sell price from ${sellPriceSource}. Fixed commission and payment fee rates applied.`
+                : `Sell price from ${sellPriceSource}. Fee schedule version ${channel.fees.feeScheduleVersion || '2025-01'} applied.`,
           sellPriceConfidence: sellPriceConfidence
         };
 
         // Fee methodology - use composite key
-        const vatTreatment = channel.fees.breakdown?.vatRate > 0 
+        const vatTreatment = channel.fees.breakdown?.vatRate > 0
           ? `VAT-inclusive pricing. VAT rate: ${channel.fees.breakdown?.vatRate}% (${marketplace} standard rate).`
           : 'VAT-exclusive pricing or no VAT applicable.';
-        
+
         // Build calculation message based on channel type
         let calculationMessage;
         if (isFeeOverridden) {
@@ -294,17 +294,15 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
         } else if (originalChannelType === 'Retailer') {
           // Retailers: Commission and payment fees
           const commission = channel.fees.breakdown?.commission || 0;
-          const paymentFee = channel.fees.breakdown?.paymentFee || 0;
+          const paymentFeeRate = channel.fees.breakdown?.paymentFeeRate || 0;
+          const commissionRate = channel.fees.breakdown?.commissionRate || 0;
           const fixedFee = channel.fees.breakdown?.fixedFee || 0;
-          const commissionPercent = channel.fees.total > 0 && channel.sellPrice > 0 
-            ? ((channel.fees.total / channel.sellPrice) * 100).toFixed(1)
-            : '0';
-          calculationMessage = `${channelName} fee structure applied: Commission ${commission.toFixed(2)} ${channel.currency || 'USD'} (${commissionPercent}%), Payment fee ${paymentFee.toFixed(2)} ${channel.currency || 'USD'}${fixedFee > 0 ? `, Fixed fee ${fixedFee.toFixed(2)} ${channel.currency || 'USD'}` : ''}. ${vatTreatment}`;
+          calculationMessage = `${channelName} fee structure applied: Commission ${commission.toFixed(2)} ${channel.currency || 'USD'} (${(commissionRate * 100).toFixed(1)}%), Payment fee (${(paymentFeeRate * 100).toFixed(1)}%)${fixedFee > 0 ? `, Fixed fee ${fixedFee.toFixed(2)} ${channel.currency || 'USD'}` : ''}. ${vatTreatment}`;
         } else {
           // Fallback for unknown channel types
           calculationMessage = `${channelName} fee structure applied. ${vatTreatment}`;
         }
-        
+
         assumptions.methodology[`fees_${feeKey}`] = {
           calculation: calculationMessage,
           rule: isFeeOverridden ? 'user_override' : (originalChannelType === 'Distributor' ? 'direct_b2b' : (originalChannelType === 'Retailer' ? 'fixed_rates' : 'fee_schedule')),
@@ -323,7 +321,7 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
       cacheAge: null,
       isExpired: true
     };
-    
+
     assumptions.currency = {
       buyPriceCurrency: input.currency,
       fxRates: {
@@ -348,15 +346,15 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
       reason: currencyCacheStatus.hasCache && !currencyCacheStatus.isExpired
         ? 'Live exchange rates from freecurrencyapi.com (cached)'
         : currencyCacheStatus.hasCache
-        ? 'Cached exchange rates (may be expired)'
-        : 'Fallback exchange rates used'
+          ? 'Cached exchange rates (may be expired)'
+          : 'Fallback exchange rates used'
     };
 
     // Currency methodology - dynamic based on actual source
-    const isUsingFallback = !currencyCacheStatus.hasCache || 
-                           (currencyCacheStatus.isExpired && !currencyCacheStatus.lastUpdated);
+    const isUsingFallback = !currencyCacheStatus.hasCache ||
+      (currencyCacheStatus.isExpired && !currencyCacheStatus.lastUpdated);
     const isExpiredButHasCache = currencyCacheStatus.hasCache && currencyCacheStatus.isExpired;
-    
+
     let calculationMessage;
     if (isUsingFallback) {
       calculationMessage = `Fallback exchange rates used (hardcoded values). Base currency: USD. Rates converted using: ${input.currency} to USD, then to target marketplace currency.`;
@@ -365,7 +363,7 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
     } else {
       calculationMessage = `Exchange rates fetched from freecurrencyapi.com. Base currency: USD. Rates converted using: ${input.currency} to USD, then to target marketplace currency.`;
     }
-    
+
     assumptions.methodology.currency = {
       calculation: calculationMessage,
       rule: 'live_api_with_fallback',
@@ -464,7 +462,7 @@ export function hasOverrideChanged(oldValue, newValue) {
   // Handle null/undefined cases
   if (!oldValue && !newValue) return false;
   if (!oldValue || !newValue) return true;
-  
+
   // Deep comparison using JSON stringify
   return JSON.stringify(oldValue) !== JSON.stringify(newValue);
 }

@@ -98,16 +98,16 @@ const MARKETPLACE_CURRENCIES = {
  */
 async function fetchLatestRates() {
   const now = Date.now();
-  
+
   // Return cached rates if still valid
-  if (ratesCache.rates && ratesCache.lastUpdated && 
-      (now - ratesCache.lastUpdated) < CACHE_DURATION_MS) {
+  if (ratesCache.rates && ratesCache.lastUpdated &&
+    (now - ratesCache.lastUpdated) < CACHE_DURATION_MS) {
     return ratesCache.rates;
   }
-  
+
   try {
     console.log('[CurrencyService] Fetching latest exchange rates...');
-    
+
     // Try API call without currencies parameter first (gets all available currencies)
     // This avoids validation errors with currency list format
     let response;
@@ -120,7 +120,7 @@ async function fetchLatestRates() {
       console.error('[CurrencyService] API call failed:', apiError.message);
       throw apiError; // Re-throw to be caught by outer catch
     }
-    
+
     // Check for error response (API returns error objects, not exceptions)
     // Error responses have 'errors' or 'message' field
     if (response && (response.errors || (response.message && !response.data))) {
@@ -132,7 +132,7 @@ async function fetchLatestRates() {
       // Don't update cache, will return fallback rates
       return FALLBACK_RATES;
     }
-    
+
     // Check for successful response with data
     if (response && response.data && typeof response.data === 'object') {
       // API returns rates relative to base (USD)
@@ -141,12 +141,12 @@ async function fetchLatestRates() {
       ratesCache.rates = newRates;
       ratesCache.lastUpdated = now;
       ratesCache.baseCurrency = 'USD';
-      
+
       // Verify cache was set correctly
       console.log('[CurrencyService] Rates updated successfully. Cache has', Object.keys(ratesCache.rates).length, 'currencies');
       console.log('[CurrencyService] Cache timestamp:', new Date(ratesCache.lastUpdated).toISOString());
-      console.log('[CurrencyService] Cache verification:', { 
-        hasRates: !!ratesCache.rates, 
+      console.log('[CurrencyService] Cache verification:', {
+        hasRates: !!ratesCache.rates,
         lastUpdated: ratesCache.lastUpdated,
         sampleRates: Object.keys(newRates).slice(0, 3)
       });
@@ -157,7 +157,7 @@ async function fetchLatestRates() {
   } catch (error) {
     console.error('[CurrencyService] API error, using fallback rates:', error.message);
   }
-  
+
   // Return fallback rates if API fails
   return FALLBACK_RATES;
 }
@@ -171,21 +171,21 @@ function getRatesSync() {
   if (ratesCache.rates && ratesCache.lastUpdated) {
     const now = Date.now();
     const isExpired = (now - ratesCache.lastUpdated) >= CACHE_DURATION_MS;
-    
+
     if (!isExpired) {
       return ratesCache.rates;
     }
-    
+
     // Cache expired - trigger background refresh (fire and forget)
     // Don't await - just trigger it so next call gets fresh rates
     fetchLatestRates().catch(err => {
       console.warn('[CurrencyService] Background refresh failed:', err.message);
     });
-    
+
     // Return expired cache for now (better than fallback)
     return ratesCache.rates;
   }
-  
+
   // No cache - try to fetch synchronously if possible, otherwise use fallback
   // Since we initialize on startup, this should rarely happen
   return FALLBACK_RATES;
@@ -200,26 +200,26 @@ function getRatesSync() {
  */
 export async function convertAsync(amount, fromCurrency, toCurrency) {
   if (!amount || amount <= 0) return 0;
-  
+
   fromCurrency = fromCurrency.toUpperCase();
   toCurrency = toCurrency.toUpperCase();
-  
+
   if (fromCurrency === toCurrency) return amount;
-  
+
   const rates = await fetchLatestRates();
-  
+
   const fromRate = rates[fromCurrency];
   const toRate = rates[toCurrency];
-  
+
   if (!fromRate || !toRate) {
     console.warn(`Unknown currency: ${fromCurrency} or ${toCurrency}`);
     return amount;
   }
-  
+
   // Convert to USD first, then to target currency
   const amountInUSD = amount / fromRate;
   const amountInTarget = amountInUSD * toRate;
-  
+
   return Number(amountInTarget.toFixed(2));
 }
 
@@ -228,25 +228,25 @@ export async function convertAsync(amount, fromCurrency, toCurrency) {
  */
 export function convert(amount, fromCurrency, toCurrency) {
   if (!amount || amount <= 0) return 0;
-  
+
   fromCurrency = fromCurrency.toUpperCase();
   toCurrency = toCurrency.toUpperCase();
-  
+
   if (fromCurrency === toCurrency) return amount;
-  
+
   const rates = getRatesSync();
-  
+
   const fromRate = rates[fromCurrency];
   const toRate = rates[toCurrency];
-  
+
   if (!fromRate || !toRate) {
     console.warn(`Unknown currency: ${fromCurrency} or ${toCurrency}`);
     return amount;
   }
-  
+
   const amountInUSD = amount / fromRate;
   const amountInTarget = amountInUSD * toRate;
-  
+
   return Number(amountInTarget.toFixed(2));
 }
 
@@ -277,13 +277,13 @@ export function getCurrencyForMarketplace(marketplace) {
 export function getRate(fromCurrency, toCurrency) {
   fromCurrency = fromCurrency.toUpperCase();
   toCurrency = toCurrency.toUpperCase();
-  
+
   if (fromCurrency === toCurrency) return 1;
-  
+
   const rates = getRatesSync();
   const fromRate = rates[fromCurrency] || 1;
   const toRate = rates[toCurrency] || 1;
-  
+
   return Number((toRate / fromRate).toFixed(4));
 }
 
@@ -307,7 +307,7 @@ export async function initializeRates() {
   const previousCache = ratesCache.rates;
   ratesCache.rates = null;
   ratesCache.lastUpdated = null;
-  
+
   try {
     console.log('[CurrencyService] Initializing currency rates from API...');
     const rates = await fetchLatestRates();
@@ -323,7 +323,7 @@ export async function initializeRates() {
         return true;
       }
     }
-    
+
     // API failed or returned fallback - restore previous cache if it existed
     if (previousCache) {
       ratesCache.rates = previousCache;
@@ -366,7 +366,7 @@ export function getCacheStatus() {
   const cacheAgeMs = ratesCache.lastUpdated ? (Date.now() - ratesCache.lastUpdated) : null;
   const cacheAge = cacheAgeMs !== null ? Math.floor(cacheAgeMs / 1000) + 's' : null;
   const isExpired = ratesCache.lastUpdated ? cacheAgeMs >= CACHE_DURATION_MS : true;
-  
+
   // Debug logging - only log if there's an issue
   if (!hasCache || isExpired) {
     console.log('[CurrencyService] Cache status check:', {
@@ -382,7 +382,7 @@ export function getCacheStatus() {
       }
     });
   }
-  
+
   return {
     hasCache,
     lastUpdated,

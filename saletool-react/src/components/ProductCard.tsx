@@ -85,7 +85,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
     if ((product as any).supplierRegion) {
       return (product as any).supplierRegion;
     }
-    
+
     // Try to get from assumptions details
     if (product.assumptions?.history) {
       // Check first history entry for shipping origin
@@ -99,7 +99,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
         }
       }
     }
-    
+
     return 'CN'; // Default to China
   };
 
@@ -128,7 +128,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
 
   const loadAssumptions = async () => {
     if (!product.id) return;
-    
+
     setIsLoadingAssumptions(true);
     try {
       const result = await getAssumptions(product.id);
@@ -225,687 +225,743 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
       {/* Main Content - Collapsible */}
       {isExpanded && (
         <div className="p-6 space-y-6">
-        {/* Basic Inputs Section */}
-        {(product.quantity != null || product.buy_price != null || product.currency || product.supplier_region) && (
-          <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-            <div className="flex items-center gap-2 mb-4">
-              <FiInfo className="text-blue-400" size={18} />
-              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Input Parameters</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {product.quantity != null && (
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Quantity</div>
-                  <div className="text-lg font-bold text-white">{product.quantity.toLocaleString()} units</div>
-                </div>
-              )}
-              {product.buy_price != null && (
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Buy Price Per Unit</div>
-                  <div className="text-lg font-bold text-white">
-                    {formatCurrency(product.buy_price, product.currency || 'USD')}
-                  </div>
-                </div>
-              )}
-              {product.currency && (
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Currency</div>
-                  <div className="text-lg font-bold text-white">{product.currency}</div>
-                </div>
-              )}
-              {product.supplier_region && (
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Supplier Region</div>
-                  <div className="text-lg font-bold text-white">{product.supplier_region}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Top Row: Decision & Best Channel */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Decision Card */}
-          <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-            <div className="flex items-center gap-2 mb-3">
-              <DecisionIcon className={decisionConfig.textColor} size={18} />
-              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Decision</span>
-            </div>
-            <div className={`inline-flex items-center gap-2 px-4 py-2.5 ${decisionConfig.bgColor} border ${decisionConfig.borderColor} rounded-lg`}>
-              <DecisionIcon className={decisionConfig.textColor} size={20} />
-              <span className={`text-base font-bold ${decisionConfig.textColor}`}>
-                {product.decision}
-              </span>
-            </div>
-          </div>
-
-          {/* Best Channel Card */}
-          {product.bestChannel && (
-            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 rounded-lg p-4 border border-green-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <FiShoppingCart className="text-green-400" size={18} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Best Channel</span>
-              </div>
-              <div className="space-y-1">
-                <div className="text-lg font-bold text-white">
-                  {product.bestChannel.channel}-{product.bestChannel.marketplace}
-                </div>
-                <div className="text-2xl font-bold text-green-400">
-                  {product.bestChannel.marginPercent.toFixed(1)}%
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Net Margin</div>
-            <div className="text-lg font-bold text-white">{product.net_margin.toFixed(1)}%</div>
-          </div>
-          <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Demand Confidence</div>
-            <div className="text-lg font-bold text-white">{product.demand_confidence}%</div>
-          </div>
-          <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Volume Risk</div>
-            <div className="text-lg font-bold text-white">{product.volume_risk}%</div>
-          </div>
-          <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Data Reliability</div>
-            <div className="text-lg font-bold text-white">{product.data_reliability}%</div>
-          </div>
-
-        </div>
-
-        {/* Landed Cost & Performance Metrics Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Landed Cost Breakdown */}
-          {product.landedCost && (
-            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <FiDollarSign className="text-amber-400" size={16} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Landed Cost</span>
-              </div>
-              <div className="text-2xl font-bold text-white mb-2">
-                ${product.landedCost.total.toFixed(2)}
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between text-gray-400">
-                  <span>Buy Price</span>
-                  <span className="text-white">${product.landedCost.buyPrice.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-gray-400">
-                  <span>Duty</span>
-                  <span className="text-white">${product.landedCost.duty.toFixed(2)}</span>
-                </div>
-                {product.landedCost.importVat !== undefined && product.landedCost.importVat > 0 && (
-                  <div className="flex justify-between text-gray-400">
-                    <span className="flex items-center gap-1">
-                      Import VAT {product.landedCost.importVatRate !== undefined && `(${(product.landedCost.importVatRate * 100).toFixed(0)}%)`}
-                      {product.landedCost.reclaimVat && <span className="text-[10px] px-1 bg-green-500/20 text-green-400 rounded">Reclaimed</span>}
-                    </span>
-                    <span className={product.landedCost.reclaimVat ? 'text-gray-500 line-through' : 'text-white'}>
-                      ${product.landedCost.importVat.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between text-gray-400">
-                  <span>Shipping</span>
-                  <span className="text-white">${product.landedCost.shipping.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Performance Metrics Section */}
-          {product.performanceMetrics && (
+          {/* Basic Inputs Section */}
+          {(product.quantity != null || product.buy_price != null || product.currency || product.supplier_region) && (
             <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
               <div className="flex items-center gap-2 mb-4">
-                <FiClock className="text-blue-400" size={18} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Performance Metrics</span>
+                <FiInfo className="text-blue-400" size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Input Parameters</span>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                {/* Total Time */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/30">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Total Time</div>
-                  <div className="text-xl font-bold text-white">
-                    {(product.performanceMetrics.total / 1000).toFixed(2)}s
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {product.quantity != null && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Quantity</div>
+                    <div className="text-lg font-bold text-white">{product.quantity.toLocaleString()} units</div>
                   </div>
-                </div>
-
-                {/* Database */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-blue-500/30">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Database</div>
-                  <div className="text-xl font-bold text-blue-400">
-                    {(product.performanceMetrics.db.total / 1000).toFixed(2)}s
+                )}
+                {product.buy_price != null && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Buy Price Per Unit</div>
+                    <div className="text-lg font-bold text-white">
+                      {formatCurrency(product.buy_price, product.currency || 'USD')}
+                    </div>
                   </div>
-                </div>
-
-                {/* API Calls */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-green-500/30">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">API Calls</div>
-                  <div className="text-xl font-bold text-green-400">
-                    {(product.performanceMetrics.api.total / 1000).toFixed(2)}s
+                )}
+                {product.currency && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Currency</div>
+                    <div className="text-lg font-bold text-white">{product.currency}</div>
                   </div>
-                </div>
-
-                {/* Backend Logic */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-yellow-500/30">
-                  <div className="text-xs text-gray-400 mb-1.5 font-medium">Backend Logic</div>
-                  <div className="text-xl font-bold text-yellow-400">
-                    {(product.performanceMetrics.logic.total / 1000).toFixed(2)}s
+                )}
+                {product.supplier_region && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Supplier Region</div>
+                    <div className="text-lg font-bold text-white">{product.supplier_region}</div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
-        </div>
 
-        {/* Channels Section */}
-        {product.channels && product.channels.length > 0 && (
-          <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-            <button
-              onClick={() => setIsChannelsCollapsed(!isChannelsCollapsed)}
-              className="w-full flex items-center justify-between mb-2 group/header"
-            >
-              <div className="flex items-center gap-2">
-                <FiDollarSign className="text-blue-400" size={18} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold group-hover/header:text-gray-300 transition-colors">
-                  All Channels ({product.channels.length})
+          {/* Top Row: Decision & Best Channel */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Decision Card */}
+            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+              <div className="flex items-center gap-2 mb-3">
+                <DecisionIcon className={decisionConfig.textColor} size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Decision</span>
+              </div>
+              <div className={`inline-flex items-center gap-2 px-4 py-2.5 ${decisionConfig.bgColor} border ${decisionConfig.borderColor} rounded-lg`}>
+                <DecisionIcon className={decisionConfig.textColor} size={20} />
+                <span className={`text-base font-bold ${decisionConfig.textColor}`}>
+                  {product.decision}
                 </span>
               </div>
-              <div className="text-gray-500 group-hover/header:text-gray-300 transition-colors">
-                {isChannelsCollapsed ? <FiChevronDown size={20} /> : <FiChevronUp size={20} />}
-              </div>
-            </button>
+            </div>
 
-            {!isChannelsCollapsed && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {product.channels.map((channel, idx) => {
-                  // Determine channel type for styling
-                  const isRetailer = channel.channel === 'Retailer';
-                  const isDistributor = channel.channel === 'Distributor';
-
-                  // Get display name
-                  const displayName = isRetailer
-                    ? `${(channel as any).retailer}`
-                    : isDistributor
-                      ? `${(channel as any).distributor}`
-                      : `${channel.channel}-${channel.marketplace}`;
-
-                  // Get border color based on type and recommendation
-                  const borderColor = channel.recommendation === 'Sell'
-                    ? 'border-green-500/30 bg-green-500/5'
-                    : isRetailer
-                      ? 'border-purple-500/30 bg-purple-500/5'
-                      : isDistributor
-                        ? 'border-cyan-500/30 bg-cyan-500/5'
-                        : 'border-gray-600/30';
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`bg-gray-800 rounded-lg p-3 border ${borderColor}`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {isRetailer && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Retail</span>}
-                            {isDistributor && <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">Distributor</span>}
-                            <span className="font-semibold text-white text-sm">{displayName}</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <div className="text-xs text-gray-400">
-                              {isDistributor ? 'They Pay: ' : 'Sell: '}
-                              <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right ml-3">
-                          <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
-                            channel.marginPercent >= 15 ? 'text-yellow-400' :
-                              channel.marginPercent > 0 ? 'text-orange-400' :
-                                'text-red-400'
-                            }`}>
-                            {channel.marginPercent.toFixed(1)}%
-                          </div>
-                          {(channel.landedCost?.importVat || 0) > 0 && channel.landedCost?.reclaimVat && (
-                            <div className="mt-1">
-                              <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase tracking-tighter shadow-sm whitespace-nowrap">
-                                VAT Reclaimed
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {channel.recommendation && (
-                        <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium mt-2 ${channel.recommendation === 'Sell'
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : channel.recommendation === 'Consider'
-                            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}>
-                          {channel.recommendation}
-                        </div>
-                      )}
-                      {(channel as any).explanation && (
-                        <div className="mt-2 text-xs text-gray-400 leading-relaxed">
-                          {(channel as any).explanation}
-                        </div>
-                      )}
-                      {/* Demand Information */}
-                      {(channel as any).demand && (
-                        <div className="mt-3 space-y-2 pt-3 border-t border-gray-700/50">
-                          {/* Demand Range + Confidence */}
-                          {(channel as any).demand.estimatedMonthlySales && (
-                            <div className="space-y-1.5">
-                              <div className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-                                Demand Estimate
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400">Range:</span>
-                                <span className="text-xs font-medium text-white">
-                                  {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400">Likely:</span>
-                                <span className="text-xs font-semibold text-blue-400">
-                                  {(channel as any).demand.estimatedMonthlySales.mid} units/mo
-                                </span>
-                              </div>
-                              {(channel as any).demand.confidence && (
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-gray-400">Confidence:</span>
-                                  <span className={`text-xs font-medium ${
-                                    (channel as any).demand.confidence === 'High' ? 'text-green-400' :
-                                    (channel as any).demand.confidence === 'Medium' ? 'text-yellow-400' :
-                                    (channel as any).demand.confidence === 'Low' ? 'text-orange-400' :
-                                    'text-gray-400'
-                                  }`}>
-                                    {(channel as any).demand.confidence}
-                                  </span>
-                                </div>
-                              )}
-                              {(channel as any).demand.absorptionCapacity > 0 && (
-                                <div className="flex items-center justify-between pt-1 border-t border-gray-700/30">
-                                  <span className="text-xs text-gray-400">Absorption Cap:</span>
-                                  <span className="text-xs font-semibold text-purple-400">
-                                    {Math.round((channel as any).demand.absorptionCapacity)} units/mo
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          
-                          {/* Demand Signals */}
-                          {(channel as any).demand?.signals && (channel as any).demand.signals.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1.5">
-                                Demand Signals
-                              </div>
-                              {(channel as any).demand.signals.map((signal: string, signalIdx: number) => (
-                                <div key={signalIdx} className="flex items-start gap-2 text-xs">
-                                  <span className="text-blue-400 mt-0.5">•</span>
-                                  <span className="text-gray-400">{signal}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Best Channel Card */}
+            {product.bestChannel && (
+              <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 rounded-lg p-4 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiShoppingCart className="text-green-400" size={18} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Best Channel</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-lg font-bold text-white">
+                    {product.bestChannel.channel}-{product.bestChannel.marketplace}
+                  </div>
+                  <div className="text-2xl font-bold text-green-400">
+                    {product.bestChannel.marginPercent.toFixed(1)}%
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        )}
 
-        {/* Bottom Row: Allocation & Analysis */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Allocation Plan */}
-          {product.allocation && (Object.keys(product.allocation.allocated).length > 0 || product.allocation.hold > 0) && (
-            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-              <div className="flex items-center gap-2 mb-4">
-                <FiPackage className="text-orange-400" size={18} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                  Allocation Plan
-                </span>
-                {product.allocation.rationale && (
-                  <div className="relative group">
-                    <FiInfo className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" size={16} />
-                    <div className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
-                      <div className="font-semibold text-white mb-2">Allocation Rationale:</div>
-                      <div className="mb-2 whitespace-normal">{product.allocation.rationale}</div>
-                      {product.allocation.channelDetails && Object.keys(product.allocation.channelDetails).length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-700">
-                          <div className="font-semibold text-white mb-2">Channel Details:</div>
-                          {Object.entries(product.allocation.channelDetails).map(([channel, detail]) => (
-                            <div key={channel} className="mb-2 last:mb-0 whitespace-normal">
-                              <span className="font-medium text-blue-400">{channel}:</span>
-                              <span className="ml-1">{detail}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-4 transform translate-y-full">
-                        <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
-                      </div>
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
+              <div className="text-xs text-gray-400 mb-1.5 font-medium">Net Margin</div>
+              <div className="text-lg font-bold text-white">{product.net_margin.toFixed(1)}%</div>
+            </div>
+            <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
+              <div className="text-xs text-gray-400 mb-1.5 font-medium">Demand Confidence</div>
+              <div className="text-lg font-bold text-white">{product.demand_confidence}%</div>
+            </div>
+            <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
+              <div className="text-xs text-gray-400 mb-1.5 font-medium">Volume Risk</div>
+              <div className="text-lg font-bold text-white">{product.volume_risk}%</div>
+            </div>
+            <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
+              <div className="text-xs text-gray-400 mb-1.5 font-medium">Data Reliability</div>
+              <div className="text-lg font-bold text-white">{product.data_reliability}%</div>
+            </div>
+
+          </div>
+
+          {/* Landed Cost & Performance Metrics Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Landed Cost Breakdown */}
+            {product.landedCost && (
+              <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiDollarSign className="text-amber-400" size={16} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Landed Cost</span>
+                </div>
+                <div className="text-2xl font-bold text-white mb-2">
+                  ${product.landedCost.total.toFixed(2)}
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-400">
+                    <span>Buy Price</span>
+                    <span className="text-white">${product.landedCost.buyPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-400">
+                    <span>Duty</span>
+                    <span className="text-white">${product.landedCost.duty.toFixed(2)}</span>
+                  </div>
+                  {product.landedCost.importVat !== undefined && product.landedCost.importVat > 0 && (
+                    <div className="flex justify-between text-gray-400">
+                      <span className="flex items-center gap-1">
+                        Import VAT {product.landedCost.importVatRate !== undefined && `(${product.landedCost.importVatRate.toFixed(0)}%)`}
+                        {product.landedCost.reclaimVat && <span className="text-[10px] px-1 bg-green-500/20 text-green-400 rounded">Reclaimed</span>}
+                      </span>
+                      <span className={product.landedCost.reclaimVat ? 'text-gray-500 line-through' : 'text-white'}>
+                        ${product.landedCost.importVat.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-gray-400">
+                    <span>Shipping</span>
+                    <span className="text-white">${product.landedCost.shipping.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Performance Metrics Section */}
+            {product.performanceMetrics && (
+              <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiClock className="text-blue-400" size={18} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Performance Metrics</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Total Time */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/30">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Total Time</div>
+                    <div className="text-xl font-bold text-white">
+                      {(product.performanceMetrics.total / 1000).toFixed(2)}s
                     </div>
                   </div>
-                )}
-              </div>
-              {/* Summary */}
-              <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Total Quantity</span>
-                  <span className="text-sm text-white font-semibold">{product.allocation.totalQuantity?.toLocaleString() || Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0) + (product.allocation.hold || 0)} units</span>
+
+                  {/* Database */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-blue-500/30">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Database</div>
+                    <div className="text-xl font-bold text-blue-400">
+                      {(product.performanceMetrics.db.total / 1000).toFixed(2)}s
+                    </div>
+                  </div>
+
+                  {/* API Calls */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-green-500/30">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">API Calls</div>
+                    <div className="text-xl font-bold text-green-400">
+                      {(product.performanceMetrics.api.total / 1000).toFixed(2)}s
+                    </div>
+                  </div>
+
+                  {/* Backend Logic */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-yellow-500/30">
+                    <div className="text-xs text-gray-400 mb-1.5 font-medium">Backend Logic</div>
+                    <div className="text-xl font-bold text-yellow-400">
+                      {(product.performanceMetrics.logic.total / 1000).toFixed(2)}s
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Allocated</span>
-                  <span className="text-sm text-green-400 font-semibold">
-                    {Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0).toLocaleString()} units
+              </div>
+            )}
+          </div>
+
+          {/* Channels Section */}
+          {product.channels && product.channels.length > 0 && (
+            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+              <button
+                onClick={() => setIsChannelsCollapsed(!isChannelsCollapsed)}
+                className="w-full flex items-center justify-between mb-2 group/header"
+              >
+                <div className="flex items-center gap-2">
+                  <FiDollarSign className="text-blue-400" size={18} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold group-hover/header:text-gray-300 transition-colors">
+                    All Channels ({product.channels.length})
                   </span>
                 </div>
-                {product.allocation.hold > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">Held Back</span>
-                    <span className="text-sm text-yellow-400 font-semibold">{product.allocation.hold.toLocaleString()} units</span>
-                  </div>
-                )}
-              </div>
+                <div className="text-gray-500 group-hover/header:text-gray-300 transition-colors">
+                  {isChannelsCollapsed ? <FiChevronDown size={20} /> : <FiChevronUp size={20} />}
+                </div>
+              </button>
 
-              {/* Per-Market Allocation Details */}
-              <div className="space-y-2">
-                {Object.keys(product.allocation.allocated).length > 0 ? (
-                  Object.entries(product.allocation.allocated).map(([channel, qty]) => {
-                    // Find the channel to get absorption capacity
-                    // Channel key can be "Retailer-US", "Distributor-US", "Walmart-US", "Ingram Micro-US", etc.
-                    const channelData = product.channels?.find((c: any) => {
-                      // Try matching by retailer/distributor name first
-                      if (c.retailer && `${c.retailer}-${c.marketplace}` === channel) return true;
-                      if (c.distributor && `${c.distributor}-${c.marketplace}` === channel) return true;
-                      // Fallback to channel-marketplace format
-                      return `${c.channel}-${c.marketplace}` === channel;
-                    });
-                    const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
-                    const channelDetail = product.allocation?.channelDetails?.[channel];
-                    
+              {!isChannelsCollapsed && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                  {product.channels.map((channel, idx) => {
+                    // Determine channel type for styling
+                    const isRetailer = channel.channel === 'Retailer';
+                    const isDistributor = channel.channel === 'Distributor';
+
+                    // Get display name
+                    const displayName = isRetailer
+                      ? `${(channel as any).retailer}`
+                      : isDistributor
+                        ? `${(channel as any).distributor}`
+                        : `${channel.channel}-${channel.marketplace}`;
+
+                    // Get border color based on type and recommendation
+                    const borderColor = channel.recommendation === 'Sell'
+                      ? 'border-green-500/30 bg-green-500/5'
+                      : isRetailer
+                        ? 'border-purple-500/30 bg-purple-500/5'
+                        : isDistributor
+                          ? 'border-cyan-500/30 bg-cyan-500/5'
+                          : 'border-gray-600/30';
+
+                    // Determine if pricing is live or mock
+                    const pricingSource = (channel as any).pricingSource || 'api';
+                    const isLivePricing = pricingSource === 'live' || pricingSource === 'api';
+                    const isMockPricing = pricingSource === 'mock' || pricingSource === 'mock-fallback';
+                    // Retailers and Distributors are always mocked
+                    const isAlwaysMocked = isRetailer || isDistributor;
+
                     return (
                       <div
-                        key={channel}
-                        className="bg-gray-800 rounded-lg p-3 border border-gray-600/20"
+                        key={idx}
+                        className={`bg-gray-800 rounded-lg p-3 border ${borderColor}`}
                       >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm text-gray-300 font-medium">{channel}</span>
-                          <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {isRetailer && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Retail</span>}
+                              {isDistributor && <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">Distributor</span>}
+                              <span className="font-semibold text-white text-sm">{displayName}</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <div className="text-xs text-gray-400">
+                                {isDistributor ? 'They Pay: ' : 'Sell: '}
+                                <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right ml-3">
+                            <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
+                              channel.marginPercent >= 15 ? 'text-yellow-400' :
+                                channel.marginPercent > 0 ? 'text-orange-400' :
+                                  'text-red-400'
+                              }`}>
+                              {channel.marginPercent.toFixed(1)}%
+                            </div>
+                            {(channel.landedCost?.importVat || 0) > 0 && channel.landedCost?.reclaimVat && (
+                              <div className="mt-1">
+                                <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase tracking-tighter shadow-sm whitespace-nowrap">
+                                  VAT Reclaimed
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {absorptionCap > 0 && (
-                          <div className="text-xs text-gray-400 mb-1">
-                            Absorption Capacity: <span className="text-gray-300 font-medium">{Math.round(absorptionCap)} units/month</span>
-                            {' • '}
-                            Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {channel.recommendation && (
+                            <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${channel.recommendation === 'Sell'
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                              : channel.recommendation === 'Consider'
+                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              }`}>
+                              {channel.recommendation}
+                            </div>
+                          )}
+                          {/* LIVE vs MOCK Badge - next to recommendation */}
+                          {isAlwaysMocked ? (
+                            <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                          ) : isLivePricing ? (
+                            <span className="text-[10px] px-1.5 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">LIVE DATA</span>
+                          ) : isMockPricing ? (
+                            <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                          ) : null}
+                        </div>
+                        {(channel as any).explanation && (
+                          <div className="mt-2 text-xs text-gray-400 leading-relaxed">
+                            {(channel as any).explanation}
                           </div>
                         )}
-                        {channelDetail && (
-                          <p className="text-xs text-gray-500 mt-2 italic leading-relaxed">{channelDetail}</p>
+                        {/* Demand Information */}
+                        {(channel as any).demand && (
+                          <div className="mt-3 space-y-2 pt-3 border-t border-gray-700/50">
+                            {/* Total Market Demand Section */}
+                            {(channel as any).demand.estimatedMonthlySales && (
+                              <div className="space-y-1.5">
+                                {/* Market Demand Header with Tooltip */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-blue-400 uppercase tracking-wider font-medium">
+                                    Total Market Demand
+                                  </span>
+                                  <div className="relative group/tooltip">
+                                    <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                                    <div className="absolute left-0 bottom-full mb-2 w-56 p-2 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                                      Total monthly sales across <strong>ALL sellers</strong> in this channel. This is the full market size.
+                                      <div className="absolute bottom-0 left-2 transform translate-y-full">
+                                        <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-400">Range:</span>
+                                  <span className="text-xs font-medium text-white">
+                                    {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-400">Likely:</span>
+                                  <span className="text-xs font-semibold text-blue-400">
+                                    {(channel as any).demand.estimatedMonthlySales.mid} units/mo
+                                  </span>
+                                </div>
+                                {(channel as any).demand.confidence && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">Confidence:</span>
+                                    <span className={`text-xs font-medium ${(channel as any).demand.confidence === 'High' ? 'text-green-400' :
+                                      (channel as any).demand.confidence === 'Medium' ? 'text-yellow-400' :
+                                        (channel as any).demand.confidence === 'Low' ? 'text-orange-400' :
+                                          'text-gray-400'
+                                      }`}>
+                                      {(channel as any).demand.confidence}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Your Usable Share Section - Separated visually */}
+                                {(channel as any).demand.absorptionCapacity > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-1.5">
+                                    {/* Usable Share Header with Tooltip */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-purple-400 uppercase tracking-wider font-medium">
+                                        Your Usable Share
+                                      </span>
+                                      <div className="relative group/tooltip2">
+                                        <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                                        <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/tooltip2:opacity-100 group-hover/tooltip2:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                                          Your <strong>realistic share</strong> of the market based on competition. More sellers = smaller share you can capture.
+                                          <div className="absolute bottom-0 left-2 transform translate-y-full">
+                                            <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">Allocation Cap:</span>
+                                      <span className="text-xs font-semibold text-purple-400">
+                                        {Math.round((channel as any).demand.absorptionCapacity)} units/mo
+                                      </span>
+                                    </div>
+                                    {/* Show calculated share percentage */}
+                                    {(channel as any).demand.estimatedMonthlySales?.mid > 0 && (
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-400">Share:</span>
+                                        <span className="text-xs text-gray-300">
+                                          {Math.round(((channel as any).demand.absorptionCapacity / (channel as any).demand.estimatedMonthlySales.mid) * 100)}% of market
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Demand Signals */}
+                            {(channel as any).demand?.signals && (channel as any).demand.signals.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1.5">
+                                  Demand Signals
+                                </div>
+                                {(channel as any).demand.signals.map((signal: string, signalIdx: number) => (
+                                  <div key={signalIdx} className="flex items-start gap-2 text-xs">
+                                    <span className="text-blue-400 mt-0.5">•</span>
+                                    <span className="text-gray-400">{signal}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     );
-                  })
-                ) : (
-                  <div className="text-sm text-gray-400 italic text-center py-2">
-                    No channels allocated
-                  </div>
-                )}
-                {product.allocation.hold > 0 && (
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-2">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
-                        <FiAlertCircle size={14} />
-                        Held Back
-                      </span>
-                      <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      These units are held back to avoid market flooding. Release in phases based on actual sales performance.
-                    </p>
-                  </div>
-                )}
-                
-                {/* Skipped Markets */}
-                {product.allocation?.channelDetails && 
-                 Object.entries(product.allocation.channelDetails)
-                   .filter(([channel]) => !product.allocation?.allocated[channel])
-                   .map(([channel, detail]) => (
-                     <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
-                       <div className="flex justify-between items-center mb-1">
-                         <span className="text-xs text-gray-400 font-medium">{channel}</span>
-                         <span className="text-xs text-gray-500">Not allocated</span>
-                       </div>
-                       <p className="text-xs text-gray-500 italic leading-relaxed">{detail as string}</p>
-                     </div>
-                   ))
-                }
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Analysis/Explanation */}
-          <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Analysis</span>
-            </div>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              {product.explanation}
-            </p>
-          </div>
-
-          {/* Negotiation Support - for Renegotiate decision */}
-          {product.negotiationSupport && (
-            <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-lg p-4 border border-yellow-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <FiRefreshCw className="text-yellow-400" size={16} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Negotiation Support</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">Current</div>
-                  <div className="text-lg font-bold text-white">
-                    ${product.negotiationSupport.currentBuyPrice}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-green-400 mb-1">Target</div>
-                  <div className="text-lg font-bold text-green-400">
-                    ${product.negotiationSupport.targetBuyPrice}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-red-400 mb-1">Walk-Away</div>
-                  <div className="text-lg font-bold text-red-400">
-                    ${product.negotiationSupport.walkAwayPrice}
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-gray-300 italic">
-                {product.negotiationSupport.message}
-              </p>
-            </div>
-          )}
-
-          {/* Sourcing Suggestions - for Source Elsewhere decision */}
-          {product.sourcingSuggestions && (
-            <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-lg p-4 border border-orange-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <FiAlertCircle className="text-orange-400" size={16} />
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Alternative Sourcing</span>
-              </div>
-              <div className="space-y-3">
-                <div className="bg-gray-700/50 rounded p-2">
-                  <div className="text-xs text-gray-400 mb-1">Target Buy Price</div>
-                  <div className="text-lg font-bold text-green-400">
-                    ${product.sourcingSuggestions.targetBuyPrice}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Alternative Regions:</div>
-                  <div className="space-y-1">
-                    {product.sourcingSuggestions.alternatives.map((alt, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-gray-700/50 rounded p-2">
-                        <span className="text-sm font-medium text-white">{alt.region} - {alt.name}</span>
-                        <span className="text-xs text-gray-400">{alt.pros}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Supplier Types:</div>
-                  <div className="space-y-1">
-                    {product.sourcingSuggestions.supplierTypes.map((s, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm">
-                        <span className="text-gray-300">{s.type}</span>
-                        <span className="text-green-400 font-medium">{s.estimatedSavings}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Compliance Flags Section */}
-          {product.compliance && product.compliance.flagCount > 0 && (
-            <div className={`rounded-lg p-4 border ${product.compliance.overallRisk === 'high'
-              ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
-              : product.compliance.overallRisk === 'medium'
-                ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
-                : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
-              }`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FiShield className={`${product.compliance.overallRisk === 'high' ? 'text-red-400' :
-                    product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                    }`} size={18} />
+          {/* Bottom Row: Allocation & Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Allocation Plan */}
+            {product.allocation && (Object.keys(product.allocation.allocated).length > 0 || product.allocation.hold > 0) && (
+              <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiPackage className="text-orange-400" size={18} />
                   <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    Compliance ({product.compliance.flagCount})
+                    Allocation Plan
                   </span>
-                </div>
-                <div className={`px-2 py-1 rounded text-xs font-medium ${product.compliance.overallRisk === 'high'
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                  : product.compliance.overallRisk === 'medium'
-                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                    : 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  }`}>
-                  {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {product.compliance.flags.map((flag, idx) => (
-                  <div
-                    key={idx}
-                    className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${flag.severity === 'high' ? 'border-l-red-500' :
-                      flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
-                      }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${flag.severity === 'high' ? 'text-red-400' :
-                        flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                        }`} size={14} />
-                      <div className="flex-1">
-                        <div className="font-medium text-white text-sm">{flag.title}</div>
-                        <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
-                        <div className="mt-2 flex items-center gap-1">
-                          <span className="text-xs text-gray-500">Action:</span>
-                          <span className="text-xs text-cyan-400">{flag.action}</span>
+                  {product.allocation.rationale && (
+                    <div className="relative group">
+                      <FiInfo className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" size={16} />
+                      <div className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                        <div className="font-semibold text-white mb-2">Allocation Rationale:</div>
+                        <div className="mb-2 whitespace-normal">{product.allocation.rationale}</div>
+                        {product.allocation.channelDetails && Object.keys(product.allocation.channelDetails).length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-700">
+                            <div className="font-semibold text-white mb-2">Channel Details:</div>
+                            {Object.entries(product.allocation.channelDetails).map(([channel, detail]) => (
+                              <div key={channel} className="mb-2 last:mb-0 whitespace-normal">
+                                <span className="font-medium text-blue-400">{channel}:</span>
+                                <span className="ml-1">{detail}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-4 transform translate-y-full">
+                          <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
                         </div>
                       </div>
                     </div>
+                  )}
+                </div>
+                {/* Summary */}
+                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Total Quantity</span>
+                    <span className="text-sm text-white font-semibold">{product.allocation.totalQuantity?.toLocaleString() || Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0) + (product.allocation.hold || 0)} units</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Allocated</span>
+                    <span className="text-sm text-green-400 font-semibold">
+                      {Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0).toLocaleString()} units
+                    </span>
+                  </div>
+                  {product.allocation.hold > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Held Back</span>
+                      <span className="text-sm text-yellow-400 font-semibold">{product.allocation.hold.toLocaleString()} units</span>
+                    </div>
+                  )}
+                </div>
 
-          {/* No Compliance Issues */}
-          {product.compliance && product.compliance.flagCount === 0 && (
-            <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 border border-green-500/20">
-              <div className="flex items-center gap-2">
-                <FiCheckCircle className="text-green-400" size={16} />
-                <span className="text-sm text-green-400">No compliance issues detected</span>
-              </div>
-            </div>
-          )}
-        </div>
+                {/* Per-Market Allocation Details */}
+                <div className="space-y-2">
+                  {Object.keys(product.allocation.allocated).length > 0 ? (
+                    Object.entries(product.allocation.allocated).map(([channel, qty]) => {
+                      // Find the channel to get absorption capacity
+                      // Channel key can be "Retailer-US", "Distributor-US", "Walmart-US", "Ingram Micro-US", etc.
+                      const channelData = product.channels?.find((c: any) => {
+                        // Try matching by retailer/distributor name first
+                        if (c.retailer && `${c.retailer}-${c.marketplace}` === channel) return true;
+                        if (c.distributor && `${c.distributor}-${c.marketplace}` === channel) return true;
+                        // Fallback to channel-marketplace format
+                        return `${c.channel}-${c.marketplace}` === channel;
+                      });
+                      const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
+                      const channelDetail = product.allocation?.channelDetails?.[channel];
 
-        {/* Current Assumptions & Overrides */}
-        {product.id && (
-          <div>
-            {isLoadingAssumptions ? (
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex flex-col items-center gap-2">
-                    <FiPackage className="animate-pulse text-gray-400" size={24} />
-                    <span className="text-gray-400 text-sm">Loading assumptions...</span>
+                      return (
+                        <div
+                          key={channel}
+                          className="bg-gray-800 rounded-lg p-3 border border-gray-600/20"
+                        >
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-300 font-medium">{channel}</span>
+                            <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
+                          </div>
+                          {absorptionCap > 0 && (
+                            <div className="text-xs text-gray-400 mb-1">
+                              Absorption Capacity: <span className="text-gray-300 font-medium">{Math.round(absorptionCap)} units/month</span>
+                              {' • '}
+                              Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
+                            </div>
+                          )}
+                          {channelDetail && (
+                            <p className="text-xs text-gray-500 mt-2 italic leading-relaxed">{channelDetail}</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-gray-400 italic text-center py-2">
+                      No channels allocated
+                    </div>
+                  )}
+                  {product.allocation.hold > 0 && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-2">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
+                          <FiAlertCircle size={14} />
+                          Held Back
+                        </span>
+                        <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        These units are held back to avoid market flooding. Release in phases based on actual sales performance.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Skipped Markets */}
+                  {product.allocation?.channelDetails &&
+                    Object.entries(product.allocation.channelDetails)
+                      .filter(([channel]) => !product.allocation?.allocated[channel])
+                      .map(([channel, detail]) => (
+                        <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-400 font-medium">{channel}</span>
+                            <span className="text-xs text-gray-500">Not allocated</span>
+                          </div>
+                          <p className="text-xs text-gray-500 italic leading-relaxed">{detail as string}</p>
+                        </div>
+                      ))
+                  }
+                </div>
+              </div>
+            )}
+
+            {/* Analysis/Explanation */}
+            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Analysis</span>
+              </div>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                {product.explanation}
+              </p>
+            </div>
+
+            {/* Negotiation Support - for Renegotiate decision */}
+            {product.negotiationSupport && (
+              <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-lg p-4 border border-yellow-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiRefreshCw className="text-yellow-400" size={16} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Negotiation Support</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-400 mb-1">Current</div>
+                    <div className="text-lg font-bold text-white">
+                      ${product.negotiationSupport.currentBuyPrice}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-green-400 mb-1">Target</div>
+                    <div className="text-lg font-bold text-green-400">
+                      ${product.negotiationSupport.targetBuyPrice}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-red-400 mb-1">Walk-Away</div>
+                    <div className="text-lg font-bold text-red-400">
+                      ${product.negotiationSupport.walkAwayPrice}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-300 italic">
+                  {product.negotiationSupport.message}
+                </p>
+              </div>
+            )}
+
+            {/* Sourcing Suggestions - for Source Elsewhere decision */}
+            {product.sourcingSuggestions && (
+              <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-lg p-4 border border-orange-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiAlertCircle className="text-orange-400" size={16} />
+                  <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Alternative Sourcing</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="bg-gray-700/50 rounded p-2">
+                    <div className="text-xs text-gray-400 mb-1">Target Buy Price</div>
+                    <div className="text-lg font-bold text-green-400">
+                      ${product.sourcingSuggestions.targetBuyPrice}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400 mb-2">Alternative Regions:</div>
+                    <div className="space-y-1">
+                      {product.sourcingSuggestions.alternatives.map((alt, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-gray-700/50 rounded p-2">
+                          <span className="text-sm font-medium text-white">{alt.region} - {alt.name}</span>
+                          <span className="text-xs text-gray-400">{alt.pros}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400 mb-2">Supplier Types:</div>
+                    <div className="space-y-1">
+                      {product.sourcingSuggestions.supplierTypes.map((s, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm">
+                          <span className="text-gray-300">{s.type}</span>
+                          <span className="text-green-400 font-medium">{s.estimatedSavings}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            ) : assumptions ? (
-              <>
-                <AssumptionVisibility 
-                  assumptions={assumptions} 
-                  onViewHistory={() => {
-                    // Scroll to the assumption history section
-                    const historyElement = document.getElementById(`assumption-history-${product.id}`);
-                    if (historyElement) {
-                      historyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      // Also expand the history if it's collapsible
-                      const historyButton = historyElement.querySelector('button');
-                      if (historyButton) {
-                        historyButton.click();
-                      }
-                    }
-                  }}
-                />
-                <div className="mt-4">
-                  <AssumptionsUsed assumptions={assumptions} />
-                </div>
-              </>
-            ) : (
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+            )}
+
+            {/* Compliance Flags Section */}
+            {product.compliance && product.compliance.flagCount > 0 && (
+              <div className={`rounded-lg p-4 border ${product.compliance.overallRisk === 'high'
+                ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
+                : product.compliance.overallRisk === 'medium'
+                  ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
+                  : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+                }`}>
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <FiInfo className="text-gray-400" />
-                    <h3 className="text-lg font-semibold text-gray-300">Assumptions Used</h3>
+                    <FiShield className={`${product.compliance.overallRisk === 'high' ? 'text-red-400' :
+                      product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                      }`} size={18} />
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                      Compliance ({product.compliance.flagCount})
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={loadAssumptions}
-                    className="text-sm text-blue-400 hover:text-blue-300"
-                  >
-                    Load Assumptions
-                  </button>
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${product.compliance.overallRisk === 'high'
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : product.compliance.overallRisk === 'medium'
+                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                      : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    }`}>
+                    {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {product.compliance.flags.map((flag, idx) => (
+                    <div
+                      key={idx}
+                      className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${flag.severity === 'high' ? 'border-l-red-500' :
+                        flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
+                        }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${flag.severity === 'high' ? 'text-red-400' :
+                          flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                          }`} size={14} />
+                        <div className="flex-1">
+                          <div className="font-medium text-white text-sm">{flag.title}</div>
+                          <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
+                          <div className="mt-2 flex items-center gap-1">
+                            <span className="text-xs text-gray-500">Action:</span>
+                            <span className="text-xs text-cyan-400">{flag.action}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* No Compliance Issues */}
+            {product.compliance && product.compliance.flagCount === 0 && (
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 border border-green-500/20">
+                <div className="flex items-center gap-2">
+                  <FiCheckCircle className="text-green-400" size={16} />
+                  <span className="text-sm text-green-400">No compliance issues detected</span>
                 </div>
               </div>
             )}
           </div>
-        )}
 
-        {/* Assumption Change History */}
-        {product.assumptions?.history && product.assumptions.history.length > 0 && (
-          <div id={`assumption-history-${product.id}`}>
-            <AssumptionHistory history={product.assumptions.history} />
-          </div>
-        )}
-      </div>
+          {/* Current Assumptions & Overrides */}
+          {product.id && (
+            <div>
+              {isLoadingAssumptions ? (
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <FiPackage className="animate-pulse text-gray-400" size={24} />
+                      <span className="text-gray-400 text-sm">Loading assumptions...</span>
+                    </div>
+                  </div>
+                </div>
+              ) : assumptions ? (
+                <>
+                  <AssumptionVisibility
+                    assumptions={assumptions}
+                    onViewHistory={() => {
+                      // Scroll to the assumption history section
+                      const historyElement = document.getElementById(`assumption-history-${product.id}`);
+                      if (historyElement) {
+                        historyElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        // Also expand the history if it's collapsible
+                        const historyButton = historyElement.querySelector('button');
+                        if (historyButton) {
+                          historyButton.click();
+                        }
+                      }
+                    }}
+                  />
+                  <div className="mt-4">
+                    <AssumptionsUsed assumptions={assumptions} />
+                  </div>
+                </>
+              ) : (
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FiInfo className="text-gray-400" />
+                      <h3 className="text-lg font-semibold text-gray-300">Assumptions Used</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={loadAssumptions}
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      Load Assumptions
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Assumption Change History */}
+          {product.assumptions?.history && product.assumptions.history.length > 0 && (
+            <div id={`assumption-history-${product.id}`}>
+              <AssumptionHistory history={product.assumptions.history} />
+            </div>
+          )}
+        </div>
       )}
 
       {/* Edit Assumptions Modal */}

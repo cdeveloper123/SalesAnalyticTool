@@ -97,7 +97,7 @@ export interface Product {
     low: number;
     mid: number;
     high: number;
-    source?: string; 
+    source?: string;
   };
   bestChannel?: {
     channel: string;

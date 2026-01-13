@@ -76,7 +76,7 @@ function Dashboard() {
     try {
       const offset = (page - 1) * itemsPerPage;
       const url = `${API_ENDPOINTS.DEALS}?limit=${itemsPerPage}&offset=${offset}&orderBy=analyzedAt&order=desc`;
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -89,14 +89,14 @@ function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       if (result.success && result.data) {
         // Convert database deals to Product format
         const convertedProducts: Product[] = result.data.map((deal: DealFromDB) => {
           const evaluation = deal.evaluationData || {};
           const channelAnalysis = evaluation.channelAnalysis || [];
           const firstChannel = channelAnalysis[0] || {};
-          
+
           return {
             id: deal.id,
             ean: deal.ean,
@@ -134,16 +134,16 @@ function Dashboard() {
             } : undefined,
             landedCost: firstChannel.landedCost ? (() => {
               const lc = firstChannel.landedCost;
-              const dutyValue = typeof lc.duty === 'number' 
-                ? lc.duty 
-                : (typeof lc.duty === 'object' && lc.duty !== null && 'cost' in lc.duty 
-                    ? (lc.duty as { cost: number }).cost 
-                    : 0);
+              const dutyValue = typeof lc.duty === 'number'
+                ? lc.duty
+                : (typeof lc.duty === 'object' && lc.duty !== null && 'cost' in lc.duty
+                  ? (lc.duty as { cost: number }).cost
+                  : 0);
               const shippingValue = typeof lc.shipping === 'number'
                 ? lc.shipping
                 : (typeof lc.shipping === 'object' && lc.shipping !== null && 'cost' in lc.shipping
-                    ? (lc.shipping as { cost: number }).cost
-                    : 0);
+                  ? (lc.shipping as { cost: number }).cost
+                  : 0);
               return {
                 buyPrice: lc.buyPrice || 0,
                 duty: dutyValue,
@@ -165,7 +165,7 @@ function Dashboard() {
             supplierRegion: deal.supplierRegion || 'CN',
           } as Product & { supplierRegion?: string };
         });
-        
+
         setProducts(convertedProducts);
         // Update total count from backend response
         if (result.total !== undefined) {
@@ -206,10 +206,10 @@ function Dashboard() {
       // Remove from local state
       const updatedProducts = products.filter(p => p.id !== dealId);
       setProducts(updatedProducts);
-      
+
       // Update total count
       setTotalCount(prev => Math.max(0, prev - 1));
-      
+
       // Adjust page if current page becomes empty
       const newTotalPages = Math.ceil((totalCount - 1) / itemsPerPage);
       if (currentPage > newTotalPages && newTotalPages > 0) {
@@ -221,7 +221,7 @@ function Dashboard() {
         // Refresh current page to get updated data
         fetchSavedDeals(currentPage);
       }
-      
+
       toast.success('Product deleted successfully');
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -239,6 +239,7 @@ function Dashboard() {
         },
         body: JSON.stringify({
           ean: data.ean,
+          hsCode: data.hsCode || null,  // Send HS code for accurate duty calculation
           quantity: data.quantity,
           buyPrice: data.buy_price,
           currency: data.currency,
@@ -258,7 +259,7 @@ function Dashboard() {
 
       const result = await response.json();
       console.log('Deal analysis result:', result);
-      
+
       if (result.data?.evaluation) {
         // Update total count
         setTotalCount(prev => prev + 1);
@@ -270,7 +271,7 @@ function Dashboard() {
       } else {
         console.error('No evaluation data in response');
       }
-      
+
       return result.data || result;
     } finally {
       setIsLoading(false);
@@ -281,7 +282,7 @@ function Dashboard() {
     <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* Full-screen Loader */}
       {isLoading && (
-        <Loader 
+        <Loader
           message="Analyzing Deal..."
           subMessage="Fetching prices from Amazon & eBay, calculating fees, duties, and shipping..."
           steps={[
@@ -293,7 +294,7 @@ function Dashboard() {
         />
       )}
       {isLoadingDeals && !isLoading && (
-        <Loader 
+        <Loader
           message="Loading Products..."
           subMessage="Fetching your saved deals from the database..."
           steps={[
@@ -309,7 +310,7 @@ function Dashboard() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-white">Sales Dashboard</h1>
             <div className="flex items-center gap-4">
-              <DataSourceToggle 
+              <DataSourceToggle
                 mode={dataSourceMode}
                 onChange={setDataSourceMode}
               />
@@ -365,8 +366,8 @@ function Dashboard() {
               <div className="p-6">
                 <div className="space-y-6">
                   {products.map((product, index) => (
-                    <ProductCard 
-                      key={product.id || `${product.ean}-${index}`} 
+                    <ProductCard
+                      key={product.id || `${product.ean}-${index}`}
                       product={product}
                       onDelete={product.id ? () => handleDeleteProduct(product.id!) : undefined}
                       onUpdate={() => fetchSavedDeals(currentPage)}
@@ -374,7 +375,7 @@ function Dashboard() {
                   ))}
                 </div>
               </div>
-              
+
               {totalCount > itemsPerPage && (
                 <Pagination
                   currentPage={currentPage}

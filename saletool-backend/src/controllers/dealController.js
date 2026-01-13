@@ -17,7 +17,7 @@ import PerformanceLogger from '../utils/performanceLogger.js';
  */
 function hasActualOverrideValues(override) {
   if (!override) return false;
-  
+
   // Handle arrays
   if (Array.isArray(override)) {
     return override.length > 0 && override.some(item => {
@@ -29,7 +29,7 @@ function hasActualOverrideValues(override) {
       });
     });
   }
-  
+
   // Handle objects
   if (typeof override === 'object') {
     const keys = Object.keys(override);
@@ -40,7 +40,7 @@ function hasActualOverrideValues(override) {
       return value !== null && value !== undefined && value !== '';
     });
   }
-  
+
   return true;
 }
 
@@ -61,18 +61,24 @@ function hasActualOverrideValues(override) {
 export const analyzeDeal = async (req, res) => {
   // Initialize performance logger
   const perfLogger = new PerformanceLogger();
-  
+
   try {
-    const { 
-      ean, 
-      quantity, 
-      buyPrice, 
-      currency = 'USD', 
+    const {
+      ean,
+      quantity,
+      buyPrice,
+      currency = 'USD',
       supplierRegion = 'Unknown',
       reclaimVat = true,
+      hsCode = null,  // HS code for accurate duty calculation
       assumptionOverrides = null,
       dataSourceMode = 'live' // Frontend sends this: 'live' or 'mock'
     } = req.body;
+
+    // Log HS code if provided (will be passed to evaluator as default, not override)
+    if (hsCode) {
+      console.log(`[Analyze Deal] Using HS code: ${hsCode} for duty calculation`);
+    }
 
     // Validation
     if (!ean) {
@@ -141,7 +147,7 @@ export const analyzeDeal = async (req, res) => {
           // Parse sales rank - try structured array first, then fallback to specifications_flat
           let salesRank = 999999;
           let salesRankCategory = 'Unknown';
-          
+
           if (product.bestsellers_rank && product.bestsellers_rank.length > 0) {
             // Structured array available (UK, DE)
             salesRank = product.bestsellers_rank[0].rank || 999999;
@@ -155,7 +161,7 @@ export const analyzeDeal = async (req, res) => {
               salesRankCategory = rankMatch[2].trim();
             }
           }
-          
+
           amazonPricing[market] = {
             buyBoxPrice: product.buybox_winner?.price?.value || 0,
             salesRank,
@@ -232,11 +238,11 @@ export const analyzeDeal = async (req, res) => {
     const evaluation = await perfLogger.trackLogic(
       'evaluateMultiChannel',
       () => evaluateMultiChannel(
-      { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat },
-      productData,
-      amazonPricing,
-      ebayPricing,
-      assumptionOverrides
+        { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat, hsCode },
+        productData,
+        amazonPricing,
+        ebayPricing,
+        assumptionOverrides
       ),
       { ean, channelsCount: Object.keys(amazonPricing).length + Object.keys(ebayPricing).length }
     );
@@ -251,14 +257,14 @@ export const analyzeDeal = async (req, res) => {
         ebayMarketsFound: Object.keys(ebayPricing)
       }
     };
-    
+
     const assumptions = await perfLogger.trackLogic(
       'getAllAssumptionsUsed',
       () => Promise.resolve(assumptionVisibilityService.getAllAssumptionsUsed(
-      evaluation,
-      assumptionOverrides,
-      { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat },
-      metadata
+        evaluation,
+        assumptionOverrides,
+        { ean, quantity, buyPrice, currency, supplierRegion, reclaimVat, hsCode },
+        metadata
       ))
     );
 
@@ -318,29 +324,29 @@ export const analyzeDeal = async (req, res) => {
         const savedDeal = await perfLogger.trackDB(
           'deal.create',
           () => prisma.deal.create({
-        data: {
-          ean,
-          productName: productData?.title || `Product ${ean}`,
-          quantity,
-          buyPrice,
-          currency,
-          supplierRegion,
-          dealScore: evaluation.dealScore.overall,
-          netMargin: evaluation.bestChannel?.marginPercent || 0,
-          demandConfidence: evaluation.dealScore.breakdown?.demandConfidenceScore || 0,
-          volumeRisk: evaluation.dealScore.breakdown?.volumeRiskScore || 0,
-          dataReliability: evaluation.dealScore.breakdown?.dataReliabilityScore || 0,
-          decision: evaluation.decision,
-          explanation: evaluation.explanation || null,
-          bestChannel: evaluation.bestChannel?.channel || null,
-          bestMarketplace: evaluation.bestChannel?.marketplace || null,
-          bestMarginPercent: evaluation.bestChannel?.marginPercent || null,
-          bestCurrency: evaluation.bestChannel?.currency || null,
-          evaluationData: responseData.evaluation,
-          productData: productData || null,
-          marketData: responseData.marketData,
-          assumptions: assumptionsToStore  // Store fully formatted assumptions with all metadata to avoid recalculation
-        }
+            data: {
+              ean,
+              productName: productData?.title || `Product ${ean}`,
+              quantity,
+              buyPrice,
+              currency,
+              supplierRegion,
+              dealScore: evaluation.dealScore.overall,
+              netMargin: evaluation.bestChannel?.marginPercent || 0,
+              demandConfidence: evaluation.dealScore.breakdown?.demandConfidenceScore || 0,
+              volumeRisk: evaluation.dealScore.breakdown?.volumeRiskScore || 0,
+              dataReliability: evaluation.dealScore.breakdown?.dataReliabilityScore || 0,
+              decision: evaluation.decision,
+              explanation: evaluation.explanation || null,
+              bestChannel: evaluation.bestChannel?.channel || null,
+              bestMarketplace: evaluation.bestChannel?.marketplace || null,
+              bestMarginPercent: evaluation.bestChannel?.marginPercent || null,
+              bestCurrency: evaluation.bestChannel?.currency || null,
+              evaluationData: responseData.evaluation,
+              productData: productData || null,
+              marketData: responseData.marketData,
+              assumptions: assumptionsToStore  // Store fully formatted assumptions with all metadata to avoid recalculation
+            }
           }),
           { ean }
         );
@@ -355,7 +361,7 @@ export const analyzeDeal = async (req, res) => {
             const existingOverride = await perfLogger.trackDB(
               'assumptionOverride.findFirst',
               () => prisma.assumptionOverride.findFirst({
-              where: { dealId: savedDeal.id }
+                where: { dealId: savedDeal.id }
               }),
               { dealId: savedDeal.id }
             );
@@ -374,13 +380,13 @@ export const analyzeDeal = async (req, res) => {
               await perfLogger.trackDB(
                 'assumptionOverride.update',
                 () => prisma.assumptionOverride.update({
-                where: { id: existingOverride.id },
-                data: {
-                  shippingOverrides: assumptionOverrides.shippingOverrides || existingOverride.shippingOverrides,
-                  dutyOverrides: assumptionOverrides.dutyOverrides || existingOverride.dutyOverrides,
-                  feeOverrides: assumptionOverrides.feeOverrides || existingOverride.feeOverrides,
-                  updatedAt: new Date()
-                }
+                  where: { id: existingOverride.id },
+                  data: {
+                    shippingOverrides: assumptionOverrides.shippingOverrides || existingOverride.shippingOverrides,
+                    dutyOverrides: assumptionOverrides.dutyOverrides || existingOverride.dutyOverrides,
+                    feeOverrides: assumptionOverrides.feeOverrides || existingOverride.feeOverrides,
+                    updatedAt: new Date()
+                  }
                 }),
                 { overrideId: existingOverride.id }
               );
@@ -421,7 +427,7 @@ export const analyzeDeal = async (req, res) => {
                   await perfLogger.trackDB(
                     'assumptionHistory.create',
                     () => prisma.assumptionHistory.create({
-                    data: change
+                      data: change
                     }),
                     { assumptionType: change.assumptionType, dealId: change.dealId }
                   );
@@ -432,12 +438,12 @@ export const analyzeDeal = async (req, res) => {
               await perfLogger.trackDB(
                 'assumptionOverride.create',
                 () => prisma.assumptionOverride.create({
-                data: {
-                  dealId: savedDeal.id,
-                  shippingOverrides: assumptionOverrides.shippingOverrides || null,
-                  dutyOverrides: assumptionOverrides.dutyOverrides || null,
-                  feeOverrides: assumptionOverrides.feeOverrides || null
-                }
+                  data: {
+                    dealId: savedDeal.id,
+                    shippingOverrides: assumptionOverrides.shippingOverrides || null,
+                    dutyOverrides: assumptionOverrides.dutyOverrides || null,
+                    feeOverrides: assumptionOverrides.feeOverrides || null
+                  }
                 }),
                 { dealId: savedDeal.id }
               );
@@ -451,7 +457,7 @@ export const analyzeDeal = async (req, res) => {
             // Continue even if override save fails
           }
         }
-        
+
         // Update deal with final performance metrics after all DB operations
         const finalPerformanceMetrics = perfLogger.getMetrics();
         await perfLogger.trackDB(

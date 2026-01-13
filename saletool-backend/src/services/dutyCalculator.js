@@ -177,7 +177,7 @@ export function calculateDuty(productValue, origin, destination, category = 'def
   // Check for overrides FIRST (before same-country check)
   // If override exists, it should be applied even for same-country routes
   const hasOverride = overrides && getDutyOverrideForRoute(origin, destination, overrides);
-  
+
   // Same country = no duty (domestic shipping) - UNLESS overridden
   if (origin === destination && !hasOverride) {
     const dutyCategory = CATEGORY_MAPPING[category] || category?.toLowerCase() || 'default';
@@ -305,21 +305,21 @@ export function getDestinationCountries(origin) {
  */
 export async function calculateDutyWithHSCode(productValue, origin, destination, options = {}) {
   const { hsCode, category, productName, overrides } = options;
-  
+
   // Normalize inputs
   origin = origin?.toUpperCase() || 'CN';
   destination = destination?.toUpperCase() || 'US';
-  
+
   let effectiveHSCode = hsCode;
   let hsSource = 'provided';
-  
+
   // If no HS code provided, try to look one up
   if (!effectiveHSCode) {
     const lookup = lookupHSCode(category, productName);
     effectiveHSCode = lookup.hsCode;
     hsSource = lookup.source;
   }
-  
+
   // Validate the HS code
   const validation = validateHSCode(effectiveHSCode);
   if (!validation.valid) {
@@ -327,16 +327,16 @@ export async function calculateDutyWithHSCode(productValue, origin, destination,
     console.warn(`[Duty Calculator] Invalid HS code, falling back to category: ${validation.error}`);
     return calculateDuty(productValue, origin, destination, category, overrides);
   }
-  
+
   effectiveHSCode = validation.cleaned;
-  
+
   try {
     // Get duty rate from API
     const tariffResult = await getDutyRate(effectiveHSCode, origin, destination);
-    
+
     const dutyRate = tariffResult.rate;
     const dutyAmount = productValue * dutyRate;
-    
+
     const result = {
       origin,
       destination,
@@ -347,17 +347,18 @@ export async function calculateDutyWithHSCode(productValue, origin, destination,
       dutyPercent: (dutyRate * 100).toFixed(1) + '%',
       productValue,
       dutyAmount: Number(dutyAmount.toFixed(2)),
+      calculationMethod: 'hscode',
       source: tariffResult.source,
       apiDetails: tariffResult
     };
-    
+
     // Apply overrides if provided (overrides take precedence)
     if (overrides) {
       return applyDutyOverrides(productValue, origin, destination, category, result, overrides);
     }
-    
+
     return result;
-    
+
   } catch (error) {
     console.error(`[Duty Calculator] API lookup failed, using fallback:`, error.message);
     // Fall back to category-based calculation
@@ -377,7 +378,7 @@ export async function calculateDutyWithHSCode(productValue, origin, destination,
  */
 export async function calculateTotalDutyWithHSCode(unitPrice, quantity, origin, destination, options = {}) {
   const singleDuty = await calculateDutyWithHSCode(unitPrice, origin, destination, options);
-  
+
   return {
     ...singleDuty,
     quantity,
