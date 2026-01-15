@@ -452,7 +452,14 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     estimatedMonthlySales: demand?.estimatedMonthlySales || { low: 0, mid: 0, high: 0 },
     confidence: demand?.confidence || 'Low',
     absorptionCapacity: demand?.absorptionCapacity || 0,
-    signals: demand?.signals || []
+    signals: demand?.signals || [],
+    // Preserve demand inputs for recalculation (critical for assumption override re-evaluation)
+    salesRank: demand?.salesRank,
+    salesRankCategory: demand?.category,
+    actualSalesSource: demand?.actualSalesSource,  // "500+ bought in past month"
+    ratingsTotal: pricing?.ratingsTotal || 0,
+    fbaOffers: pricing?.fbaOffers || 0,
+    methodology: demand?.methodology
   };
 
   // Calculate months to sell
@@ -581,7 +588,10 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     absorptionCapacity,
     signals: pricing.soldLast90Days !== undefined
       ? [`Sold ${pricing.soldLast90Days} units in last 90 days`]
-      : []
+      : [],
+    // Preserve demand inputs for recalculation
+    soldLast90Days: pricing.soldLast90Days,
+    listingsCount: pricing.activeListings
   };
 
 

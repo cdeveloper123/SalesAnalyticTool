@@ -72,6 +72,8 @@ const formatCurrency = (amount: number, currency: string) => {
 function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
   const [isChannelsCollapsed, setIsChannelsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isScoreBreakdownCollapsed, setIsScoreBreakdownCollapsed] = useState(true); // Collapsed by default
+  const [isAllocationCollapsed, setIsAllocationCollapsed] = useState(true); // Collapsed by default
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [assumptions, setAssumptions] = useState<AssumptionsResponse | null>(null);
   const [isLoadingAssumptions, setIsLoadingAssumptions] = useState(false);
@@ -281,135 +283,145 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
           )}
 
           {/* Score Breakdown Section */}
-          {product.scoreBreakdown && (
-            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg p-4 border border-indigo-500/20">
-              <div className="flex items-center gap-2 mb-4">
+          {product.scoreBreakdown && product.scoreBreakdown.weights && product.scoreBreakdown.breakdown && product.scoreBreakdown.weighted && (
+            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg border border-indigo-500/20">
+              <button
+                onClick={() => setIsScoreBreakdownCollapsed(!isScoreBreakdownCollapsed)}
+                className="w-full flex items-center gap-2 p-4 hover:bg-indigo-500/5 transition-colors rounded-lg"
+              >
+                {isScoreBreakdownCollapsed ? (
+                  <FiChevronRight className="text-indigo-400" size={16} />
+                ) : (
+                  <FiChevronDown className="text-indigo-400" size={16} />
+                )}
                 <FiInfo className="text-indigo-400" size={18} />
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Deal Score Breakdown</span>
                 <span className="text-xs text-indigo-400 ml-auto">
                   Total: {product.deal_quality_score}%
                 </span>
-              </div>
+              </button>
 
-              <div className="space-y-3">
-                {/* Margin Component */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-300">Net Margin</span>
-                      <span className="text-[10px] text-gray-500">
-                        ({(product.scoreBreakdown.weights.netMargin * 100).toFixed(0)}% weight)
-                      </span>
+              {!isScoreBreakdownCollapsed && (
+                <div className="space-y-3 px-4 pb-4">
+                  {/* Margin Component */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-300">Net Margin</span>
+                        <span className="text-[10px] text-gray-500">
+                          ({(product.scoreBreakdown.weights.netMargin * 100).toFixed(0)}% weight)
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-white">
+                          {product.scoreBreakdown.breakdown.netMarginScore}/100
+                        </span>
+                        <span className="text-xs text-green-400 ml-2">
+                          → {product.scoreBreakdown.weighted.marginContribution.toFixed(1)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-white">
-                        {product.scoreBreakdown.breakdown.netMarginScore}/100
-                      </span>
-                      <span className="text-xs text-green-400 ml-2">
-                        → {product.scoreBreakdown.weighted.marginContribution.toFixed(1)}
-                      </span>
+                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className="bg-green-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${product.scoreBreakdown.breakdown.netMarginScore}%` }}
+                      ></div>
                     </div>
                   </div>
-                  <div className="w-full bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-green-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${product.scoreBreakdown.breakdown.netMarginScore}%` }}
-                    ></div>
+
+                  {/* Demand Component */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-300">Demand Confidence</span>
+                        <span className="text-[10px] text-gray-500">
+                          ({(product.scoreBreakdown.weights.demandConfidence * 100).toFixed(0)}% weight)
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-white">
+                          {product.scoreBreakdown.breakdown.demandConfidenceScore}/100
+                        </span>
+                        <span className="text-xs text-blue-400 ml-2">
+                          → {product.scoreBreakdown.weighted.demandContribution.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className="bg-blue-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${product.scoreBreakdown.breakdown.demandConfidenceScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Volume Risk Component */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-300">Volume Risk</span>
+                        <span className="text-[10px] text-gray-500">
+                          ({(product.scoreBreakdown.weights.volumeRisk * 100).toFixed(0)}% weight)
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-white">
+                          {product.scoreBreakdown.breakdown.volumeRiskScore}/100
+                        </span>
+                        <span className="text-xs text-yellow-400 ml-2">
+                          → {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className="bg-yellow-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${product.scoreBreakdown.breakdown.volumeRiskScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Data Reliability Component */}
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-300">Data Reliability</span>
+                        <span className="text-[10px] text-gray-500">
+                          ({(product.scoreBreakdown.weights.dataReliability * 100).toFixed(0)}% weight)
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-white">
+                          {product.scoreBreakdown.breakdown.dataReliabilityScore}/100
+                        </span>
+                        <span className="text-xs text-purple-400 ml-2">
+                          → {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className="bg-purple-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${product.scoreBreakdown.breakdown.dataReliabilityScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Summary Row */}
+                  <div className="mt-4 pt-3 border-t border-gray-700/50">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Total Weighted Score</span>
+                      <span className="font-bold text-indigo-400">
+                        {product.scoreBreakdown.weighted.marginContribution.toFixed(1)} +
+                        {product.scoreBreakdown.weighted.demandContribution.toFixed(1)} +
+                        {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)} +
+                        {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)} =
+                        <span className="text-white ml-1">{product.deal_quality_score}%</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
-
-                {/* Demand Component */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-300">Demand Confidence</span>
-                      <span className="text-[10px] text-gray-500">
-                        ({(product.scoreBreakdown.weights.demandConfidence * 100).toFixed(0)}% weight)
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-white">
-                        {product.scoreBreakdown.breakdown.demandConfidenceScore}/100
-                      </span>
-                      <span className="text-xs text-blue-400 ml-2">
-                        → {product.scoreBreakdown.weighted.demandContribution.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-blue-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${product.scoreBreakdown.breakdown.demandConfidenceScore}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Volume Risk Component */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-300">Volume Risk</span>
-                      <span className="text-[10px] text-gray-500">
-                        ({(product.scoreBreakdown.weights.volumeRisk * 100).toFixed(0)}% weight)
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-white">
-                        {product.scoreBreakdown.breakdown.volumeRiskScore}/100
-                      </span>
-                      <span className="text-xs text-yellow-400 ml-2">
-                        → {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-yellow-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${product.scoreBreakdown.breakdown.volumeRiskScore}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Data Reliability Component */}
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-300">Data Reliability</span>
-                      <span className="text-[10px] text-gray-500">
-                        ({(product.scoreBreakdown.weights.dataReliability * 100).toFixed(0)}% weight)
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-white">
-                        {product.scoreBreakdown.breakdown.dataReliabilityScore}/100
-                      </span>
-                      <span className="text-xs text-purple-400 ml-2">
-                        → {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-purple-500 h-1.5 rounded-full transition-all"
-                      style={{ width: `${product.scoreBreakdown.breakdown.dataReliabilityScore}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary Row */}
-              <div className="mt-4 pt-3 border-t border-gray-700/50">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Total Weighted Score</span>
-                  <span className="font-bold text-indigo-400">
-                    {product.scoreBreakdown.weighted.marginContribution.toFixed(1)} +
-                    {product.scoreBreakdown.weighted.demandContribution.toFixed(1)} +
-                    {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)} +
-                    {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)} =
-                    <span className="text-white ml-1">{product.deal_quality_score}%</span>
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -626,6 +638,12 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               <div className="text-xs text-gray-400">
                                 {isDistributor ? 'They Pay: ' : 'Sell: '}
                                 <span className="text-gray-300 font-medium">{formatCurrency(channel.sellPrice, channel.currency)}</span>
+                                {/* Show ex-VAT price for VAT markets */}
+                                {(channel as any).priceExVat && (channel as any).priceExVat !== channel.sellPrice && (
+                                  <span className="text-gray-500 ml-1">
+                                    (Ex-VAT: <span className="text-gray-400">{formatCurrency((channel as any).priceExVat, channel.currency)}</span>)
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs text-gray-400">
                                 Net: <span className="text-gray-300 font-medium">{formatCurrency(channel.netProceeds, channel.currency)}</span>
@@ -633,12 +651,12 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                             </div>
                           </div>
                           <div className="text-right ml-3">
-                            <div className={`text-xl font-bold ${channel.marginPercent >= 30 ? 'text-green-400' :
-                              channel.marginPercent >= 15 ? 'text-yellow-400' :
-                                channel.marginPercent > 0 ? 'text-orange-400' :
+                            <div className={`text-xl font-bold ${(channel.marginPercent ?? 0) >= 30 ? 'text-green-400' :
+                              (channel.marginPercent ?? 0) >= 15 ? 'text-yellow-400' :
+                                (channel.marginPercent ?? 0) > 0 ? 'text-orange-400' :
                                   'text-red-400'
                               }`}>
-                              {channel.marginPercent.toFixed(1)}%
+                              {(channel.marginPercent ?? 0).toFixed(1)}%
                             </div>
                             {(channel.landedCost?.importVat || 0) > 0 && channel.landedCost?.reclaimVat && (
                               <div className="mt-1">
@@ -890,279 +908,300 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
             </div>
           )}
 
-          {/* Bottom Row: Allocation & Analysis */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Allocation Plan */}
-            {product.allocation && (Object.keys(product.allocation.allocated).length > 0 || product.allocation.hold > 0) && (
-              <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-                <div className="flex items-center gap-2 mb-4">
-                  <FiPackage className="text-orange-400" size={18} />
-                  <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    Allocation Plan
-                  </span>
-                  {product.allocation.rationale && (
-                    <div className="relative group">
-                      <FiInfo className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" size={16} />
-                      <div className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
-                        <div className="font-semibold text-white mb-2">Allocation Rationale:</div>
-                        <div className="mb-2 whitespace-normal">{product.allocation.rationale}</div>
-                        {product.allocation.channelDetails && Object.keys(product.allocation.channelDetails).length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-gray-700">
-                            <div className="font-semibold text-white mb-2">Channel Details:</div>
-                            {Object.entries(product.allocation.channelDetails).map(([channel, detail]) => (
-                              <div key={channel} className="mb-2 last:mb-0 whitespace-normal">
-                                <span className="font-medium text-blue-400">{channel}:</span>
-                                <span className="ml-1">{detail}</span>
+          {/* Bottom Row: Allocation & Analysis (Collapsible) */}
+          <div className="bg-gray-700/30 rounded-lg border border-gray-600/30">
+            <button
+              onClick={() => setIsAllocationCollapsed(!isAllocationCollapsed)}
+              className={`w-full flex items-center justify-between p-4 group/header hover:bg-gray-700/50 transition-colors ${isAllocationCollapsed ? 'rounded-lg' : 'rounded-t-lg'}`}
+            >
+              <div className="flex items-center gap-2">
+                <FiPackage className="text-orange-400" size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold group-hover/header:text-gray-300 transition-colors">
+                  Allocation Plan & Analysis
+                </span>
+              </div>
+              <div className="text-gray-500 group-hover/header:text-gray-300 transition-colors">
+                {isAllocationCollapsed ? <FiChevronDown size={20} /> : <FiChevronUp size={20} />}
+              </div>
+            </button>
+
+            {!isAllocationCollapsed && (
+              <div className="p-4 pt-0">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+                  {/* Allocation Plan */}
+                  {product.allocation && (Object.keys(product.allocation.allocated).length > 0 || product.allocation.hold > 0) && (
+                    <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+                      <div className="flex items-center gap-2 mb-4">
+                        <FiPackage className="text-orange-400" size={18} />
+                        <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                          Allocation Plan
+                        </span>
+                        {product.allocation.rationale && (
+                          <div className="relative group">
+                            <FiInfo className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" size={16} />
+                            <div className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                              <div className="font-semibold text-white mb-2">Allocation Rationale:</div>
+                              <div className="mb-2 whitespace-normal">{product.allocation.rationale}</div>
+                              {product.allocation.channelDetails && Object.keys(product.allocation.channelDetails).length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-700">
+                                  <div className="font-semibold text-white mb-2">Channel Details:</div>
+                                  {Object.entries(product.allocation.channelDetails).map(([channel, detail]) => (
+                                    <div key={channel} className="mb-2 last:mb-0 whitespace-normal">
+                                      <span className="font-medium text-blue-400">{channel}:</span>
+                                      <span className="ml-1">{detail}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="absolute bottom-0 left-4 transform translate-y-full">
+                                <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
                               </div>
-                            ))}
+                            </div>
                           </div>
                         )}
-                        <div className="absolute bottom-0 left-4 transform translate-y-full">
-                          <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
-                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-                {/* Summary */}
-                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-400">Total Quantity</span>
-                    <span className="text-sm text-white font-semibold">{product.allocation.totalQuantity?.toLocaleString() || Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0) + (product.allocation.hold || 0)} units</span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-400">Allocated</span>
-                    <span className="text-sm text-green-400 font-semibold">
-                      {Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0).toLocaleString()} units
-                    </span>
-                  </div>
-                  {product.allocation.hold > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Held Back</span>
-                      <span className="text-sm text-yellow-400 font-semibold">{product.allocation.hold.toLocaleString()} units</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Per-Market Allocation Details */}
-                <div className="space-y-2">
-                  {Object.keys(product.allocation.allocated).length > 0 ? (
-                    Object.entries(product.allocation.allocated).map(([channel, qty]) => {
-                      // Find the channel to get absorption capacity
-                      // Channel key can be "Retailer-US", "Distributor-US", "Walmart-US", "Ingram Micro-US", etc.
-                      const channelData = product.channels?.find((c: any) => {
-                        // Try matching by retailer/distributor name first
-                        if (c.retailer && `${c.retailer}-${c.marketplace}` === channel) return true;
-                        if (c.distributor && `${c.distributor}-${c.marketplace}` === channel) return true;
-                        // Fallback to channel-marketplace format
-                        return `${c.channel}-${c.marketplace}` === channel;
-                      });
-                      const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
-                      const channelDetail = product.allocation?.channelDetails?.[channel];
-
-                      return (
-                        <div
-                          key={channel}
-                          className="bg-gray-800 rounded-lg p-3 border border-gray-600/20"
-                        >
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-300 font-medium">{channel}</span>
-                            <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
+                      {/* Summary */}
+                      <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400">Total Quantity</span>
+                          <span className="text-sm text-white font-semibold">{product.allocation.totalQuantity?.toLocaleString() || Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0) + (product.allocation.hold || 0)} units</span>
+                        </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400">Allocated</span>
+                          <span className="text-sm text-green-400 font-semibold">
+                            {Object.values(product.allocation.allocated).reduce((sum: number, qty: any) => sum + qty, 0).toLocaleString()} units
+                          </span>
+                        </div>
+                        {product.allocation.hold > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">Held Back</span>
+                            <span className="text-sm text-yellow-400 font-semibold">{product.allocation.hold.toLocaleString()} units</span>
                           </div>
-                          {absorptionCap > 0 && (
-                            <div className="text-xs text-gray-400 mb-1">
-                              Absorption Capacity: <span className="text-gray-300 font-medium">{Math.round(absorptionCap)} units/month</span>
-                              {' • '}
-                              Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
+                        )}
+                      </div>
+
+                      {/* Per-Market Allocation Details */}
+                      <div className="space-y-2">
+                        {Object.keys(product.allocation.allocated).length > 0 ? (
+                          Object.entries(product.allocation.allocated).map(([channel, qty]) => {
+                            // Find the channel to get absorption capacity
+                            // Channel key can be "Retailer-US", "Distributor-US", "Walmart-US", "Ingram Micro-US", etc.
+                            const channelData = product.channels?.find((c: any) => {
+                              // Try matching by retailer/distributor name first
+                              if (c.retailer && `${c.retailer}-${c.marketplace}` === channel) return true;
+                              if (c.distributor && `${c.distributor}-${c.marketplace}` === channel) return true;
+                              // Fallback to channel-marketplace format
+                              return `${c.channel}-${c.marketplace}` === channel;
+                            });
+                            const absorptionCap = (channelData as any)?.demand?.absorptionCapacity || 0;
+                            const channelDetail = product.allocation?.channelDetails?.[channel];
+
+                            return (
+                              <div
+                                key={channel}
+                                className="bg-gray-800 rounded-lg p-3 border border-gray-600/20"
+                              >
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm text-gray-300 font-medium">{channel}</span>
+                                  <span className="text-sm text-white font-bold">{qty.toLocaleString()} units</span>
+                                </div>
+                                {absorptionCap > 0 && (
+                                  <div className="text-xs text-gray-400 mb-1">
+                                    Absorption Capacity: <span className="text-gray-300 font-medium">{Math.round(absorptionCap)} units/month</span>
+                                    {' • '}
+                                    Coverage: <span className="text-gray-300 font-medium">{((qty as number) / absorptionCap).toFixed(1)} months</span>
+                                  </div>
+                                )}
+                                {channelDetail && (
+                                  <p className="text-xs text-gray-500 mt-2 italic leading-relaxed">{channelDetail}</p>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-sm text-gray-400 italic text-center py-2">
+                            No channels allocated
+                          </div>
+                        )}
+                        {product.allocation.hold > 0 && (
+                          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-2">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
+                                <FiAlertCircle size={14} />
+                                Held Back
+                              </span>
+                              <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
                             </div>
-                          )}
-                          {channelDetail && (
-                            <p className="text-xs text-gray-500 mt-2 italic leading-relaxed">{channelDetail}</p>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-sm text-gray-400 italic text-center py-2">
-                      No channels allocated
+                            <p className="text-xs text-gray-400 mt-2">
+                              These units are held back to avoid market flooding. Release in phases based on actual sales performance.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Skipped Markets */}
+                        {product.allocation?.channelDetails &&
+                          Object.entries(product.allocation.channelDetails)
+                            .filter(([channel]) => !product.allocation?.allocated[channel])
+                            .map(([channel, detail]) => (
+                              <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-xs text-gray-400 font-medium">{channel}</span>
+                                  <span className="text-xs text-gray-500">Not allocated</span>
+                                </div>
+                                <p className="text-xs text-gray-500 italic leading-relaxed">{detail as string}</p>
+                              </div>
+                            ))
+                        }
+                      </div>
                     </div>
                   )}
-                  {product.allocation.hold > 0 && (
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-2">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
-                          <FiAlertCircle size={14} />
-                          Held Back
-                        </span>
-                        <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
+
+                  {/* Analysis/Explanation */}
+                  <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Analysis</span>
+                    </div>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {product.explanation}
+                    </p>
+                  </div>
+
+                  {/* Negotiation Support - for Renegotiate decision */}
+                  {product.negotiationSupport && (
+                    <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-lg p-4 border border-yellow-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FiRefreshCw className="text-yellow-400" size={16} />
+                        <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Negotiation Support</span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">
-                        These units are held back to avoid market flooding. Release in phases based on actual sales performance.
+                      <div className="grid grid-cols-3 gap-3 mb-3">
+                        <div className="text-center">
+                          <div className="text-xs text-gray-400 mb-1">Current</div>
+                          <div className="text-lg font-bold text-white">
+                            ${product.negotiationSupport.currentBuyPrice}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-green-400 mb-1">Target</div>
+                          <div className="text-lg font-bold text-green-400">
+                            ${product.negotiationSupport.targetBuyPrice}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-red-400 mb-1">Walk-Away</div>
+                          <div className="text-lg font-bold text-red-400">
+                            ${product.negotiationSupport.walkAwayPrice}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-300 italic">
+                        {product.negotiationSupport.message}
                       </p>
                     </div>
                   )}
 
-                  {/* Skipped Markets */}
-                  {product.allocation?.channelDetails &&
-                    Object.entries(product.allocation.channelDetails)
-                      .filter(([channel]) => !product.allocation?.allocated[channel])
-                      .map(([channel, detail]) => (
-                        <div key={channel} className="bg-gray-800/30 rounded-lg p-2 border border-gray-600/10 mt-2">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs text-gray-400 font-medium">{channel}</span>
-                            <span className="text-xs text-gray-500">Not allocated</span>
+                  {/* Sourcing Suggestions - for Source Elsewhere decision */}
+                  {product.sourcingSuggestions && (
+                    <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-lg p-4 border border-orange-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FiAlertCircle className="text-orange-400" size={16} />
+                        <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Alternative Sourcing</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="bg-gray-700/50 rounded p-2">
+                          <div className="text-xs text-gray-400 mb-1">Target Buy Price</div>
+                          <div className="text-lg font-bold text-green-400">
+                            ${product.sourcingSuggestions.targetBuyPrice}
                           </div>
-                          <p className="text-xs text-gray-500 italic leading-relaxed">{detail as string}</p>
                         </div>
-                      ))
-                  }
-                </div>
-              </div>
-            )}
-
-            {/* Analysis/Explanation */}
-            <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Analysis</span>
-              </div>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                {product.explanation}
-              </p>
-            </div>
-
-            {/* Negotiation Support - for Renegotiate decision */}
-            {product.negotiationSupport && (
-              <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 rounded-lg p-4 border border-yellow-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <FiRefreshCw className="text-yellow-400" size={16} />
-                  <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Negotiation Support</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Current</div>
-                    <div className="text-lg font-bold text-white">
-                      ${product.negotiationSupport.currentBuyPrice}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-green-400 mb-1">Target</div>
-                    <div className="text-lg font-bold text-green-400">
-                      ${product.negotiationSupport.targetBuyPrice}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-red-400 mb-1">Walk-Away</div>
-                    <div className="text-lg font-bold text-red-400">
-                      ${product.negotiationSupport.walkAwayPrice}
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-300 italic">
-                  {product.negotiationSupport.message}
-                </p>
-              </div>
-            )}
-
-            {/* Sourcing Suggestions - for Source Elsewhere decision */}
-            {product.sourcingSuggestions && (
-              <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-lg p-4 border border-orange-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <FiAlertCircle className="text-orange-400" size={16} />
-                  <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Alternative Sourcing</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="bg-gray-700/50 rounded p-2">
-                    <div className="text-xs text-gray-400 mb-1">Target Buy Price</div>
-                    <div className="text-lg font-bold text-green-400">
-                      ${product.sourcingSuggestions.targetBuyPrice}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-400 mb-2">Alternative Regions:</div>
-                    <div className="space-y-1">
-                      {product.sourcingSuggestions.alternatives.map((alt, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-gray-700/50 rounded p-2">
-                          <span className="text-sm font-medium text-white">{alt.region} - {alt.name}</span>
-                          <span className="text-xs text-gray-400">{alt.pros}</span>
+                        <div>
+                          <div className="text-xs text-gray-400 mb-2">Alternative Regions:</div>
+                          <div className="space-y-1">
+                            {product.sourcingSuggestions.alternatives.map((alt, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-gray-700/50 rounded p-2">
+                                <span className="text-sm font-medium text-white">{alt.region} - {alt.name}</span>
+                                <span className="text-xs text-gray-400">{alt.pros}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-400 mb-2">Supplier Types:</div>
-                    <div className="space-y-1">
-                      {product.sourcingSuggestions.supplierTypes.map((s, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-sm">
-                          <span className="text-gray-300">{s.type}</span>
-                          <span className="text-green-400 font-medium">{s.estimatedSavings}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Compliance Flags Section */}
-            {product.compliance && product.compliance.flagCount > 0 && (
-              <div className={`rounded-lg p-4 border ${product.compliance.overallRisk === 'high'
-                ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
-                : product.compliance.overallRisk === 'medium'
-                  ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
-                  : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
-                }`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <FiShield className={`${product.compliance.overallRisk === 'high' ? 'text-red-400' :
-                      product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                      }`} size={18} />
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                      Compliance ({product.compliance.flagCount})
-                    </span>
-                  </div>
-                  <div className={`px-2 py-1 rounded text-xs font-medium ${product.compliance.overallRisk === 'high'
-                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    : product.compliance.overallRisk === 'medium'
-                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                      : 'bg-green-500/20 text-green-400 border border-green-500/30'
-                    }`}>
-                    {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {product.compliance.flags.map((flag, idx) => (
-                    <div
-                      key={idx}
-                      className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${flag.severity === 'high' ? 'border-l-red-500' :
-                        flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
-                        }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${flag.severity === 'high' ? 'text-red-400' :
-                          flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
-                          }`} size={14} />
-                        <div className="flex-1">
-                          <div className="font-medium text-white text-sm">{flag.title}</div>
-                          <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
-                          <div className="mt-2 flex items-center gap-1">
-                            <span className="text-xs text-gray-500">Action:</span>
-                            <span className="text-xs text-cyan-400">{flag.action}</span>
+                        <div>
+                          <div className="text-xs text-gray-400 mb-2">Supplier Types:</div>
+                          <div className="space-y-1">
+                            {product.sourcingSuggestions.supplierTypes.map((s, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-sm">
+                                <span className="text-gray-300">{s.type}</span>
+                                <span className="text-green-400 font-medium">{s.estimatedSavings}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  )}
 
-            {/* No Compliance Issues */}
-            {product.compliance && product.compliance.flagCount === 0 && (
-              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 border border-green-500/20">
-                <div className="flex items-center gap-2">
-                  <FiCheckCircle className="text-green-400" size={16} />
-                  <span className="text-sm text-green-400">No compliance issues detected</span>
+                  {/* Compliance Flags Section */}
+                  {product.compliance && product.compliance.flagCount > 0 && (
+                    <div className={`rounded-lg p-4 border ${product.compliance.overallRisk === 'high'
+                      ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/30'
+                      : product.compliance.overallRisk === 'medium'
+                        ? 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'
+                        : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+                      }`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <FiShield className={`${product.compliance.overallRisk === 'high' ? 'text-red-400' :
+                            product.compliance.overallRisk === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                            }`} size={18} />
+                          <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                            Compliance ({product.compliance.flagCount})
+                          </span>
+                        </div>
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${product.compliance.overallRisk === 'high'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : product.compliance.overallRisk === 'medium'
+                            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                            : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          }`}>
+                          {product.compliance.canSell ? 'Can Sell' : product.compliance.canSellWithApproval ? 'Needs Approval' : 'Cannot Sell'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {product.compliance.flags.map((flag, idx) => (
+                          <div
+                            key={idx}
+                            className={`bg-gray-800/50 rounded-lg p-3 border-l-4 ${flag.severity === 'high' ? 'border-l-red-500' :
+                              flag.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-blue-500'
+                              }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <FiAlertTriangle className={`mt-0.5 flex-shrink-0 ${flag.severity === 'high' ? 'text-red-400' :
+                                flag.severity === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                                }`} size={14} />
+                              <div className="flex-1">
+                                <div className="font-medium text-white text-sm">{flag.title}</div>
+                                <p className="text-xs text-gray-400 mt-1">{flag.description}</p>
+                                <div className="mt-2 flex items-center gap-1">
+                                  <span className="text-xs text-gray-500">Action:</span>
+                                  <span className="text-xs text-cyan-400">{flag.action}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No Compliance Issues */}
+                  {product.compliance && product.compliance.flagCount === 0 && (
+                    <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 border border-green-500/20">
+                      <div className="flex items-center gap-2">
+                        <FiCheckCircle className="text-green-400" size={16} />
+                        <span className="text-sm text-green-400">No compliance issues detected</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1227,33 +1266,33 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
               <AssumptionHistory history={product.assumptions.history} />
             </div>
           )}
-        </div>
-      )}
 
-      {/* Edit Assumptions Modal */}
-      {product.id && (
-        <EditAssumptionsModal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            // Reload assumptions after closing modal (in case changes were made)
-            if (assumptions) {
-              setAssumptions(null);
-              loadAssumptions();
-            }
-          }}
-          dealId={product.id}
-          supplierRegion={getSupplierRegion()}
-          productName={product.productName}
-          onSave={() => {
-            // Reload assumptions after save
-            setAssumptions(null);
-            if (onUpdate) {
-              onUpdate();
-            }
-            loadAssumptions();
-          }}
-        />
+          {/* Edit Assumptions Modal */}
+          {product.id && (
+            <EditAssumptionsModal
+              isOpen={isEditModalOpen}
+              onClose={() => {
+                setIsEditModalOpen(false);
+                // Reload assumptions after closing modal (in case changes were made)
+                if (assumptions) {
+                  setAssumptions(null);
+                  loadAssumptions();
+                }
+              }}
+              dealId={product.id}
+              supplierRegion={getSupplierRegion()}
+              productName={product.productName}
+              onSave={() => {
+                // Reload assumptions after save
+                setAssumptions(null);
+                if (onUpdate) {
+                  onUpdate();
+                }
+                loadAssumptions();
+              }}
+            />
+          )}
+        </div>
       )}
     </div>
   );

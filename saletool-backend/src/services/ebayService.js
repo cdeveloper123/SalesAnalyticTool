@@ -516,8 +516,8 @@ export async function getProductPricing(keyword, marketplace = 'US') {
 export function calculateEbayFees(sellPrice, marketplace = 'US') {
   const fees = EBAY_FEES[marketplace] || EBAY_FEES.US;
 
-  // VAT rates for EU markets (eBay prices are VAT-inclusive in EU)
-  const VAT_RATES = { UK: 0.20, DE: 0.19, FR: 0.20, IT: 0.22 };
+  // VAT/GST rates for markets where prices are tax-inclusive
+  const VAT_RATES = { UK: 0.20, DE: 0.19, FR: 0.20, IT: 0.22, AU: 0.10 };
   const vatRate = VAT_RATES[marketplace] || 0;
   const vatAmount = vatRate > 0 ? sellPrice - (sellPrice / (1 + vatRate)) : 0;
   const priceExVat = sellPrice - vatAmount;

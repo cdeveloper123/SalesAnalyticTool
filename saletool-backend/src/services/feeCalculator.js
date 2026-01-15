@@ -664,21 +664,27 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
   // Determine size tier
   const sizeTier = determineSizeTier(marketplace, normalizedDims, normalizedWeight);
 
-  // Calculate VAT
+  // Calculate VAT first (needed for EU referral fee calculation)
   const vatRate = getVatRate(marketplace, category);
   const vatAmount = marketplace === 'US' ? 0 : sellPrice - (sellPrice / (1 + vatRate));
   const priceExVat = sellPrice - vatAmount;
 
-  // Calculate referral fee
-  let referralRate = getReferralRate(marketplace, category, sellPrice);
-  let referralFee = sellPrice * referralRate;
+  // Determine the price basis for referral fee calculation
+  // EU markets (UK, DE, FR, IT): Amazon calculates referral fees on ex-VAT price
+  // US and AU: Use gross price (no VAT / GST-inclusive respectively)
+  const euMarkets = ['UK', 'DE', 'FR', 'IT'];
+  const referralFeeBasis = euMarkets.includes(marketplace) ? priceExVat : sellPrice;
+
+  // Calculate referral fee on the appropriate price basis
+  let referralRate = getReferralRate(marketplace, category, referralFeeBasis);
+  let referralFee = referralFeeBasis * referralRate;
 
   // Apply minimum referral fee
   const marketplaceRates = REFERRAL_RATES[marketplace] || REFERRAL_RATES.US;
   if (marketplaceRates.minimumFee && referralFee < marketplaceRates.minimumFee) {
     referralFee = marketplaceRates.minimumFee;
-    // Recalculate effective referral rate for reporting
-    referralRate = referralFee / sellPrice;
+    // Recalculate effective referral rate for reporting (based on original price basis)
+    referralRate = referralFee / referralFeeBasis;
   }
 
   // Calculate FBA fee
@@ -687,10 +693,12 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
   // Calculate closing fee (media only)
   const closingFee = isMediaCategory(category) ? (CLOSING_FEES[marketplace] || 0) : 0;
 
-  // Total Amazon fees
+  // Total Amazon fees (referral + FBA + closing)
   const totalFees = referralFee + fbaFee + closingFee;
 
-  // Net proceeds = Sell Price - VAT - Amazon Fees
+  // Net proceeds calculation:
+  // For EU: sellPrice - VAT - fees (fees are already calculated on ex-VAT)
+  // For US/AU: sellPrice - fees (no VAT component)
   const netProceeds = sellPrice - vatAmount - totalFees;
 
   const result = {

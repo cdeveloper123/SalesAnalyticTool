@@ -5,10 +5,10 @@
  */
 
 import { getPrisma } from '../config/database.js';
-import assumptionVisibilityService, { 
-  trackAssumptionChange, 
+import assumptionVisibilityService, {
+  trackAssumptionChange,
   hasOverrideChanged,
-  getAssumptionHistory 
+  getAssumptionHistory
 } from '../services/assumptionVisibilityService.js';
 import { getAmazonProductData } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
@@ -20,7 +20,7 @@ import currencyService from '../services/currencyService.js';
  */
 function hasActualOverrideValues(override) {
   if (!override) return false;
-  
+
   // Handle arrays
   if (Array.isArray(override)) {
     return override.length > 0 && override.some(item => {
@@ -32,7 +32,7 @@ function hasActualOverrideValues(override) {
       });
     });
   }
-  
+
   // Handle objects
   if (typeof override === 'object') {
     const keys = Object.keys(override);
@@ -43,7 +43,7 @@ function hasActualOverrideValues(override) {
       return value !== null && value !== undefined && value !== '';
     });
   }
-  
+
   return true;
 }
 
@@ -254,7 +254,7 @@ export const getAssumptions = async (req, res) => {
       if (deal.assumptions.details && deal.assumptions.dataFreshness && deal.assumptions.sourceConfidence && deal.assumptions.methodology) {
         // Fully formatted assumptions - just return them (no recalculation needed)
         assumptions = { ...deal.assumptions };
-        
+
         // Only update currency cache status if it exists (dynamic metadata that changes over time)
         if (assumptions.dataFreshness?.currency && currencyCacheStatus) {
           assumptions.dataFreshness.currency = {
@@ -262,13 +262,13 @@ export const getAssumptions = async (req, res) => {
             isExpired: currencyCacheStatus.isExpired,
             cacheAge: currencyCacheStatus.cacheAge
           };
-          
+
           // Update currency methodology if cache status changed
           if (assumptions.methodology?.currency) {
-            const isUsingFallback = !currencyCacheStatus.hasCache || 
-                                   (currencyCacheStatus.isExpired && !currencyCacheStatus.lastUpdated);
+            const isUsingFallback = !currencyCacheStatus.hasCache ||
+              (currencyCacheStatus.isExpired && !currencyCacheStatus.lastUpdated);
             const isExpiredButHasCache = currencyCacheStatus.hasCache && currencyCacheStatus.isExpired;
-            
+
             let calculationMessage;
             if (isUsingFallback) {
               calculationMessage = `Fallback exchange rates used (hardcoded values). Base currency: USD. Rates converted using: ${deal.currency} to USD, then to target marketplace currency.`;
@@ -277,7 +277,7 @@ export const getAssumptions = async (req, res) => {
             } else {
               calculationMessage = `Exchange rates fetched from freecurrencyapi.com. Base currency: USD. Rates converted using: ${deal.currency} to USD, then to target marketplace currency.`;
             }
-            
+
             assumptions.methodology.currency = {
               ...assumptions.methodology.currency,
               calculation: calculationMessage,
@@ -303,7 +303,7 @@ export const getAssumptions = async (req, res) => {
           currencyCacheStatus: currencyCacheStatus,
           marketData: marketData
         };
-        
+
         const enhancedAssumptions = assumptionVisibilityService.getAllAssumptionsUsed(
           evaluationData,
           override ? {
@@ -320,7 +320,7 @@ export const getAssumptions = async (req, res) => {
           },
           metadata
         );
-        
+
         assumptions = assumptionVisibilityService.formatAssumptionsForDisplay(enhancedAssumptions);
         assumptions.dataFreshness = enhancedAssumptions.dataFreshness || {};
         assumptions.sourceConfidence = enhancedAssumptions.sourceConfidence || {};
@@ -417,7 +417,7 @@ export const createPreset = async (req, res) => {
 export const listPresets = async (req, res) => {
   try {
     const prisma = getPrisma();
-    
+
     if (!prisma || !prisma.assumptionPreset) {
       return res.status(503).json({
         success: false,
@@ -629,21 +629,36 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
   // Reconstruct pricing data from evaluationData (we'll use existing sell prices)
   const evaluationData = deal.evaluationData || {};
   const channelAnalysis = evaluationData.channelAnalysis || [];
-  
-  // Extract pricing from existing channel analysis
+
+  // Extract pricing AND demand data from existing channel analysis
+  // This preserves all the market data needed for accurate recalculation
   channelAnalysis.forEach(channel => {
     const marketplace = channel.marketplace || channel.market;
     if (!marketplace || !channel.sellPrice) return;
-    
+
+    // Get demand data from channel if available
+    const demand = channel.demand || {};
+
     if (channel.channel === 'Amazon' || !channel.channel) {
       amazonPricing[marketplace] = {
         buyBoxPrice: channel.sellPrice,
         currency: channel.currency || 'USD',
+        // Preserve demand signals for accurate recalculation
+        salesRank: demand.salesRank,
+        salesRankCategory: demand.salesRankCategory,
+        recentSales: demand.actualSalesSource,  // "500+ bought in past month"
+        ratingsTotal: demand.ratingsTotal,
+        fbaOffers: demand.fbaOffers,
+        dataSource: channel.pricingSource || 'recalculated'
       };
     } else if (channel.channel === 'eBay') {
       ebayPricing[marketplace] = {
         buyBoxPrice: channel.sellPrice,
         currency: channel.currency || 'USD',
+        // Preserve demand signals for eBay
+        soldLast90Days: demand.soldLast90Days || demand.estimatedMonthlySales?.mid,
+        listingsCount: demand.listingsCount,
+        dataSource: channel.pricingSource || 'recalculated'
       };
     }
   });
@@ -708,7 +723,12 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
       bestCurrency: evaluation.bestChannel?.currency || null,
       evaluationData: {
         dealScore: evaluation.dealScore.overall,
-        scoreBreakdown: evaluation.dealScore.breakdown,
+        // Match the structure from dealController.js (initial analysis)
+        scoreBreakdown: {
+          breakdown: evaluation.dealScore.breakdown,
+          weighted: evaluation.dealScore.weighted,
+          weights: evaluation.dealScore.weights
+        },
         decision: evaluation.decision,
         explanation: evaluation.explanation,
         bestChannel: evaluation.bestChannel,
