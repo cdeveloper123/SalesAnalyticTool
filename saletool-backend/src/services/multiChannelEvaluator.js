@@ -448,6 +448,9 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     ? (netMargin / landedCostInMarketCurrency) * 100
     : 0;
 
+  // Determine data source status early to avoid reference errors
+  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+
   const demandData = {
     estimatedMonthlySales: demand?.estimatedMonthlySales || { low: 0, mid: 0, high: 0 },
     confidence: priceStatus === 'MOCK' ? 'Low' : (demand?.confidence || 'Low'),
@@ -478,7 +481,7 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
   const explanation = generateChannelExplanation('Amazon', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
   // Build dataSources object for transparency
-  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+  // priceStatus is defined above early in the function
   // Demand is only LIVE if: 1) we have actual sales data AND 2) it's from live API (not mock)
   const isDataFromLiveAPI = priceStatus === 'LIVE';
   const demandStatus = isDataFromLiveAPI
