@@ -693,14 +693,66 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               {channel.recommendation}
                             </div>
                           )}
-                          {/* LIVE vs MOCK Badge - next to recommendation */}
-                          {isAlwaysMocked ? (
-                            <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
-                          ) : isLivePricing ? (
-                            <span className="text-[10px] px-1.5 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">LIVE DATA</span>
-                          ) : isMockPricing ? (
-                            <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
-                          ) : null}
+                          {/* Data Source Breakdown - Per Component */}
+                          {(channel as any).dataSources ? (
+                            <div className="relative group/datasources">
+                              {/* Overall Badge with Info Icon */}
+                              {(() => {
+                                const ds = (channel as any).dataSources;
+                                const allMock = ds.price?.status === 'MOCK' && ds.demand?.status === 'MOCK' && ds.fees?.status === 'MOCK';
+                                const allLive = ds.price?.status === 'LIVE' && ds.demand?.status === 'LIVE';
+                                const hasLive = ds.price?.status === 'LIVE' || ds.demand?.status === 'LIVE';
+
+                                if (allMock) {
+                                  return <span className="text-xs px-1 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium cursor-help inline-flex items-center gap-1">MOCK <FiInfo size={10} /></span>;
+                                } else if (allLive) {
+                                  return <span className="text-xs px-1 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium cursor-help inline-flex items-center gap-1">LIVE <FiInfo size={10} /></span>;
+                                } else if (hasLive) {
+                                  return <span className="text-xs px-1 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium cursor-help inline-flex items-center gap-1">MIXED <FiInfo size={10} /></span>;
+                                }
+                                return null;
+                              })()}
+                              {/* Tooltip with breakdown */}
+                              <div className="absolute left-0 bottom-full mb-2 w-52 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/datasources:opacity-100 group-hover/datasources:visible transition-all duration-200 z-50 text-[10px]">
+                                <div className="text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1.5">Data Sources</div>
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-gray-400">Price:</span>
+                                    <span className={`font-medium ${(channel as any).dataSources.price?.status === 'LIVE' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                      {(channel as any).dataSources.price?.status}
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500 text-[9px] -mt-1">{(channel as any).dataSources.price?.source}</div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-gray-400">Demand:</span>
+                                    <span className={`font-medium ${(channel as any).dataSources.demand?.status === 'LIVE' ? 'text-green-400' : (channel as any).dataSources.demand?.status === 'ESTIMATED' ? 'text-blue-400' : 'text-yellow-400'}`}>
+                                      {(channel as any).dataSources.demand?.status}
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500 text-[9px] -mt-1">{(channel as any).dataSources.demand?.source}</div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-gray-400">Fees:</span>
+                                    <span className={`font-medium ${(channel as any).dataSources.fees?.status === 'LIVE' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                      {(channel as any).dataSources.fees?.status}
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500 text-[9px] -mt-1">{(channel as any).dataSources.fees?.source}</div>
+                                </div>
+                                <div className="absolute left-2 bottom-0 transform translate-y-full">
+                                  <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Fallback to old logic if dataSources not present */
+                            isAlwaysMocked ? (
+                              <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                            ) : isLivePricing ? (
+                              <span className="text-[10px] px-1.5 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">LIVE DATA</span>
+                            ) : isMockPricing ? (
+                              <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                            ) : null
+                          )}
                         </div>
                         {(channel as any).explanation && (
                           <div className="mt-2 text-xs text-gray-400 leading-relaxed">

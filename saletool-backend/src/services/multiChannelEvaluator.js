@@ -468,6 +468,19 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
   const explanation = generateChannelExplanation('Amazon', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
+  // Build dataSources object for transparency
+  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+  // Demand is only LIVE if: 1) we have actual sales data AND 2) it's from live API (not mock)
+  const isDataFromLiveAPI = priceStatus === 'LIVE';
+  const demandStatus = isDataFromLiveAPI
+    ? (demand?.actualSalesSource ? 'LIVE' : 'ESTIMATED')
+    : 'MOCK';
+  const demandSource = priceStatus === 'MOCK'
+    ? 'Mock Data'
+    : (demand?.actualSalesSource
+      ? `Amazon recent_sales: ${demand.actualSalesSource}`
+      : `BSR Formula (Rank #${demand?.salesRank?.toLocaleString() || 'N/A'})`);
+
   return {
     channel: 'Amazon',
     marketplace,
@@ -478,6 +491,12 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     pricingSource: pricing.dataSource || 'live',
     confidence: demandData.confidence || 'Medium',
     guardrail: guardrailDrivers.length > 0 ? { isFlagged: true, drivers: guardrailDrivers } : null,
+    // Data source transparency per component
+    dataSources: {
+      price: { status: priceStatus, source: priceStatus === 'LIVE' ? 'Amazon API' : 'Mock Data' },
+      demand: { status: demandStatus, source: demandSource },
+      fees: { status: 'MOCK', source: `Fee Schedule v${fees.feeScheduleVersion || '2025-01'}` }
+    },
     fees: {
       total: fees.totalFees,
       breakdown: {
@@ -574,6 +593,19 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
   const explanation = generateChannelExplanation('eBay', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
+  // Build dataSources object for transparency
+  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+  // Demand is only LIVE if: 1) we have sold data AND 2) it's from live API (not mock)
+  const isDataFromLiveAPI = priceStatus === 'LIVE';
+  const demandStatus = isDataFromLiveAPI
+    ? (pricing.soldLast90Days > 0 ? 'LIVE' : 'ESTIMATED')
+    : 'MOCK';
+  const demandSource = priceStatus === 'MOCK'
+    ? 'Mock Data'
+    : (pricing.soldLast90Days > 0
+      ? `eBay Sold Items (${pricing.soldLast90Days} in 90 days)`
+      : 'eBay Heuristics (listing count)');
+
   return {
     channel: 'eBay',
     marketplace,
@@ -584,6 +616,12 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     pricingSource: pricing.dataSource || 'live',
     confidence: demandData.confidence || 'Medium',
     guardrail: guardrailDrivers.length > 0 ? { isFlagged: true, drivers: guardrailDrivers } : null,
+    // Data source transparency per component
+    dataSources: {
+      price: { status: priceStatus, source: priceStatus === 'LIVE' ? 'eBay API' : 'Mock Data' },
+      demand: { status: demandStatus, source: demandSource },
+      fees: { status: 'MOCK', source: 'eBay Fee Schedule 2025' }
+    },
     fees: {
       total: fees.totalFees,
       breakdown: {
@@ -874,6 +912,13 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         withMargin.guardrail = { isFlagged: true, drivers: guardrailDrivers };
       }
 
+      // Data source transparency - Retailers are always MOCK
+      withMargin.dataSources = {
+        price: { status: 'MOCK', source: `Derived from ${hasAmazonUS ? 'Amazon' : 'eBay'} reference price` },
+        demand: { status: 'MOCK', source: 'Mocked estimate (category-based)' },
+        fees: { status: 'MOCK', source: `${withMargin.retailer} fee rates` }
+      };
+
       allChannels.push(withMargin);
     }
   }
@@ -955,6 +1000,13 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       if (guardrailDrivers.length > 0) {
         withMargin.guardrail = { isFlagged: true, drivers: guardrailDrivers };
       }
+
+      // Data source transparency - Distributors are always MOCK
+      withMargin.dataSources = {
+        price: { status: 'MOCK', source: `Derived from ${hasAmazonUS ? 'Amazon' : 'eBay'} reference price` },
+        demand: { status: 'MOCK', source: 'Mocked estimate (distribution volume)' },
+        fees: { status: 'MOCK', source: `${withMargin.distributor} wholesale terms` }
+      };
 
       allChannels.push(withMargin);
     }
