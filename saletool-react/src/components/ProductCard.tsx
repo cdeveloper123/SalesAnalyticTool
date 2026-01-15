@@ -805,8 +805,8 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                       {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
                                     </span>
                                     {(channel as any).demand.actualSalesSource ? (
-                                      <span className="text-[10px] text-green-400 font-medium">
-                                        Live: {(channel as any).demand.actualSalesSource}
+                                      <span className={`text-[10px] font-medium ${(channel as any).dataSources?.demand?.status === 'MOCK' ? 'text-gray-400' : 'text-green-400'}`}>
+                                        {(channel as any).dataSources?.demand?.status === 'MOCK' ? 'Mock Signal:' : 'Live:'} {(channel as any).demand.actualSalesSource}
                                       </span>
                                     ) : (
                                       <span className="text-[10px] text-yellow-400/80 font-medium italic">

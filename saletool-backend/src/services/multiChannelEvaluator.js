@@ -450,9 +450,11 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
 
   const demandData = {
     estimatedMonthlySales: demand?.estimatedMonthlySales || { low: 0, mid: 0, high: 0 },
-    confidence: demand?.confidence || 'Low',
+    confidence: priceStatus === 'MOCK' ? 'Low' : (demand?.confidence || 'Low'),
     absorptionCapacity: demand?.absorptionCapacity || 0,
-    signals: demand?.signals || [],
+    signals: priceStatus === 'MOCK'
+      ? (demand?.signals || []).filter(s => !s.toLowerCase().includes('high confidence')).concat(['Sample data / Mock signal'])
+      : (demand?.signals || []),
     // Preserve demand inputs for recalculation (critical for assumption override re-evaluation)
     salesRank: demand?.salesRank,
     salesRankCategory: demand?.category,
@@ -582,13 +584,16 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
   const absorptionCapacity = monthlySales * 0.7;
   const monthsToSell = absorptionCapacity > 0 ? quantity / absorptionCapacity : 999;
 
+  // Determine data source status
+  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+
   const demandData = {
     estimatedMonthlySales: { low: monthlySales, mid: monthlySales, high: monthlySales },
-    confidence: pricing.confidence || 'Low',
+    confidence: priceStatus === 'MOCK' ? 'Low' : (pricing.confidence || 'Low'),
     absorptionCapacity,
     signals: pricing.soldLast90Days !== undefined
       ? [`Sold ${pricing.soldLast90Days} units in last 90 days`]
-      : [],
+      : (priceStatus === 'MOCK' ? ['Sample data / Mock signal'] : []),
     // Preserve demand inputs for recalculation
     soldLast90Days: pricing.soldLast90Days,
     listingsCount: pricing.activeListings
@@ -604,7 +609,7 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
   const explanation = generateChannelExplanation('eBay', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
   // Build dataSources object for transparency
-  const priceStatus = pricing.dataSource === 'mock' || pricing.dataSource === 'mock-fallback' ? 'MOCK' : 'LIVE';
+  // priceStatus is calculated above
   // Demand is only LIVE if: 1) we have sold data AND 2) it's from live API (not mock)
   const isDataFromLiveAPI = priceStatus === 'LIVE';
   const demandStatus = isDataFromLiveAPI
