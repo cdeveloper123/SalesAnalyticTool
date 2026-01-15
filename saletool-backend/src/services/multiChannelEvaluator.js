@@ -31,7 +31,8 @@ const THRESHOLDS = {
   excellentMarginPercent: 50,
   maxMonthsToSell: 6,
   dangerMonthsToSell: 12,
-  targetMarginPercent: 25  // For negotiation target price
+  targetMarginPercent: 25,  // For negotiation target price
+  marginGuardrailThreshold: 120 // ROI above which we flag for driver verification
 };
 
 /**
@@ -135,9 +136,53 @@ function calculateDemandScore(demandData) {
 }
 
 /**
+ * Identify factors driving high margins for trust transparency
+ */
+function identifyMarginDrivers(channel, landedCost, pricing) {
+  const drivers = [];
+
+  // Rule 1: Mock Pricing
+  if (pricing?.dataSource === 'mock' || pricing?.dataSource === 'mock-fallback') {
+    drivers.push({
+      name: 'Mock Pricing',
+      description: 'Using sample data instead of live marketplace API'
+    });
+  }
+
+  // Rule 2: VAT Reclamation
+  if (landedCost?.reclaimVat) {
+    drivers.push({
+      name: 'VAT Reclaim',
+      description: 'Input VAT is reclaimed, lowering effective sourcing cost'
+    });
+  }
+
+  // Rule 3: Manual Overrides
+  if (landedCost?.isOverridden || landedCost?.shipping?.isOverridden) {
+    drivers.push({
+      name: 'Manual Assumptions',
+      description: 'One or more costs/tariffs use manual user overrides'
+    });
+  }
+
+  // Rule 4: Extreme ROI Gap
+  // If sell price is more than 3x the buy price
+  const sellPrice = channel?.sellPrice || 0;
+  const buyPrice = landedCost?.buyPrice || 0;
+  if (buyPrice > 0 && (sellPrice / buyPrice) > 3) {
+    drivers.push({
+      name: 'High Price Delta',
+      description: 'Sell price is significantly (>3x) above the buy price'
+    });
+  }
+
+  return drivers;
+}
+
+/**
  * Generate detailed explanation for channel recommendation
  */
-function generateChannelExplanation(channel, marketplace, marginPercent, fees, demand, monthsToSell, recommendation) {
+function generateChannelExplanation(channel, marketplace, marginPercent, fees, demand, monthsToSell, recommendation, guardrailDrivers = []) {
   const parts = [];
 
   // Recommendation with margin
@@ -200,6 +245,19 @@ function generateChannelExplanation(channel, marketplace, marginPercent, fees, d
 
   const mainPart = parts[0];
   const detailParts = parts.slice(1);
+
+  // Append high-margin guardrail if applicable
+  if (marginPercent > THRESHOLDS.marginGuardrailThreshold && guardrailDrivers.length > 0) {
+    const driverNames = guardrailDrivers.map(d => typeof d === 'string' ? d : d.name).join(', ');
+    const guardrailMsg = `[Guardrail: High ROI driven by ${driverNames}]`;
+
+    if (recommendation === 'Sell') {
+      const combined = detailParts.length > 0 ? `${mainPart} (${guardrailMsg}); ${detailParts.join('; ')}` : `${mainPart} (${guardrailMsg})`;
+      return combined;
+    } else {
+      return `${parts.join('; ')} (${guardrailMsg})`;
+    }
+  }
 
   if (recommendation === 'Sell') {
     if (detailParts.length > 0) {
@@ -372,20 +430,23 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
   // Estimate demand
   const demand = demandEstimator.estimateDemand(marketplace, pricing);
 
-  // Convert landed cost to market currency
+  // Convert landed cost to market currency (with FX metadata for transparency)
   const marketCurrency = fees.currency;
-  const landedCostInMarketCurrency = currencyService.convert(landedCost.totalLandedCost, currency, marketCurrency);
+  const landedCostConversion = currencyService.convertWithMeta(landedCost.totalLandedCost, currency, marketCurrency);
+  const landedCostInMarketCurrency = landedCostConversion.converted;
 
-  // Calculate margin using landed cost (not just buy price)
-  const netMargin = fees.netProceeds - landedCostInMarketCurrency;
+  // Calculate margin using landed cost
+  // For VAT-registered sellers (reclaimVat=true), output VAT is a pass-through, not a cost
+  // They collect VAT from buyers and remit to government - it doesn't affect their margin
+  // So we use ex-VAT sell price minus fees as their effective revenue
+  const effectiveRevenue = landedCost.reclaimVat
+    ? (fees.priceExVat - fees.totalFees)   // VAT-registered: ex-VAT revenue minus fees
+    : fees.netProceeds;                     // Non-VAT-registered: gross minus VAT minus fees
+
+  const netMargin = effectiveRevenue - landedCostInMarketCurrency;
   const marginPercent = landedCostInMarketCurrency > 0
     ? (netMargin / landedCostInMarketCurrency) * 100
     : 0;
-
-  // Calculate months to sell
-  const monthsToSell = demand?.absorptionCapacity > 0
-    ? quantity / demand.absorptionCapacity
-    : 999;
 
   const demandData = {
     estimatedMonthlySales: demand?.estimatedMonthlySales || { low: 0, mid: 0, high: 0 },
@@ -394,17 +455,29 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
     signals: demand?.signals || []
   };
 
+  // Calculate months to sell
+  const monthsToSell = demandData.absorptionCapacity > 0
+    ? quantity / demandData.absorptionCapacity
+    : 999;
+
+  // Identify margin drivers for high-ROI transparency
+  const guardrailDrivers = marginPercent > THRESHOLDS.marginGuardrailThreshold
+    ? identifyMarginDrivers({ sellPrice: fees.sellPrice }, landedCost, pricing)
+    : [];
+
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
-  const explanation = generateChannelExplanation('Amazon', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation);
+  const explanation = generateChannelExplanation('Amazon', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
   return {
     channel: 'Amazon',
     marketplace,
     sellPrice: fees.sellPrice,
+    priceExVat: fees.priceExVat,  // Ex-VAT sell price for transparency
     currency: marketCurrency,
     // Track sell price source for assumptions tracking
-    pricingSource: pricing.dataSource || 'api',
+    pricingSource: pricing.dataSource || 'live',
     confidence: demandData.confidence || 'Medium',
+    guardrail: guardrailDrivers.length > 0 ? { isFlagged: true, drivers: guardrailDrivers } : null,
     fees: {
       total: fees.totalFees,
       breakdown: {
@@ -441,6 +514,8 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
       total: landedCost.totalLandedCost
     },
     landedCostConverted: landedCostInMarketCurrency,
+    // FX transparency: show rate and timestamp used for conversion
+    fx: landedCostConversion.fx,
     netMargin: Number(netMargin.toFixed(2)),
     marginPercent: Number(marginPercent.toFixed(1)),
     demand: demandData,
@@ -460,12 +535,18 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
   // Calculate eBay fees
   const fees = ebayService.calculateEbayFees(pricing.buyBoxPrice, marketplace);
 
-  // Convert landed cost to market currency
+  // Convert landed cost to market currency (with FX metadata for transparency)
   const marketCurrency = fees.currency;
-  const landedCostInMarketCurrency = currencyService.convert(landedCost.totalLandedCost, currency, marketCurrency);
+  const landedCostConversion = currencyService.convertWithMeta(landedCost.totalLandedCost, currency, marketCurrency);
+  const landedCostInMarketCurrency = landedCostConversion.converted;
 
   // Calculate margin using landed cost
-  const netMargin = fees.netProceeds - landedCostInMarketCurrency;
+  // For VAT-registered sellers (reclaimVat=true), output VAT is a pass-through, not a cost
+  const effectiveRevenue = landedCost.reclaimVat
+    ? (fees.priceExVat - fees.totalFees)   // VAT-registered: ex-VAT revenue minus fees
+    : fees.netProceeds;                     // Non-VAT-registered: gross minus VAT minus fees
+
+  const netMargin = effectiveRevenue - landedCostInMarketCurrency;
   const marginPercent = landedCostInMarketCurrency > 0
     ? (netMargin / landedCostInMarketCurrency) * 100
     : 0;
@@ -485,22 +566,31 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
   };
 
 
+  // Identify margin drivers for high-ROI transparency
+  const guardrailDrivers = marginPercent > THRESHOLDS.marginGuardrailThreshold
+    ? identifyMarginDrivers({ sellPrice: fees.sellPrice }, landedCost, pricing)
+    : [];
+
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
-  const explanation = generateChannelExplanation('eBay', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation);
+  const explanation = generateChannelExplanation('eBay', marketplace, marginPercent, fees, demandData, monthsToSell, recommendation, guardrailDrivers);
 
   return {
     channel: 'eBay',
     marketplace,
     sellPrice: fees.sellPrice,
+    priceExVat: fees.priceExVat,  // Ex-VAT sell price for transparency
     currency: marketCurrency,
     // Track sell price source for assumptions tracking
     pricingSource: pricing.dataSource || 'live',
     confidence: demandData.confidence || 'Medium',
+    guardrail: guardrailDrivers.length > 0 ? { isFlagged: true, drivers: guardrailDrivers } : null,
     fees: {
       total: fees.totalFees,
       breakdown: {
         finalValue: fees.finalValueFee,
-        perOrder: fees.perOrderFee
+        perOrder: fees.perOrderFee,
+        vat: fees.vat,
+        vatRate: fees.vatRate
       }
     },
     netProceeds: fees.netProceeds,
@@ -527,6 +617,8 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
       total: landedCost.totalLandedCost
     },
     landedCostConverted: landedCostInMarketCurrency,
+    // FX transparency: show rate and timestamp used for conversion
+    fx: landedCostConversion.fx,
     netMargin: Number(netMargin.toFixed(2)),
     marginPercent: Number(marginPercent.toFixed(1)),
     demand: demandData,
@@ -606,7 +698,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         hsCode: effectiveHSCode || 'auto-detected',
         rate: dutyResult.dutyRate,
         ratePercent: dutyResult.dutyPercent,
-        source: dutyResult.source || 'api',
+        source: dutyResult.source || 'live',
         isOverride: !!matchingOverride
       });
     } else {
@@ -647,14 +739,14 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     }
 
     // Calculate Import VAT
-    // Formula: (Buy Price + Shipping + Duty) * Import VAT Rate
-    // Note: US has no import VAT (State sales tax applies to final sale)
     const importVatRate = feeCalculator.VAT_RATES[dest]?.standard || 0;
-    const importVatAmount = (buyPrice + shippingResult.perUnitShippingCost + dutyResult.dutyAmount) * importVatRate;
+    const normalizedShippingCost = currency === 'USD'
+      ? shippingResult.perUnitShippingCost
+      : currencyService.convert(shippingResult.perUnitShippingCost, 'USD', currency);
+    const importVatAmount = (buyPrice + normalizedShippingCost + dutyResult.dutyAmount) * importVatRate;
 
     // Total landed cost per unit in source currency
-    // If reclaiming VAT, don't add it to the final cost
-    const landedCost = buyPrice + dutyResult.dutyAmount + shippingResult.perUnitShippingCost + (reclaimVat ? 0 : importVatAmount);
+    const landedCost = buyPrice + dutyResult.dutyAmount + normalizedShippingCost + (reclaimVat ? 0 : importVatAmount);
 
     landedCosts[dest] = {
       buyPrice,
@@ -669,11 +761,11 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
       calculationMethod: dutyResult.calculationMethod || 'category',
       isOverridden: dutyResult.isOverridden || false,
       category: dutyResult.category || category,
-      shipping: shippingResult.perUnitShippingCost,
+      shipping: normalizedShippingCost,
       shippingMethod: shippingResult.method,
-      shippingRatePerKg: shippingResult.ratePerKg,
+      shippingRatePerKg: currency === 'USD' ? shippingResult.ratePerKg : currencyService.convert(shippingResult.ratePerKg, 'USD', currency),
       shippingTransitDays: shippingResult.transitDays,
-      shippingMinCharge: shippingResult.minCharge,
+      shippingMinCharge: currency === 'USD' ? shippingResult.minCharge : currencyService.convert(shippingResult.minCharge, 'USD', currency),
       shippingIsOverridden: shippingResult.isOverridden || false,
       totalLandedCost: Number(landedCost.toFixed(2)),
       currency
@@ -746,6 +838,10 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         total: usLandedCost
       };
 
+      // FX transparency: Add FX info for retailer channels
+      const retailerFxConversion = currencyService.convertWithMeta(usLandedCost, currency, retailer.currency);
+      withMargin.fx = retailerFxConversion.fx;
+
       // Calculate months to sell
       const absorptionCapacity = Math.round((withMargin.demand?.estimatedMonthlySales?.mid || 30) * 0.15);
       withMargin.demand.absorptionCapacity = absorptionCapacity;
@@ -753,9 +849,14 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
       // Track sell price source (based on reference price source)
       withMargin.pricingSource = hasAmazonUS
-        ? (amazonPricing['US'].dataSource || 'api')
+        ? (amazonPricing['US'].dataSource || 'live')
         : (ebayPricing['US'].dataSource || 'live');
       withMargin.confidence = 'Medium'; // Retailer channels use estimated pricing
+
+      // Identify margin drivers for high-ROI transparency
+      const guardrailDrivers = withMargin.marginPercent > THRESHOLDS.marginGuardrailThreshold
+        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice }, withMargin.landedCost, { dataSource: withMargin.pricingSource })
+        : [];
 
       // Add explanation
       withMargin.explanation = generateChannelExplanation(
@@ -765,8 +866,13 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         withMargin.fees,
         withMargin.demand,
         withMargin.monthsToSell,
-        withMargin.recommendation
+        withMargin.recommendation,
+        guardrailDrivers
       );
+
+      if (guardrailDrivers.length > 0) {
+        withMargin.guardrail = { isFlagged: true, drivers: guardrailDrivers };
+      }
 
       allChannels.push(withMargin);
     }
@@ -814,6 +920,10 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         total: usLandedCost
       };
 
+      // FX transparency: Add FX info for distributor channels
+      const distributorFxConversion = currencyService.convertWithMeta(usLandedCost, currency, distributor.currency);
+      withMargin.fx = distributorFxConversion.fx;
+
       // For distributors, absorption capacity is higher (bulk sales)
       const absorptionCapacity = Math.round((withMargin.demand?.estimatedMonthlySales?.mid || 500) * 0.20);
       withMargin.demand.absorptionCapacity = absorptionCapacity;
@@ -821,9 +931,14 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
       // Track sell price source (based on reference price source)
       withMargin.pricingSource = hasAmazonUS
-        ? (amazonPricing['US'].dataSource || 'api')
+        ? (amazonPricing['US'].dataSource || 'live')
         : (ebayPricing['US'].dataSource || 'live');
       withMargin.confidence = 'Medium'; // Distributor channels use estimated pricing
+
+      // Identify margin drivers for high-ROI transparency
+      const guardrailDrivers = withMargin.marginPercent > THRESHOLDS.marginGuardrailThreshold
+        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice }, withMargin.landedCost, { dataSource: withMargin.pricingSource })
+        : [];
 
       // Add explanation  
       withMargin.explanation = generateChannelExplanation(
@@ -833,8 +948,13 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         withMargin.fees,
         withMargin.demand,
         withMargin.monthsToSell,
-        withMargin.recommendation
+        withMargin.recommendation,
+        guardrailDrivers
       );
+
+      if (guardrailDrivers.length > 0) {
+        withMargin.guardrail = { isFlagged: true, drivers: guardrailDrivers };
+      }
 
       allChannels.push(withMargin);
     }
@@ -1139,10 +1259,23 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     }
   }
 
+  // Get FX cache status for transparency
+  const fxStatus = currencyService.getCacheStatus();
+
   return {
     ean,
     productTitle: productData?.title || 'Unknown Product',
     input: { quantity, buyPrice, currency, supplierRegion },
+    // Currency transparency: document scoring methodology and FX status
+    currencyInfo: {
+      inputCurrency: currency,
+      scoringMethod: 'marginPercent',
+      scoringExplanation: 'Channels ranked by ROI % calculated in each market\'s local currency',
+      fxAppliedOnce: true,
+      fxConversionPoint: 'Landed cost converted from input currency to each market\'s local currency',
+      fxTimestamp: fxStatus.lastUpdated,
+      fxSource: fxStatus.hasCache ? 'live' : 'fallback'
+    },
     dealScore: {
       overall: Math.round(overallScore),
       breakdown: {
@@ -1150,6 +1283,18 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         demandConfidenceScore: Math.round(demandScore),
         volumeRiskScore: Math.round(volumeRiskScore),
         dataReliabilityScore: Math.round(dataReliabilityScore)
+      },
+      weighted: {
+        marginContribution: Number((marginScore * WEIGHTS.netMargin).toFixed(2)),
+        demandContribution: Number((demandScore * WEIGHTS.demandConfidence).toFixed(2)),
+        volumeContribution: Number((volumeRiskScore * WEIGHTS.volumeRisk).toFixed(2)),
+        reliabilityContribution: Number((dataReliabilityScore * WEIGHTS.dataReliability).toFixed(2))
+      },
+      weights: {
+        netMargin: WEIGHTS.netMargin,
+        demandConfidence: WEIGHTS.demandConfidence,
+        volumeRisk: WEIGHTS.volumeRisk,
+        dataReliability: WEIGHTS.dataReliability
       }
     },
     decision,

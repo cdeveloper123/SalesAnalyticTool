@@ -100,10 +100,15 @@ export interface AssumptionDetails {
     currency?: string; // Currency code (USD, EUR, etc.)
   }>;
   currency?: {
-    buyPriceCurrency: string;
+    baseCurrency: string;
     fxRates: {
       timestamp: string;
       source: string;
+      pairs?: Record<string, {
+        rate: number;
+        timestamp: string;
+        source: string;
+      }>;
     };
   };
 }

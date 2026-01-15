@@ -322,13 +322,32 @@ export function getAllAssumptionsUsed(calculationResult, overrides = null, input
       isExpired: true
     };
 
+    // Collect unique FX pairs from all channels for transparency
+    const usedFxPairs = {};
+    if (calculationResult.channelAnalysis) {
+      const channels = Array.isArray(calculationResult.channelAnalysis)
+        ? calculationResult.channelAnalysis
+        : Object.values(calculationResult.channelAnalysis);
+
+      channels.forEach(channel => {
+        if (channel.fx && channel.fx.pair) {
+          usedFxPairs[channel.fx.pair] = {
+            rate: channel.fx.rate,
+            timestamp: channel.fx.timestamp,
+            source: channel.fx.source
+          };
+        }
+      });
+    }
+
     assumptions.currency = {
-      buyPriceCurrency: input.currency,
+      baseCurrency: input.currency,
       fxRates: {
         timestamp: currencyCacheStatus.lastUpdated || analysisTimestamp,
         source: currencyCacheStatus.hasCache ? 'live_api_cached' : 'fallback',
         cacheAge: currencyCacheStatus.cacheAge,
-        isExpired: currencyCacheStatus.isExpired
+        isExpired: currencyCacheStatus.isExpired,
+        pairs: usedFxPairs // Add the unique pairs used
       }
     };
 

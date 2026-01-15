@@ -38,6 +38,8 @@ interface DealFromDB {
         estimatedMonthlySales?: { low: number; mid: number; high: number };
         actualSalesSource?: string;
         methodology?: string;
+        dataSource?: string;
+        fetchedAt?: string | null;
       };
       landedCost?: Product['landedCost'];
     }>;
@@ -50,6 +52,7 @@ interface DealFromDB {
     negotiationSupport?: Product['negotiationSupport'];
     sourcingSuggestions?: Product['sourcingSuggestions'];
     compliance?: Product['compliance'];
+    scoreBreakdown?: Product['scoreBreakdown'];
   };
   productData: Record<string, unknown> | null;
   marketData: Record<string, unknown> | null;
@@ -111,6 +114,7 @@ function Dashboard() {
             demand_confidence: deal.demandConfidence,
             volume_risk: 100 - deal.volumeRisk,
             data_reliability: deal.dataReliability,
+            scoreBreakdown: evaluation.scoreBreakdown,
             decision: deal.decision as Product['decision'],
             explanation: deal.explanation || '',
             bestChannel: deal.bestChannel ? {
@@ -125,6 +129,10 @@ function Dashboard() {
               mid: firstChannel.demand.estimatedMonthlySales.mid || 0,
               high: firstChannel.demand.estimatedMonthlySales.high || 0,
               source: firstChannel.demand.actualSalesSource || firstChannel.demand.methodology || 'Estimated',
+              actualSalesSource: firstChannel.demand.actualSalesSource,
+              dataSource: firstChannel.demand.dataSource,
+              fetchedAt: firstChannel.demand.fetchedAt,
+              methodology: firstChannel.demand.methodology,
             } : undefined,
             allocation: evaluation.allocation ? {
               allocated: evaluation.allocation.allocated || {},

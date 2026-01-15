@@ -107,11 +107,11 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                   const confidenceBadge = getConfidenceBadge(confidence?.level);
 
                   // Find matching override to show original override values
-                  const shippingOverrideArray: ShippingOverride[] = overrides?.shippingOverrides 
+                  const shippingOverrideArray: ShippingOverride[] = overrides?.shippingOverrides
                     ? (Array.isArray(overrides.shippingOverrides) ? overrides.shippingOverrides : [overrides.shippingOverrides])
                     : [];
-                  const matchingOverride = shippingOverrideArray.find((ov) => 
-                    ov.destination?.toUpperCase() === marketplace.toUpperCase() && 
+                  const matchingOverride = shippingOverrideArray.find((ov) =>
+                    ov.destination?.toUpperCase() === marketplace.toUpperCase() &&
                     ov.origin?.toUpperCase() === shipping.origin.toUpperCase()
                   );
 
@@ -128,7 +128,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="text-xs text-gray-400 space-y-1">
                         <div><span className="text-gray-500">Method:</span> {matchingOverride?.method || shipping.method}</div>
                         {(matchingOverride?.ratePerKg !== undefined || shipping.ratePerKg !== undefined) && (
@@ -214,11 +214,11 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                   const confidenceBadge = getConfidenceBadge(confidence?.level);
 
                   // Find matching override to show original override value
-                  const dutyOverrideArray: DutyOverride[] = overrides?.dutyOverrides 
+                  const dutyOverrideArray: DutyOverride[] = overrides?.dutyOverrides
                     ? (Array.isArray(overrides.dutyOverrides) ? overrides.dutyOverrides : [overrides.dutyOverrides])
                     : [];
-                  const matchingOverride = dutyOverrideArray.find((ov) => 
-                    ov.destination?.toUpperCase() === marketplace.toUpperCase() && 
+                  const matchingOverride = dutyOverrideArray.find((ov) =>
+                    ov.destination?.toUpperCase() === marketplace.toUpperCase() &&
                     ov.origin?.toUpperCase() === duty.origin.toUpperCase()
                   );
 
@@ -235,7 +235,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="text-xs text-gray-400 space-y-1">
                         <div><span className="text-gray-500">Method:</span> {duty.calculationMethod}</div>
                         {duty.hsCode && <div><span className="text-gray-500">HS Code:</span> {duty.hsCode}</div>}
@@ -339,7 +339,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                   } else if ((fee as any).distributor) {
                     channelName = (fee as any).distributor;
                   }
-                  
+
                   // Use composite key for freshness, confidence, and methodology
                   const freshnessKey = `fees_${feeKey}`;
                   const freshness = dataFreshness?.[freshnessKey];
@@ -348,14 +348,14 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                   const confidenceBadge = getConfidenceBadge(confidence?.level);
 
                   // Find matching override - try both composite key and marketplace match
-                  const feeOverrideArray: FeeOverride[] = overrides?.feeOverrides 
+                  const feeOverrideArray: FeeOverride[] = overrides?.feeOverrides
                     ? (Array.isArray(overrides.feeOverrides) ? overrides.feeOverrides : [overrides.feeOverrides])
                     : [];
                   const matchingOverride = feeOverrideArray.find((ov) => {
                     // Try matching by marketplace_channel if override has channel field
                     if (ov.marketplace && ov.channel) {
-                      return ov.marketplace.toUpperCase() === marketplace.toUpperCase() && 
-                             ov.channel === channelName;
+                      return ov.marketplace.toUpperCase() === marketplace.toUpperCase() &&
+                        ov.channel === channelName;
                     }
                     // Fallback to marketplace-only match
                     return ov.marketplace?.toUpperCase() === marketplace.toUpperCase();
@@ -366,17 +366,17 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                   const isEbay = channelName === 'eBay';
                   const isRetailer = channelName === 'Retailer';
                   const isDistributor = channelName === 'Distributor';
-                  
+
                   // Get border color based on channel type
-                  const borderColor = isAmazon 
+                  const borderColor = isAmazon
                     ? 'border-blue-500/30 bg-blue-500/5'
                     : isEbay
-                    ? 'border-orange-500/30 bg-orange-500/5'
-                    : isRetailer
-                    ? 'border-purple-500/30 bg-purple-500/5'
-                    : isDistributor
-                    ? 'border-cyan-500/30 bg-cyan-500/5'
-                    : 'border-gray-600/30';
+                      ? 'border-orange-500/30 bg-orange-500/5'
+                      : isRetailer
+                        ? 'border-purple-500/30 bg-purple-500/5'
+                        : isDistributor
+                          ? 'border-cyan-500/30 bg-cyan-500/5'
+                          : 'border-gray-600/30';
 
                   // Format display name
                   const displayName = `${channelName}-${marketplace}`;
@@ -392,11 +392,11 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="text-xs text-gray-400 space-y-1">
                         <div><span className="text-gray-500">Sell Price:</span> {getCurrencySymbol(fee.currency)}{fee.sellPrice.toFixed(2)}</div>
                         {fee.sellPriceSource && <div><span className="text-gray-500">Price Source:</span> {fee.sellPriceSource}</div>}
-                        
+
                         {/* Amazon-specific fees */}
                         {isAmazon && (
                           <>
@@ -411,7 +411,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                             )}
                           </>
                         )}
-                        
+
                         {/* eBay-specific fees */}
                         {isEbay && (
                           <>
@@ -423,7 +423,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                             )}
                           </>
                         )}
-                        
+
                         {/* Retailer/Distributor fees (similar to Amazon) */}
                         {(isRetailer || isDistributor) && (
                           <>
@@ -438,7 +438,7 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
                             )}
                           </>
                         )}
-                        
+
                         {/* Common fees */}
                         {(matchingOverride?.paymentFee !== undefined || fee.paymentFee !== undefined) && (
                           <div><span className="text-gray-500">Payment Fee:</span> {((matchingOverride?.paymentFee ?? fee.paymentFee ?? 0) * 100).toFixed(1)}%</div>
@@ -530,19 +530,53 @@ export default function AssumptionsUsed({ assumptions }: AssumptionsUsedProps) {
             {expandedSections.currency && (
               <div className="p-3 space-y-2 border-t border-gray-700">
                 <div className="bg-gray-750 rounded p-3 space-y-2">
-                  <div className="text-xs text-gray-400 space-y-1">
-                    <div><span className="text-gray-500">Buy Price Currency:</span> {details.currency.buyPriceCurrency}</div>
+                  <div className="text-xs text-gray-400 space-y-2">
+                    <div className="flex justify-between items-center pb-2 border-b border-gray-700/50">
+                      <span className="text-gray-500 font-medium lowercase tracking-wide">Evaluation Base Currency</span>
+                      <span className="text-white font-bold px-2 py-0.5 bg-gray-700 rounded text-[10px] uppercase">{details.currency.baseCurrency}</span>
+                    </div>
+
                     {details.currency.fxRates && (
-                      <>
-                        <div><span className="text-gray-500">Source:</span> {details.currency.fxRates.source}</div>
-                        {details.currency.fxRates.timestamp && (
-                          <div className="flex items-center gap-2">
-                            <FiClock size={12} />
-                            <span className="text-gray-500">Updated:</span>
-                            <span>{formatTimestamp(details.currency.fxRates.timestamp)}</span>
+                      <div className="space-y-3 pt-1">
+                        {/* Currency Pairs Grid */}
+                        {details.currency.fxRates.pairs && Object.keys(details.currency.fxRates.pairs).length > 0 && (
+                          <div className="space-y-2">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-2">Applied Exchange Rates</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {Object.entries(details.currency.fxRates.pairs).map(([pair, data]) => (
+                                <div key={pair} className="bg-gray-800/50 border border-gray-700 rounded p-2 flex flex-col gap-1">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-blue-400 font-bold text-[10px] tracking-tight">1 {pair.split('/')[0]} =</span>
+                                    <span className="text-white font-mono text-xs">{data.rate.toFixed(4)} {pair.split('/')[1]}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-[9px]">
+                                    <span className="text-gray-500 italic">
+                                      {new Date(data.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}, {new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <span className={`px-1 rounded-[2px] uppercase font-bold tracking-tighter ${data.source === 'live' ? 'text-green-400' : 'text-yellow-400'}`}>
+                                      {data.source}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
-                      </>
+
+                        <div className="text-[10px] pt-2 border-t border-gray-700/50 flex flex-wrap gap-x-4 gap-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-gray-500">Source:</span>
+                            <span className="text-gray-300">{details.currency.fxRates.source}</span>
+                          </div>
+                          {details.currency.fxRates.timestamp && (
+                            <div className="flex items-center gap-1.5">
+                              <FiClock size={10} className="text-gray-500" />
+                              <span className="text-gray-500">Global Sync:</span>
+                              <span className="text-gray-300">{formatTimestamp(details.currency.fxRates.timestamp)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
 

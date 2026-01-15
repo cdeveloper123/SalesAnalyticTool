@@ -103,6 +103,23 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
     return 'CN'; // Default to China
   };
 
+  // Helper: Generate channel key for allocation lookup
+  const getChannelKey = (channel: any): string => {
+    if (channel.channel === 'Retailer') {
+      return `${channel.retailer}-${channel.marketplace}`;
+    } else if (channel.channel === 'Distributor') {
+      return `${channel.distributor}-${channel.marketplace}`;
+    }
+    return `${channel.channel}-${channel.marketplace}`;
+  };
+
+  // Helper: Check if channel has allocation
+  const getChannelAllocation = (channel: any): number => {
+    if (!product.allocation?.allocated) return 0;
+    const channelKey = getChannelKey(channel);
+    return product.allocation.allocated[channelKey] || 0;
+  };
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card expansion when clicking delete
     if (onDelete) {
@@ -259,6 +276,139 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                     <div className="text-lg font-bold text-white">{product.supplier_region}</div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Score Breakdown Section */}
+          {product.scoreBreakdown && (
+            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg p-4 border border-indigo-500/20">
+              <div className="flex items-center gap-2 mb-4">
+                <FiInfo className="text-indigo-400" size={18} />
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Deal Score Breakdown</span>
+                <span className="text-xs text-indigo-400 ml-auto">
+                  Total: {product.deal_quality_score}%
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Margin Component */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-300">Net Margin</span>
+                      <span className="text-[10px] text-gray-500">
+                        ({(product.scoreBreakdown.weights.netMargin * 100).toFixed(0)}% weight)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-white">
+                        {product.scoreBreakdown.breakdown.netMarginScore}/100
+                      </span>
+                      <span className="text-xs text-green-400 ml-2">
+                        → {product.scoreBreakdown.weighted.marginContribution.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-green-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${product.scoreBreakdown.breakdown.netMarginScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Demand Component */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-300">Demand Confidence</span>
+                      <span className="text-[10px] text-gray-500">
+                        ({(product.scoreBreakdown.weights.demandConfidence * 100).toFixed(0)}% weight)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-white">
+                        {product.scoreBreakdown.breakdown.demandConfidenceScore}/100
+                      </span>
+                      <span className="text-xs text-blue-400 ml-2">
+                        → {product.scoreBreakdown.weighted.demandContribution.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-blue-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${product.scoreBreakdown.breakdown.demandConfidenceScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Volume Risk Component */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-300">Volume Risk</span>
+                      <span className="text-[10px] text-gray-500">
+                        ({(product.scoreBreakdown.weights.volumeRisk * 100).toFixed(0)}% weight)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-white">
+                        {product.scoreBreakdown.breakdown.volumeRiskScore}/100
+                      </span>
+                      <span className="text-xs text-yellow-400 ml-2">
+                        → {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-yellow-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${product.scoreBreakdown.breakdown.volumeRiskScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Data Reliability Component */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-300">Data Reliability</span>
+                      <span className="text-[10px] text-gray-500">
+                        ({(product.scoreBreakdown.weights.dataReliability * 100).toFixed(0)}% weight)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-white">
+                        {product.scoreBreakdown.breakdown.dataReliabilityScore}/100
+                      </span>
+                      <span className="text-xs text-purple-400 ml-2">
+                        → {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-purple-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${product.scoreBreakdown.breakdown.dataReliabilityScore}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Row */}
+              <div className="mt-4 pt-3 border-t border-gray-700/50">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-400">Total Weighted Score</span>
+                  <span className="font-bold text-indigo-400">
+                    {product.scoreBreakdown.weighted.marginContribution.toFixed(1)} +
+                    {product.scoreBreakdown.weighted.demandContribution.toFixed(1)} +
+                    {product.scoreBreakdown.weighted.volumeContribution.toFixed(1)} +
+                    {product.scoreBreakdown.weighted.reliabilityContribution.toFixed(1)} =
+                    <span className="text-white ml-1">{product.deal_quality_score}%</span>
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -463,6 +613,14 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               {isRetailer && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Retail</span>}
                               {isDistributor && <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">Distributor</span>}
                               <span className="font-semibold text-white text-sm">{displayName}</span>
+                              {(() => {
+                                const allocationQty = getChannelAllocation(channel);
+                                return allocationQty > 0 ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-bold uppercase tracking-wider">
+                                    ALLOCATED: {allocationQty}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-xs text-gray-400">
@@ -487,6 +645,39 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                 <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase tracking-tighter shadow-sm whitespace-nowrap">
                                   VAT Reclaimed
                                 </span>
+                              </div>
+                            )}
+                            {(channel as any).guardrail?.isFlagged && (
+                              <div className="mt-1 flex items-center justify-end gap-1.5 translate-y-0.5">
+                                <div className="relative group/guardrail">
+                                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[9px] font-bold border border-indigo-500/20 uppercase tracking-tighter shadow-sm whitespace-nowrap cursor-help flex items-center gap-1">
+                                    Verify Drivers
+                                    <FiShield size={8} className="translate-y-[0.5px]" />
+                                  </span>
+                                  {/* Tooltip */}
+                                  <div className="absolute right-0 bottom-full mb-2 w-56 p-2.5 bg-gray-900 border border-indigo-500/30 rounded-lg shadow-2xl opacity-0 invisible group-hover/guardrail:opacity-100 group-hover/guardrail:visible transition-all duration-200 z-[60] text-[10px] text-gray-300 leading-tight">
+                                    <div className="text-indigo-400 font-bold mb-2 uppercase tracking-wider text-[9px] border-b border-gray-800 pb-1.5 flex items-center gap-1.5">
+                                      <FiShield size={10} />
+                                      High ROI Guardrail
+                                    </div>
+                                    <div className="space-y-2">
+                                      {(channel as any).guardrail.drivers.map((driver: any, idx: number) => (
+                                        <div key={idx} className="flex flex-col gap-0.5">
+                                          <div className="text-white font-bold flex items-center gap-1">
+                                            <div className="w-1 h-1 rounded-full bg-indigo-500"></div>
+                                            {driver.name}
+                                          </div>
+                                          <div className="text-gray-400 pl-2 ml-0.5 border-l border-gray-800 text-[9px]">
+                                            {driver.description}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="absolute right-2 bottom-0 transform translate-y-full">
+                                      <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -539,19 +730,37 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                 </div>
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-gray-400">Range:</span>
-                                  <span className="text-xs font-medium text-white">
-                                    {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
-                                  </span>
+                                  <div className="flex flex-col items-end">
+                                    <span className="text-xs font-medium text-white">
+                                      {(channel as any).demand.estimatedMonthlySales.low}-{(channel as any).demand.estimatedMonthlySales.high} units/mo
+                                    </span>
+                                    {(channel as any).demand.actualSalesSource ? (
+                                      <span className="text-[10px] text-green-400 font-medium">
+                                        Live: {(channel as any).demand.actualSalesSource}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-yellow-400/80 font-medium italic">
+                                        Estimated: {(channel as any).demand.methodology || 'BSR Formula'}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-gray-400">Likely:</span>
-                                  <span className="text-xs font-semibold text-blue-400">
-                                    {(channel as any).demand.estimatedMonthlySales.mid} units/mo
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-blue-400">
+                                      {(channel as any).demand.estimatedMonthlySales.mid} units/mo
+                                    </span>
+                                    {(channel as any).demand.dataSource === 'mock' && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 uppercase tracking-tighter">
+                                        Mock
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                {(channel as any).demand.confidence && (
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs text-gray-400">Confidence:</span>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-400">Confidence:</span>
+                                  <div className="flex flex-col items-end">
                                     <span className={`text-xs font-medium ${(channel as any).demand.confidence === 'High' ? 'text-green-400' :
                                       (channel as any).demand.confidence === 'Medium' ? 'text-yellow-400' :
                                         (channel as any).demand.confidence === 'Low' ? 'text-orange-400' :
@@ -559,8 +768,13 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                       }`}>
                                       {(channel as any).demand.confidence}
                                     </span>
+                                    {(channel as any).demand.fetchedAt && (
+                                      <span className="text-[9px] text-gray-500">
+                                        Fetched: {new Date((channel as any).demand.fetchedAt).toLocaleString()}
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                </div>
 
                                 {/* Your Usable Share Section - Separated visually */}
                                 {(channel as any).demand.absorptionCapacity > 0 && (

@@ -37,7 +37,7 @@ const CATEGORY_FORMULAS = {
     'Home & Kitchen': { coefficient: 150000, exponent: 0.80 },
     'Electronics': { coefficient: 120000, exponent: 0.78 },
     'Toys & Games': { coefficient: 100000, exponent: 0.75 },
-    
+
     // Medium volume categories (coefficient 50000-100000)
     'Video Games': { coefficient: 80000, exponent: 0.72 },
     'PC & Video Games': { coefficient: 80000, exponent: 0.72 },
@@ -47,7 +47,7 @@ const CATEGORY_FORMULAS = {
     'Baby': { coefficient: 60000, exponent: 0.74 },
     'Pet Supplies': { coefficient: 55000, exponent: 0.76 },
     'Office Products': { coefficient: 50000, exponent: 0.78 },
-    
+
     // Lower volume categories (coefficient < 50000)
     'Computers & Accessories': { coefficient: 45000, exponent: 0.74 },
     'Camera & Photo': { coefficient: 40000, exponent: 0.72 },
@@ -57,11 +57,11 @@ const CATEGORY_FORMULAS = {
     'Automotive': { coefficient: 35000, exponent: 0.74 },
     'Patio, Lawn & Garden': { coefficient: 40000, exponent: 0.76 },
     'Arts, Crafts & Sewing': { coefficient: 35000, exponent: 0.74 },
-    
+
     // Default for unknown categories
     'default': { coefficient: 50000, exponent: 0.75 }
   },
-  
+
   UK: {
     // UK market is approximately 25-30% of US size
     'PC & Video Games': { coefficient: 24000, exponent: 0.72 },
@@ -78,7 +78,7 @@ const CATEGORY_FORMULAS = {
     'Pet Supplies': { coefficient: 16500, exponent: 0.76 },
     'default': { coefficient: 15000, exponent: 0.75 }
   },
-  
+
   DE: {
     // Germany market is approximately 30-35% of US size
     'Games': { coefficient: 28000, exponent: 0.72 },
@@ -103,7 +103,7 @@ const CATEGORY_FORMULAS = {
     'Pet Supplies': { coefficient: 19250, exponent: 0.76 },
     'default': { coefficient: 17500, exponent: 0.75 }
   },
-  
+
   FR: {
     // France market is approximately 20% of US size
     'Jeux vidéo': { coefficient: 16000, exponent: 0.72 },
@@ -116,7 +116,7 @@ const CATEGORY_FORMULAS = {
     'Toys & Games': { coefficient: 20000, exponent: 0.75 },
     'default': { coefficient: 10000, exponent: 0.75 }
   },
-  
+
   IT: {
     // Italy market is approximately 15% of US size
     'Videogiochi': { coefficient: 12000, exponent: 0.72 },
@@ -129,7 +129,7 @@ const CATEGORY_FORMULAS = {
     'Toys & Games': { coefficient: 15000, exponent: 0.75 },
     'default': { coefficient: 7500, exponent: 0.75 }
   },
-  
+
   AU: {
     // Australia market is approximately 10% of US size
     'Video Games': { coefficient: 8000, exponent: 0.72 },
@@ -217,11 +217,11 @@ const MARKETPLACE_FACTORS = {
  */
 function getCategoryFormula(marketplace, category) {
   const marketFormulas = CATEGORY_FORMULAS[marketplace] || CATEGORY_FORMULAS.US;
-  
+
   if (marketFormulas[category]) {
     return marketFormulas[category];
   }
-  
+
   // Try partial match
   const lowerCategory = (category || '').toLowerCase();
   for (const [key, formula] of Object.entries(marketFormulas)) {
@@ -229,7 +229,7 @@ function getCategoryFormula(marketplace, category) {
       return formula;
     }
   }
-  
+
   return marketFormulas.default;
 }
 
@@ -240,23 +240,23 @@ function rankToSalesFormula(rank, category, marketplace) {
   if (!rank || rank <= 0) {
     return { low: 0, mid: 0, high: 0 };
   }
-  
+
   const formula = getCategoryFormula(marketplace, category);
-  
+
   // Apply formula: sales = coefficient / (rank ^ exponent)
   const baseEstimate = formula.coefficient / Math.pow(rank, formula.exponent);
-  
+
   // Apply marketplace factor for non-US markets
   const marketFactor = marketplace === 'US' ? 1 : MARKETPLACE_FACTORS[marketplace] || 0.3;
   const adjustedEstimate = marketplace === 'US' ? baseEstimate : baseEstimate;
-  
+
   // Calculate ranges (conservative approach)
   // Low: 65% of estimate (accounts for competition, seasonality)
   // High: 125% of estimate (accounts for promotional periods)
   const low = Math.max(1, Math.floor(adjustedEstimate * 0.65));
   const mid = Math.max(1, Math.floor(adjustedEstimate));
   const high = Math.max(1, Math.floor(adjustedEstimate * 1.25));
-  
+
   return { low, mid, high };
 }
 
@@ -268,15 +268,15 @@ function rankToSalesLookup(rank, category, marketplace) {
   if (!rank || rank <= 0) {
     return { low: 0, mid: 0, high: 0 };
   }
-  
+
   const marketLookup = BSR_LOOKUP[marketplace];
   const categoryLookup = marketLookup ? marketLookup[category] : null;
-  
+
   if (!categoryLookup) {
     // Fallback to formula method
     return rankToSalesFormula(rank, category, marketplace);
   }
-  
+
   // Find the tier
   let baseSales = 1;
   for (const tier of categoryLookup) {
@@ -285,12 +285,12 @@ function rankToSalesLookup(rank, category, marketplace) {
       break;
     }
   }
-  
+
   // Apply range
   const low = Math.floor(baseSales * 0.65);
   const mid = baseSales;
   const high = Math.floor(baseSales * 1.25);
-  
+
   return { low, mid, high };
 }
 
@@ -301,14 +301,14 @@ function rankToSales(rank, category, marketplace) {
   if (!rank || rank <= 0) {
     return { low: 0, mid: 0, high: 0 };
   }
-  
+
   // Primary: Use formula method (more flexible)
   const formulaResult = rankToSalesFormula(rank, category, marketplace);
-  
+
   // If we have lookup data, blend it
   const marketLookup = BSR_LOOKUP[marketplace];
   const categoryLookup = marketLookup ? marketLookup[category] : null;
-  
+
   if (categoryLookup) {
     const lookupResult = rankToSalesLookup(rank, category, marketplace);
     // Average the two methods for better accuracy
@@ -318,7 +318,7 @@ function rankToSales(rank, category, marketplace) {
       high: Math.floor((formulaResult.high + lookupResult.high) / 2)
     };
   }
-  
+
   return formulaResult;
 }
 
@@ -343,7 +343,7 @@ function parseRecentSales(recentSales) {
   if (!recentSales || typeof recentSales !== 'string') {
     return null;
   }
-  
+
   // Try multiple patterns for different languages
   // Pattern 1: English "1K+ bought" or "100+ bought"
   // Pattern 2: German "500+ gekauft"
@@ -354,21 +354,21 @@ function parseRecentSales(recentSales) {
     /(\d+\.?\d*)(K?)\+?\s*acquistato/i,       // Italian
     /(\d+\.?\d*)(K?)\+?\s*comprado/i,         // Spanish
   ];
-  
+
   for (const pattern of patterns) {
     const match = recentSales.match(pattern);
     if (match) {
       let value = parseFloat(match[1]);
       const hasK = match[2] && match[2].toLowerCase() === 'k';
-      
+
       if (hasK) {
         value *= 1000;
       }
-      
+
       return Math.round(value);
     }
   }
-  
+
   // Fallback: try to extract any number followed by K or just a number
   const fallbackMatch = recentSales.match(/(\d+\.?\d*)(K?)\+/i);
   if (fallbackMatch) {
@@ -377,7 +377,7 @@ function parseRecentSales(recentSales) {
     if (hasK) value *= 1000;
     return Math.round(value);
   }
-  
+
   return null;
 }
 
@@ -391,7 +391,7 @@ function parseRecentSales(recentSales) {
 function determineConfidence(rank, fbaOffers, priceHistory) {
   let score = 0;
   const signals = [];
-  
+
   // Rank data quality
   if (rank && rank > 0) {
     if (rank < 1000) {
@@ -408,7 +408,7 @@ function determineConfidence(rank, fbaOffers, priceHistory) {
       signals.push('Low sales rank (reduced accuracy)');
     }
   }
-  
+
   // Competition signals
   if (fbaOffers >= 5) {
     score += 25;
@@ -420,7 +420,7 @@ function determineConfidence(rank, fbaOffers, priceHistory) {
     score += 5;
     signals.push('Single FBA seller (limited signal)');
   }
-  
+
   // Price stability signals
   if (priceHistory) {
     if (priceHistory.trend === 'stable') {
@@ -433,7 +433,7 @@ function determineConfidence(rank, fbaOffers, priceHistory) {
       score += 10;
       signals.push('Price declining (caution: possible saturation)');
     }
-    
+
     // Price variance check
     if (priceHistory.min && priceHistory.max && priceHistory.avg) {
       const variance = (priceHistory.max - priceHistory.min) / priceHistory.avg;
@@ -446,7 +446,7 @@ function determineConfidence(rank, fbaOffers, priceHistory) {
       }
     }
   }
-  
+
   // Determine confidence level
   let confidence;
   if (score >= 75) {
@@ -458,7 +458,7 @@ function determineConfidence(rank, fbaOffers, priceHistory) {
   } else {
     confidence = 'Very Low';
   }
-  
+
   return { confidence, signals, score };
 }
 
@@ -474,7 +474,7 @@ function calculateAbsorptionCapacity(salesEstimate, fbaOffers) {
   if (!salesEstimate || salesEstimate.mid <= 0) {
     return 0;
   }
-  
+
   // Market share targets based on competition
   // More competitors = smaller safe share
   let targetShare;
@@ -489,7 +489,7 @@ function calculateAbsorptionCapacity(salesEstimate, fbaOffers) {
   } else {
     targetShare = 0.35; // Can capture more if few competitors
   }
-  
+
   return Math.floor(salesEstimate.mid * targetShare);
 }
 
@@ -511,23 +511,23 @@ export function estimateDemand(marketplace, marketData) {
       absorptionCapacity: 0
     };
   }
-  
+
   const {
     salesRank,
     salesRankCategory,
     fbaOffers = 0,
     priceHistory30d,
-    recentSales,  
+    recentSales,
     ratingsTotal = 0
   } = marketData;
-  
+
   // Try to use Amazon's actual sales data first
   const actualSales = parseRecentSales(recentSales);
-  
+
   let salesEstimate;
   let methodology;
   const signals = [];
-  
+
   if (actualSales && actualSales > 0) {
     // Use Amazon's actual data - much more accurate
     salesEstimate = {
@@ -546,24 +546,24 @@ export function estimateDemand(marketplace, marketData) {
     );
     methodology = 'Category-specific coefficient formula with lookup blend';
   }
-  
+
   // Determine confidence
   const confidenceResult = determineConfidence(
     salesRank,
     fbaOffers,
     priceHistory30d
   );
-  
+
   // Boost confidence if we have actual Amazon data
   let confidenceScore = confidenceResult.score;
   if (actualSales && actualSales > 0) {
     confidenceScore = Math.min(100, confidenceScore + 20);
     signals.push('High confidence: Using Amazon actual sales data');
   }
-  
+
   // Add other signals
   signals.push(...confidenceResult.signals);
-  
+
   // Boost confidence based on ratings count
   if (ratingsTotal > 1000) {
     confidenceScore = Math.min(100, confidenceScore + 10);
@@ -572,7 +572,7 @@ export function estimateDemand(marketplace, marketData) {
     confidenceScore = Math.min(100, confidenceScore + 5);
     signals.push(`${ratingsTotal.toLocaleString()} total ratings`);
   }
-  
+
   // Determine confidence level
   let confidence;
   if (confidenceScore >= 75) {
@@ -584,16 +584,18 @@ export function estimateDemand(marketplace, marketData) {
   } else {
     confidence = 'Very Low';
   }
-  
+
   // Calculate absorption capacity
   const absorptionCapacity = calculateAbsorptionCapacity(salesEstimate, fbaOffers);
-  
+
   return {
     marketplace,
     salesRank,
     category: salesRankCategory,
     estimatedMonthlySales: salesEstimate,
     actualSalesSource: actualSales ? recentSales : null,
+    dataSource: marketData.dataSource || 'unknown',
+    fetchedAt: marketData.fetchedAt || null,
     confidence,
     confidenceScore,
     signals,
@@ -607,11 +609,11 @@ export function estimateDemand(marketplace, marketData) {
  */
 export function estimateDemandAllMarkets(pricingData) {
   const results = {};
-  
+
   for (const [market, data] of Object.entries(pricingData)) {
     results[market] = estimateDemand(market, data);
   }
-  
+
   return results;
 }
 

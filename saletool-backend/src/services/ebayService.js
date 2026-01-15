@@ -13,6 +13,10 @@ import currencyService from './currencyService.js';
 
 dotenv.config();
 
+// Simple in-memory cache to prevent hitting rate limits
+const apiCache = new Map();
+const CACHE_TTL = 3600 * 1000; // 1 hour caching
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -112,6 +116,12 @@ async function getAuthToken() {
  * Search for active listings by EAN/UPC/GTIN
  */
 export async function searchByEAN(ean, marketplace = 'US') {
+  const cacheKey = `search_${marketplace}_${ean}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
 
@@ -126,7 +136,7 @@ export async function searchByEAN(ean, marketplace = 'US') {
       return [];
     }
 
-    return results.itemSummaries.map(item => ({
+    const mappedResults = results.itemSummaries.map(item => ({
       title: item.title,
       price: Number(item.price?.value) || 0,  // Convert string to number
       currency: item.price?.currency || 'USD',
@@ -141,6 +151,9 @@ export async function searchByEAN(ean, marketplace = 'US') {
       itemWebUrl: item.itemWebUrl,
       ean: ean
     }));
+
+    apiCache.set(cacheKey, { data: mappedResults, timestamp: Date.now() });
+    return mappedResults;
   } catch (error) {
     console.error('[eBayService] Browse API (EAN) error:', error.message);
     return [];
@@ -151,6 +164,12 @@ export async function searchByEAN(ean, marketplace = 'US') {
  * Search for active listings by keyword (fallback)
  */
 export async function searchByKeyword(keyword, marketplace = 'US') {
+  const cacheKey = `search_kw_${marketplace}_${keyword}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
 
@@ -163,8 +182,7 @@ export async function searchByKeyword(keyword, marketplace = 'US') {
     if (!results || !results.itemSummaries) {
       return [];
     }
-
-    return results.itemSummaries.map(item => ({
+    const mappedResults = results.itemSummaries.map(item => ({
       title: item.title,
       price: item.price?.value || 0,
       currency: item.price?.currency || 'USD',
@@ -177,6 +195,9 @@ export async function searchByKeyword(keyword, marketplace = 'US') {
       shippingCost: item.shippingOptions?.[0]?.shippingCost?.value || 0,
       itemWebUrl: item.itemWebUrl
     }));
+
+    apiCache.set(cacheKey, { data: mappedResults, timestamp: Date.now() });
+    return mappedResults;
   } catch (error) {
     console.error('[eBayService] Browse API error:', error.message);
     return [];
@@ -251,6 +272,12 @@ export async function getItemDetails(itemId) {
  * Find completed (sold) items to estimate demand
  */
 export async function findCompletedItems(keyword, marketplace = 'US', ean = null) {
+  const cacheKey = `sold_${marketplace}_${ean || keyword}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
 
@@ -300,6 +327,9 @@ export async function findCompletedItems(keyword, marketplace = 'US', ean = null
         max: Math.max(...soldPrices)
       }
     };
+
+    apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch (error) {
     console.error('[eBayService] Finding API error:', error.message);
     return { items: [], averagePrice: 0, soldCount: 0 };
@@ -423,7 +453,8 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
         ? (soldData.soldCount > 20 ? 'High' : 'Medium')
         : (activeListings.length > 20 ? 'Medium' : 'Low'), // Higher confidence if we have real sold data
       currency: targetCurrency,
-      soldLast90Days: soldData.soldCount // Add this for transparency
+      soldLast90Days: soldData.soldCount, // Add this for transparency
+      dataSource: 'live'
     };
 
   } catch (error) {
@@ -480,9 +511,16 @@ export async function getProductPricing(keyword, marketplace = 'US') {
 
 /**
  * Calculate eBay fees for a sale (2025 rates)
+ * Note: eBay EU prices are typically VAT-inclusive (same as Amazon)
  */
 export function calculateEbayFees(sellPrice, marketplace = 'US') {
   const fees = EBAY_FEES[marketplace] || EBAY_FEES.US;
+
+  // VAT rates for EU markets (eBay prices are VAT-inclusive in EU)
+  const VAT_RATES = { UK: 0.20, DE: 0.19, FR: 0.20, IT: 0.22 };
+  const vatRate = VAT_RATES[marketplace] || 0;
+  const vatAmount = vatRate > 0 ? sellPrice - (sellPrice / (1 + vatRate)) : 0;
+  const priceExVat = sellPrice - vatAmount;
 
   const insertionFee = fees.insertionFee;
   const finalValueFee = sellPrice * fees.finalValueFee; // Includes payment processing
@@ -493,11 +531,14 @@ export function calculateEbayFees(sellPrice, marketplace = 'US') {
 
   return {
     sellPrice: Number(sellPrice.toFixed(2)),
+    priceExVat: Number(priceExVat.toFixed(2)),  // Ex-VAT price for VAT-registered sellers
     insertionFee: Number(insertionFee.toFixed(2)),
     finalValueFee: Number(finalValueFee.toFixed(2)),
     perOrderFee: Number(perOrderFee.toFixed(2)),
     totalFees: Number(totalFees.toFixed(2)),
     netProceeds: Number(netProceeds.toFixed(2)),
+    vat: Number(vatAmount.toFixed(2)),           // VAT amount for transparency
+    vatRate: vatRate * 100,                      // VAT rate as percentage
     currency: ['DE', 'FR', 'IT'].includes(marketplace) ? 'EUR' : marketplace === 'UK' ? 'GBP' : marketplace === 'AU' ? 'AUD' : 'USD',
     marketplace: `eBay-${marketplace}`
   };

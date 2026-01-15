@@ -23,13 +23,13 @@ const REFERRAL_RATES = {
     'Camera & Photo': 0.08,
     'Cell Phones & Accessories': 0.08,
     'Television & Video': 0.08,
-    
+
     // Video Games - 15%
     'Video Games': 0.15,
     'Video Game Consoles': 0.15,
-    
+
     // Apparel - Tiered
-    'Apparel': { 
+    'Apparel': {
       tiers: [
         { maxPrice: 15, rate: 0.05 },
         { maxPrice: 20, rate: 0.10 },
@@ -43,7 +43,7 @@ const REFERRAL_RATES = {
         { maxPrice: Infinity, rate: 0.17 }
       ]
     },
-    
+
     // Standard 15% Categories
     'Home & Kitchen': 0.15,
     'Kitchen & Dining': 0.15,
@@ -60,26 +60,26 @@ const REFERRAL_RATES = {
     'Automotive': 0.15,
     'Industrial & Scientific': 0.15,
     'Tools & Home Improvement': 0.15,
-    
+
     // Higher Rate Categories
     'Jewelry': 0.20,
     'Watches': 0.16,
     'Luggage': 0.15,
-    
+
     // Amazon Device Accessories - Highest
     'Amazon Device Accessories': 0.45,
-    
+
     // Media (with closing fee)
     'Books': 0.15,
     'Music': 0.15,
     'DVD': 0.15,
     'Software': 0.15,
-    
+
     // Default
     'default': 0.15,
     'minimumFee': 0.30
   },
-  
+
   UK: {
     'Electronics': 0.08,
     'Computers': 0.08,
@@ -108,7 +108,7 @@ const REFERRAL_RATES = {
     'default': 0.15,
     'minimumFee': 0.25
   },
-  
+
   DE: {
     'Elektronik': 0.08,
     'Computer': 0.08,
@@ -131,7 +131,7 @@ const REFERRAL_RATES = {
     'default': 0.15,
     'minimumFee': 0.25
   },
-  
+
   FR: {
     'Électronique': 0.08,
     'Informatique': 0.08,
@@ -150,7 +150,7 @@ const REFERRAL_RATES = {
     'default': 0.15,
     'minimumFee': 0.25
   },
-  
+
   IT: {
     'Elettronica': 0.08,
     'Informatica': 0.08,
@@ -169,7 +169,7 @@ const REFERRAL_RATES = {
     'default': 0.15,
     'minimumFee': 0.25
   },
-  
+
   AU: {
     'Electronics': 0.07,     // 7%
     'Computers': 0.13,       // 13%
@@ -237,7 +237,7 @@ const FBA_SIZE_TIERS = {
       perLb: 0.38
     }
   },
-  
+
   UK: {
     // Fees in GBP, dimensions in cm, weight in grams
     envelope: {
@@ -277,7 +277,7 @@ const FBA_SIZE_TIERS = {
       perKg: 0.30
     }
   },
-  
+
   DE: {
     // Fees in EUR, dimensions in cm, weight in grams
     envelope: {
@@ -317,43 +317,49 @@ const FBA_SIZE_TIERS = {
       perKg: 0.35
     }
   },
-  
+
   // FR and IT use same EU structure as DE
   FR: {
     envelope: { maxLength: 33, maxWidth: 23, maxHeight: 2.5, maxWeight: 100, fee: 2.16 },
-    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+    smallStandard: {
+      maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
       fees: [{ maxWeight: 100, fee: 2.37 }, { maxWeight: 210, fee: 2.50 }, { maxWeight: 400, fee: 2.78 }]
     },
-    largeStandard: { maxWeight: 12000,
+    largeStandard: {
+      maxWeight: 12000,
       fees: [{ maxWeight: 400, fee: 3.21 }, { maxWeight: 900, fee: 3.51 }, { maxWeight: 1400, fee: 4.24 },
-             { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
-             { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
+      { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
+      { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
     },
     largeBulky: { baseFee: 9.07, perKg: 0.35 }
   },
-  
+
   IT: {
     envelope: { maxLength: 33, maxWidth: 23, maxHeight: 2.5, maxWeight: 100, fee: 2.16 },
-    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+    smallStandard: {
+      maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
       fees: [{ maxWeight: 100, fee: 2.37 }, { maxWeight: 210, fee: 2.50 }, { maxWeight: 400, fee: 2.78 }]
     },
-    largeStandard: { maxWeight: 12000,
+    largeStandard: {
+      maxWeight: 12000,
       fees: [{ maxWeight: 400, fee: 3.21 }, { maxWeight: 900, fee: 3.51 }, { maxWeight: 1400, fee: 4.24 },
-             { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
-             { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
+      { maxWeight: 1900, fee: 4.60 }, { maxWeight: 2900, fee: 5.38 }, { maxWeight: 3900, fee: 5.71 },
+      { maxWeight: 5900, fee: 6.14 }, { maxWeight: 8900, fee: 6.60 }, { maxWeight: 12000, fee: 7.54 }]
     },
     largeBulky: { baseFee: 9.07, perKg: 0.35 }
   },
-  
+
   AU: {
     // Australia uses grams, AUD equivalent fees
-    smallStandard: { maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
+    smallStandard: {
+      maxLength: 35, maxWidth: 25, maxHeight: 12, maxWeight: 400,
       fees: [{ maxWeight: 100, fee: 3.20 }, { maxWeight: 210, fee: 3.40 }, { maxWeight: 400, fee: 3.80 }]
     },
-    largeStandard: { maxWeight: 12000,
+    largeStandard: {
+      maxWeight: 12000,
       fees: [{ maxWeight: 400, fee: 4.50 }, { maxWeight: 900, fee: 5.00 }, { maxWeight: 1400, fee: 5.80 },
-             { maxWeight: 1900, fee: 6.30 }, { maxWeight: 2900, fee: 7.20 }, { maxWeight: 3900, fee: 7.80 },
-             { maxWeight: 5900, fee: 8.40 }, { maxWeight: 8900, fee: 9.00 }, { maxWeight: 12000, fee: 10.30 }]
+      { maxWeight: 1900, fee: 6.30 }, { maxWeight: 2900, fee: 7.20 }, { maxWeight: 3900, fee: 7.80 },
+      { maxWeight: 5900, fee: 8.40 }, { maxWeight: 8900, fee: 9.00 }, { maxWeight: 12000, fee: 10.30 }]
     },
     largeBulky: { baseFee: 12.50, perKg: 0.45 }
   }
@@ -365,7 +371,7 @@ const FBA_SIZE_TIERS = {
 
 const VAT_RATES = {
   US: { standard: 0 },        // No VAT (sales tax handled by states)
-  UK: { 
+  UK: {
     standard: 0.20,           // 20%
     reduced: 0.05,            // 5% (Energy, etc.)
     zero: 0,                  // 0% (Books, food, children clothes)
@@ -446,26 +452,26 @@ function normalizeDimensions(lengthCm, widthCm, heightCm, marketplace) {
 function determineSizeTier(marketplace, dims, weight) {
   const tiers = FBA_SIZE_TIERS[marketplace];
   if (!tiers) return 'largeStandard';
-  
+
   // Check for small standard
   if (tiers.smallStandard) {
     const t = tiers.smallStandard;
-    if (dims.length <= t.maxLength && 
-        dims.width <= t.maxWidth && 
-        dims.height <= t.maxHeight &&
-        weight <= t.maxWeight) {
+    if (dims.length <= t.maxLength &&
+      dims.width <= t.maxWidth &&
+      dims.height <= t.maxHeight &&
+      weight <= t.maxWeight) {
       return 'smallStandard';
     }
   }
-  
+
   // Check for large standard
   if (tiers.largeStandard) {
     const t = tiers.largeStandard;
     if (marketplace === 'US') {
       if (dims.length <= t.maxLength &&
-          dims.width <= t.maxWidth &&
-          dims.height <= t.maxHeight &&
-          weight <= t.maxWeight) {
+        dims.width <= t.maxWidth &&
+        dims.height <= t.maxHeight &&
+        weight <= t.maxWeight) {
         return 'largeStandard';
       }
     } else {
@@ -474,12 +480,12 @@ function determineSizeTier(marketplace, dims, weight) {
       }
     }
   }
-  
+
   // Check for large bulky
   if (tiers.largeBulky && weight <= tiers.largeBulky.maxWeight) {
     return 'largeBulky';
   }
-  
+
   return 'extraLarge';
 }
 
@@ -492,10 +498,10 @@ function calculateFBAFee(marketplace, sizeTier, weight, sellPrice) {
     // Default fallback
     return 3.50;
   }
-  
+
   const tierConfig = tiers[sizeTier];
   let fee = 3.50;
-  
+
   // Fixed fee tiers (small/large standard)
   if (tierConfig.fees) {
     let matched = false;
@@ -534,13 +540,13 @@ function calculateFBAFee(marketplace, sizeTier, weight, sellPrice) {
       }
     }
   }
-  
+
   // Apply US Low-Price FBA Logic (2025)
   // Products priced < $10 get a $0.77 discount in the US
   if (marketplace === 'US' && sellPrice < 10) {
     fee = Math.max(0.10, fee - 0.77);
   }
-  
+
   return fee;
 }
 
@@ -549,15 +555,15 @@ function calculateFBAFee(marketplace, sizeTier, weight, sellPrice) {
  */
 function getReferralRate(marketplace, category, sellPrice) {
   const rates = REFERRAL_RATES[marketplace] || REFERRAL_RATES.US;
-  
+
   if (!category) {
     return rates.default || 0.15;
   }
-  
+
   // Check for exact match
   if (rates[category]) {
     const rateConfig = rates[category];
-    
+
     // Handle tiered rates (like Apparel)
     if (typeof rateConfig === 'object' && rateConfig.tiers) {
       for (const tier of rateConfig.tiers) {
@@ -567,10 +573,10 @@ function getReferralRate(marketplace, category, sellPrice) {
       }
       return rateConfig.tiers[rateConfig.tiers.length - 1].rate;
     }
-    
+
     return rateConfig;
   }
-  
+
   // Check for partial match
   const lowerCategory = category.toLowerCase();
   for (const [key, rateConfig] of Object.entries(rates)) {
@@ -586,7 +592,7 @@ function getReferralRate(marketplace, category, sellPrice) {
       return rateConfig;
     }
   }
-  
+
   return rates.default || 0.15;
 }
 
@@ -595,7 +601,7 @@ function getReferralRate(marketplace, category, sellPrice) {
  */
 function isMediaCategory(category) {
   if (!category) return false;
-  return MEDIA_CATEGORIES.some(media => 
+  return MEDIA_CATEGORIES.some(media =>
     category.toLowerCase().includes(media.toLowerCase())
   );
 }
@@ -606,9 +612,9 @@ function isMediaCategory(category) {
 function getVatRate(marketplace, category) {
   const marketplaceVat = VAT_RATES[marketplace];
   if (!marketplaceVat) return 0;
-  
+
   if (!category) return marketplaceVat.standard || 0;
-  
+
   // Check for category-specific overrides
   if (marketplaceVat.categories) {
     const lowerCategory = category.toLowerCase();
@@ -618,7 +624,7 @@ function getVatRate(marketplace, category) {
       }
     }
   }
-  
+
   return marketplaceVat.standard || 0;
 }
 
@@ -638,35 +644,35 @@ function getVatRate(marketplace, category) {
  */
 export function calculateFees(marketplace, sellPrice, category, dimensions = {}, overrides = null) {
   marketplace = marketplace.toUpperCase();
-  
+
   // Validate inputs
   if (!sellPrice || sellPrice <= 0) {
     throw new Error('Invalid sell price');
   }
-  
-  const { 
-    lengthCm = 20, 
-    widthCm = 15, 
-    heightCm = 10, 
-    weightKg = 0.5 
+
+  const {
+    lengthCm = 20,
+    widthCm = 15,
+    heightCm = 10,
+    weightKg = 0.5
   } = dimensions;
-  
+
   // Normalize units for marketplace
   const normalizedWeight = normalizeWeight(weightKg, marketplace);
   const normalizedDims = normalizeDimensions(lengthCm, widthCm, heightCm, marketplace);
-  
+
   // Determine size tier
   const sizeTier = determineSizeTier(marketplace, normalizedDims, normalizedWeight);
-  
+
   // Calculate VAT
   const vatRate = getVatRate(marketplace, category);
   const vatAmount = marketplace === 'US' ? 0 : sellPrice - (sellPrice / (1 + vatRate));
   const priceExVat = sellPrice - vatAmount;
-  
+
   // Calculate referral fee
   let referralRate = getReferralRate(marketplace, category, sellPrice);
   let referralFee = sellPrice * referralRate;
-  
+
   // Apply minimum referral fee
   const marketplaceRates = REFERRAL_RATES[marketplace] || REFERRAL_RATES.US;
   if (marketplaceRates.minimumFee && referralFee < marketplaceRates.minimumFee) {
@@ -674,23 +680,24 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
     // Recalculate effective referral rate for reporting
     referralRate = referralFee / sellPrice;
   }
-  
+
   // Calculate FBA fee
   const fbaFee = calculateFBAFee(marketplace, sizeTier, normalizedWeight, sellPrice);
-  
+
   // Calculate closing fee (media only)
   const closingFee = isMediaCategory(category) ? (CLOSING_FEES[marketplace] || 0) : 0;
-  
+
   // Total Amazon fees
   const totalFees = referralFee + fbaFee + closingFee;
-  
+
   // Net proceeds = Sell Price - VAT - Amazon Fees
   const netProceeds = sellPrice - vatAmount - totalFees;
-  
+
   const result = {
     marketplace,
     currency: CURRENCIES[marketplace] || 'USD',
     sellPrice: Number(sellPrice.toFixed(2)),
+    priceExVat: Number(priceExVat.toFixed(2)),  // Ex-VAT price for VAT-registered sellers
     sizeTier,
     breakdown: {
       vat: Number(vatAmount.toFixed(2)),
@@ -724,22 +731,22 @@ export function calculateFees(marketplace, sellPrice, category, dimensions = {},
  */
 export function calculateFeesAllMarkets(pricingData, category, dimensions, overrides = null) {
   const results = {};
-  
+
   for (const [market, data] of Object.entries(pricingData)) {
     if (data && data.buyBoxPrice) {
       try {
         // Get marketplace-specific overrides if provided
-        const marketOverrides = overrides ? 
-          (Array.isArray(overrides) ? overrides.filter(o => o.marketplace?.toUpperCase() === market.toUpperCase()) : 
-           (overrides.marketplace?.toUpperCase() === market.toUpperCase() ? overrides : null)) : null;
-        
+        const marketOverrides = overrides ?
+          (Array.isArray(overrides) ? overrides.filter(o => o.marketplace?.toUpperCase() === market.toUpperCase()) :
+            (overrides.marketplace?.toUpperCase() === market.toUpperCase() ? overrides : null)) : null;
+
         results[market] = calculateFees(market, data.buyBoxPrice, category, dimensions, marketOverrides);
       } catch (error) {
         console.error(`Error calculating fees for ${market}:`, error.message);
       }
     }
   }
-  
+
   return results;
 }
 

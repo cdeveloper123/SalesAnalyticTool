@@ -49,20 +49,22 @@ const getProductByGTIN = async (apiKey, amazonDomain, gtin) => {
     };
 
     const response = await axios.get('https://api.rainforestapi.com/request', { params });
-   
+
     if (response.data && response.data.product) {
       return {
         success: true,
         data: response.data,
         product: response.data.product,
+        dataSource: 'live',
+        fetchedAt: new Date().toISOString()
       };
     }
-   
-    return { success: false };
+
+    return { success: false, dataSource: 'live' };
   } catch (error) {
     // If it's a 400 error, likely invalid GTIN format (might be ASIN instead)
     if (error.response && error.response.status === 400) {
-      return { success: false, isInvalidFormat: true };
+      return { success: false, isInvalidFormat: true, dataSource: 'live' };
     }
     throw error;
   }
@@ -78,20 +80,22 @@ const getProductByASIN = async (apiKey, amazonDomain, asin) => {
     };
 
     const response = await axios.get('https://api.rainforestapi.com/request', { params });
-    
+
     if (response.data && response.data.product) {
       return {
         success: true,
         data: response.data,
         product: response.data.product,
+        dataSource: 'live',
+        fetchedAt: new Date().toISOString()
       };
     }
-    
-    return { success: false };
+
+    return { success: false, dataSource: 'live' };
   } catch (error) {
     // Handle API errors gracefully
     if (error.response && error.response.status === 400) {
-      return { success: false };
+      return { success: false, dataSource: 'live' };
     }
     throw error;
   }
@@ -104,15 +108,16 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
       console.log(`[Amazon Service] Using MOCK data for EAN: ${ean}, Country: ${country}`);
       const mockData = loadMockData();
       const mockResult = mockData[country] || mockData['US'] || null;
-      
+
       if (mockResult) {
         return {
           ...mockResult,
           dataSource: 'mock',
           ean: ean, // Include the EAN in response
+          fetchedAt: new Date().toISOString()
         };
       }
-      
+
       return {
         source: 'amazon',
         success: false,
@@ -135,6 +140,7 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
           ...mockResult,
           dataSource: 'mock-fallback',
           ean: ean,
+          fetchedAt: new Date().toISOString()
         };
       }
       return {
@@ -150,7 +156,7 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
     // Step 1: Try GTIN (EAN) lookup first
     const gtinResult = await getProductByGTIN(apiKey, amazonDomain, ean);
     console.log('GTIN Result------------------------>>>>>:', gtinResult);
-    
+
     if (gtinResult.success) {
       const result = {
         source: 'amazon',
@@ -162,12 +168,12 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
         product: gtinResult.product,
         dataSource: 'live',
       };
-      
+
       // Cache the result if in cached mode
       if (dataSourceMode === 'cached') {
         dataCache.set(cacheKey, result);
       }
-      
+
       return result;
     }
 
@@ -188,12 +194,12 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
         product: asinResult.product,
         dataSource: 'live',
       };
-      
+
       // Cache the result if in cached mode
       if (dataSourceMode === 'cached') {
         dataCache.set(cacheKey, result);
       }
-      
+
       return result;
     }
 
@@ -207,7 +213,7 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
     };
   } catch (error) {
     console.error(`Rainforest API Error: ${error.message}`);
-    
+
     // If API fails, try mock data as fallback
     console.log('[Amazon Service] API error, falling back to mock data');
     const mockData = loadMockData();
@@ -219,7 +225,7 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
         ean: ean,
       };
     }
-    
+
     return {
       source: 'amazon',
       success: false,

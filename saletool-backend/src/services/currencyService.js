@@ -358,6 +358,33 @@ export function getRates() {
 }
 
 /**
+ * Convert amount with full metadata (for FX transparency)
+ * Returns the converted amount along with rate, timestamp, and source
+ */
+export function convertWithMeta(amount, fromCurrency, toCurrency) {
+  fromCurrency = fromCurrency?.toUpperCase() || 'USD';
+  toCurrency = toCurrency?.toUpperCase() || 'USD';
+
+  const converted = convert(amount, fromCurrency, toCurrency);
+  const rate = getRate(fromCurrency, toCurrency);
+
+  return {
+    original: amount,
+    originalCurrency: fromCurrency,
+    converted: converted,
+    convertedCurrency: toCurrency,
+    fx: {
+      rate: rate,
+      pair: `${fromCurrency}/${toCurrency}`,
+      timestamp: ratesCache.lastUpdated
+        ? new Date(ratesCache.lastUpdated).toISOString()
+        : null,
+      source: ratesCache.rates ? 'live' : 'fallback'
+    }
+  };
+}
+
+/**
  * Get cache status
  */
 export function getCacheStatus() {
@@ -387,13 +414,16 @@ export function getCacheStatus() {
     hasCache,
     lastUpdated,
     cacheAge,
-    isExpired
+    isExpired,
+    rates: ratesCache.rates,
+    baseCurrency: ratesCache.baseCurrency
   };
 }
 
 export default {
   convert,
   convertAsync,
+  convertWithMeta,
   toUSD,
   fromUSD,
   getRate,

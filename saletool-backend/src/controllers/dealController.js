@@ -177,8 +177,9 @@ export const analyzeDeal = async (req, res) => {
               avg: product.buybox_winner?.price?.value || 0,
               trend: 'stable'
             },
-            // Track data source for sell price tracking
-            dataSource: amazonResult.dataSource || 'live'
+            // Track data source and timestamp for transparency
+            dataSource: amazonResult.dataSource || (dataSourceMode === 'mock' ? 'mock' : 'live'),
+            fetchedAt: amazonResult.fetchedAt || new Date().toISOString()
           };
 
           // Debug: Log key demand data
@@ -213,7 +214,7 @@ export const analyzeDeal = async (req, res) => {
               estimatedMonthlySales: ebayResult.estimatedMonthlySales,
               confidence: ebayResult.confidence,
               // Track data source for sell price tracking (eBay always uses live API)
-              dataSource: 'live'
+              dataSource: ebayResult.dataSource || (dataSourceMode === 'mock' ? 'mock' : 'live')
             };
 
             console.log(`[eBay ${market}] Avg Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
@@ -298,7 +299,11 @@ export const analyzeDeal = async (req, res) => {
       product: productData,
       evaluation: {
         dealScore: evaluation.dealScore.overall,
-        scoreBreakdown: evaluation.dealScore.breakdown,
+        scoreBreakdown: {
+          breakdown: evaluation.dealScore.breakdown,
+          weighted: evaluation.dealScore.weighted,
+          weights: evaluation.dealScore.weights
+        },
         decision: evaluation.decision,
         explanation: evaluation.explanation,
         bestChannel: evaluation.bestChannel,
