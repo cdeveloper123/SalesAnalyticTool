@@ -655,9 +655,11 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
       ebayPricing[marketplace] = {
         buyBoxPrice: channel.sellPrice,
         currency: channel.currency || 'USD',
-        // Preserve demand signals for eBay
-        soldLast90Days: demand.soldLast90Days || demand.estimatedMonthlySales?.mid,
-        listingsCount: demand.listingsCount,
+        // Preserve demand signals for eBay - CRITICAL: estimatedMonthlySales is what processEbayChannelWithLandedCost uses
+        estimatedMonthlySales: demand.estimatedMonthlySales?.mid || demand.soldLast90Days || 0,
+        soldLast90Days: demand.soldLast90Days || 0,
+        activeListings: demand.listingsCount || 0,
+        confidence: demand.confidence || 'Low',
         dataSource: channel.pricingSource || 'recalculated'
       };
     }

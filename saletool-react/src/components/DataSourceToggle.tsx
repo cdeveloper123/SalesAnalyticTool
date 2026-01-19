@@ -42,7 +42,7 @@ export default function DataSourceToggle({ mode, onChange, className = '' }: Dat
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <span className="text-xs text-gray-400 mr-2">Data Source:</span>
+      <span className="hidden sm:inline text-xs text-gray-400 mr-2">Data Source:</span>
       <div className="flex gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
         {modes.map((m) => {
           const config = getModeConfig(m);

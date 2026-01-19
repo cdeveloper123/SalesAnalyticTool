@@ -49,7 +49,7 @@ const getDecisionConfig = (decision: Product['decision']) => {
 };
 
 const getScoreColor = (score: number) => {
-  if (score >= 80) return { text: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' };
+  if (score >= 80) return { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' };
   if (score >= 60) return { text: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' };
   if (score >= 40) return { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/30' };
   return { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' };
@@ -172,25 +172,34 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-300">
-      {/* Header Section - Clickable to expand/collapse */}
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full bg-gray-800/50 border-b border-gray-700 px-6 py-4 hover:bg-gray-750 transition-colors text-left"
-      >
-        <div className="flex justify-between">
-          <div className="flex-1 flex items-center gap-3">
+      {/* Header Section */}
+      <div className="bg-gray-800/50 border-b border-gray-700 px-4 sm:px-6 py-4 hover:bg-gray-750 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 sm:gap-0">
+          {/* Left side - Clickable to expand/collapse */}
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 flex items-center gap-3 text-left"
+          >
             {isExpanded ? (
               <FiChevronDown className="text-gray-400 flex-shrink-0" size={20} />
             ) : (
               <FiChevronRight className="text-gray-400 flex-shrink-0" size={20} />
             )}
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">
-                {product.productName || `Product ${product.ean}`}
-              </h2>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-bold text-white line-clamp-2">
+                  {product.productName || `Product ${product.ean}`}
+                </h2>
+                {/* Deal Mode Badge - Inline with product name */}
+                <div className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 flex-shrink-0">
+                  <div className="flex items-center gap-1 text-emerald-400">
+                    <FiShoppingCart size={10} />
+                    <span className="text-[10px] font-semibold uppercase tracking-wide">Deal</span>
+                  </div>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                <FiHash className="text-gray-500" size={14} />
                 <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
                 <button
                   type="button"
@@ -202,9 +211,10 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 </button>
               </div>
             </div>
-          </div>
+          </button>
 
-          <div className="flex items-center gap-3">
+          {/* Right side - Action buttons (not nested in expand button) */}
+          <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
             {/* Edit Assumptions Button */}
             {product.id && (
               <button
@@ -230,20 +240,20 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
             )}
 
             {/* Deal Score Badge */}
-            <div className={`flex flex-col items-center justify-center px-4 py-3 rounded-lg border ${scoreColors.bg} ${scoreColors.border} min-w-[80px]`}>
-              <span className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Score</span>
-              <span className={`text-3xl font-bold ${scoreColors.text}`}>
+            <div className={`flex flex-col items-center justify-center px-3 sm:px-4 py-2 sm:py-3 rounded-lg border ${scoreColors.bg} ${scoreColors.border} min-w-[80px] sm:min-w-[100px]`}>
+              <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Score</span>
+              <span className={`text-xl sm:text-2xl font-bold ${scoreColors.text}`}>
                 {product.deal_quality_score}%
               </span>
             </div>
 
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Main Content - Collapsible */}
       {isExpanded && (
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Basic Inputs Section */}
           {(product.quantity != null || product.buy_price != null || product.currency || product.supplier_region) && (
             <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
@@ -251,7 +261,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 <FiInfo className="text-blue-400" size={18} />
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Input Parameters</span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {product.quantity != null && (
                   <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
                     <div className="text-xs text-gray-400 mb-1.5 font-medium">Quantity</div>
@@ -461,7 +471,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
           </div>
 
           {/* Metrics Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
               <div className="text-xs text-gray-400 mb-1.5 font-medium">Net Margin</div>
               <div className="text-lg font-bold text-white">{product.net_margin.toFixed(1)}%</div>
@@ -810,7 +820,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                       </span>
                                     ) : (
                                       <span className="text-[10px] text-yellow-400/80 font-medium italic">
-                                        Estimated: {(channel as any).demand.methodology || 'BSR Formula'}
+                                        Estimated: {(channel as any).dataSources?.demand?.source || (channel as any).demand.methodology || 'Formula'}
                                       </span>
                                     )}
                                   </div>
@@ -1266,33 +1276,33 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
               <AssumptionHistory history={product.assumptions.history} />
             </div>
           )}
-
-          {/* Edit Assumptions Modal */}
-          {product.id && (
-            <EditAssumptionsModal
-              isOpen={isEditModalOpen}
-              onClose={() => {
-                setIsEditModalOpen(false);
-                // Reload assumptions after closing modal (in case changes were made)
-                if (assumptions) {
-                  setAssumptions(null);
-                  loadAssumptions();
-                }
-              }}
-              dealId={product.id}
-              supplierRegion={getSupplierRegion()}
-              productName={product.productName}
-              onSave={() => {
-                // Reload assumptions after save
-                setAssumptions(null);
-                if (onUpdate) {
-                  onUpdate();
-                }
-                loadAssumptions();
-              }}
-            />
-          )}
         </div>
+      )}
+
+      {/* Edit Assumptions Modal - Rendered outside isExpanded so it works when card is collapsed */}
+      {product.id && (
+        <EditAssumptionsModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            // Reload assumptions after closing modal (in case changes were made)
+            if (assumptions) {
+              setAssumptions(null);
+              loadAssumptions();
+            }
+          }}
+          dealId={product.id}
+          supplierRegion={getSupplierRegion()}
+          productName={product.productName}
+          onSave={() => {
+            // Reload assumptions after save
+            setAssumptions(null);
+            if (onUpdate) {
+              onUpdate();
+            }
+            loadAssumptions();
+          }}
+        />
       )}
     </div>
   );

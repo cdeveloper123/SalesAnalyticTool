@@ -51,37 +51,58 @@ model AssumptionHistory {
   createdAt     DateTime @default(now())
 }
 
-// Deal/Product Model - Stores analyzed deals
+// Analysis Mode Enum
+enum AnalysisMode {
+  DEAL
+  DISCOVERY
+  QUICK_LOOKUP
+}
+
+// Deal/Product Model - Stores analyzed deals (all modes)
 model Deal {
-  id                String   @id @default(uuid())
-  ean               String
+  id                String       @id @default(uuid())
+  ean               String?      // Optional for Discovery mode (can use productName)
   productName       String?
-  quantity          Int
-  buyPrice          Float
-  currency          String
-  supplierRegion    String
+  analysisMode      AnalysisMode @default(DEAL)  // Mode: DEAL, DISCOVERY, QUICK_LOOKUP
+  dataSourceMode    String?      // 'live' or 'mock' - indicates data source used
   
-  // Analysis results
-  dealScore         Int      // Overall deal quality score
-  netMargin         Float
-  demandConfidence  Int
-  volumeRisk        Int
-  dataReliability   Int
-  decision          String   // 'Buy', 'Renegotiate', 'Source Elsewhere', 'Pass'
+  // Deal mode specific fields (nullable for other modes)
+  quantity          Int?
+  buyPrice          Float?
+  currency          String?
+  supplierRegion    String?
+  
+  // Analysis results (Deal mode specific, nullable for other modes)
+  dealScore         Int?     // Overall deal quality score
+  netMargin         Float?
+  demandConfidence  Int?
+  volumeRisk        Int?
+  dataReliability   Int?
+  decision          String?  // 'Buy', 'Renegotiate', 'Source Elsewhere', 'Pass'
   explanation       String?
   
-  // Best channel info
+  // Best channel info (Deal mode)
   bestChannel       String?  // Channel name
   bestMarketplace   String?  // Marketplace code
   bestMarginPercent Float?
   bestCurrency      String?
   
   // Full evaluation data (stored as JSON for flexibility)
-  evaluationData    Json     // Complete evaluation result
+  evaluationData    Json?    // Complete evaluation result (nullable for Quick Lookup)
   productData       Json?    // Product information
   marketData        Json?    // Market data (Amazon, eBay)
   assumptions       Json?    // Assumptions used
-  performanceMetrics Json?   // Performance logging: { total, db: { total, operations }, api: { total, calls }, logic: { total, operations } }
+  performanceMetrics Json?   // Performance logging
+  
+  // Discovery mode specific fields
+  priceByRegion         Json?  // { "US": { price, currency }, ... }
+  highestPriceRegions   Json?  // ["US", "UK", "DE"]
+  largestVolumeRegions  Json?  // ["UK", "DE", "US"]
+  demandSignals         Json?  // { level: "HIGH", signals: [...] }
+  
+  // Quick Lookup mode specific fields
+  currentPrice          Json?  // { price, currency, market }
+  riskSnapshot          Json?  // { level: "HIGH/MEDIUM/LOW", flags: [...] }
   
   // Timestamps
   analyzedAt        DateTime @default(now())
@@ -89,6 +110,7 @@ model Deal {
   updatedAt         DateTime @updatedAt
   
   @@index([ean])
+  @@index([analysisMode])
   @@index([analyzedAt])
   @@index([decision])
 }

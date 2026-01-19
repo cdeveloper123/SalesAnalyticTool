@@ -2,9 +2,22 @@
 const API_BASE_URL = import.meta.env.VITE_REACT_BACKEND_URL || 'http://localhost:3001';
 
 export const API_ENDPOINTS = {
+  // Deal Mode (existing)
   ANALYZE: `${API_BASE_URL}/api/v1/deals/analyze`,
   DEALS: `${API_BASE_URL}/api/v1/deals`,
   DEAL_DELETE: (id: string) => `${API_BASE_URL}/api/v1/deals/${id}`,
+
+  // Discovery Mode
+  DISCOVERY_ANALYZE: `${API_BASE_URL}/api/v1/discovery/analyze`,
+  DISCOVERY_LIST: `${API_BASE_URL}/api/v1/discovery`,
+  DISCOVERY_DELETE: (id: string) => `${API_BASE_URL}/api/v1/discovery/${id}`,
+
+  // Quick Lookup Mode
+  QUICKLOOKUP_ANALYZE: `${API_BASE_URL}/api/v1/quicklookup/analyze`,
+  QUICKLOOKUP_LIST: `${API_BASE_URL}/api/v1/quicklookup`,
+  QUICKLOOKUP_DELETE: (id: string) => `${API_BASE_URL}/api/v1/quicklookup/${id}`,
+
+  // Assumptions
   ASSUMPTIONS_OVERRIDES: `${API_BASE_URL}/api/v1/assumptions/overrides`,
   ASSUMPTIONS_OVERRIDE: (id: string) => `${API_BASE_URL}/api/v1/assumptions/overrides/${id}`,
   ASSUMPTIONS_VISIBILITY: (dealId: string) => `${API_BASE_URL}/api/v1/assumptions/${dealId}`,
@@ -17,5 +30,3 @@ export const API_ENDPOINTS = {
 };
 
 export default API_BASE_URL;
-
-

@@ -1,3 +1,6 @@
+// Analysis Mode Type
+export type AnalysisMode = 'deal' | 'discovery' | 'quickLookup';
+
 export interface LandedCost {
   buyPrice: number;
   duty: number;
@@ -127,6 +130,8 @@ export interface Product {
   id?: string; // Deal ID from database
   ean: string;
   productName?: string;
+  analysisMode?: AnalysisMode;  // Mode: 'deal', 'discovery', 'quickLookup'
+  dataSourceMode?: 'live' | 'mock';  // Track data source used
   // Basic input fields
   quantity?: number;
   buy_price?: number;
@@ -192,3 +197,86 @@ export interface Product {
     };
   };
 }
+
+// Discovery Mode Product - market research without margin analysis
+export interface DiscoveryProduct {
+  id?: string;
+  ean?: string;
+  productName?: string;
+  analysisMode: 'discovery';
+  dataSourceMode?: 'live' | 'mock';  // Track data source used
+  product?: {
+    title?: string;
+    asin?: string;
+    category?: string;
+    brand?: string;
+  };
+  priceByRegion: Record<string, {
+    price: number;
+    currency: string;
+    channel: string;
+    marketplace: string;
+    dataSource?: string;
+  }>;
+  highestPriceRegions: Array<{
+    region: string;
+    price: number;
+    currency: string;
+    channel: string;
+    marketplace: string;
+  }>;
+  largestVolumeRegions: Array<{
+    region: string;
+    salesRank?: number;
+    recentSales?: string;
+    estimatedMonthlySales?: number;
+    channel: string;
+    marketplace: string;
+  }>;
+  demandSignals: {
+    level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' | 'UNKNOWN';
+    signals: string[];
+  };
+  marketsAnalyzed?: {
+    amazon: number;
+    ebay: number;
+  };
+  analyzedAt: string;
+}
+
+// Quick Lookup Product - fast price/demand/risk snapshot
+export interface QuickLookupProduct {
+  id?: string;
+  ean: string;
+  productName?: string;
+  analysisMode: 'quickLookup';
+  dataSourceMode?: 'live' | 'mock';  // Track data source used
+  product?: {
+    title?: string;
+    asin?: string;
+    category?: string;
+    brand?: string;
+  };
+  currentPrice: {
+    price: number;
+    currency: string;
+    market: string;
+    channel: string;
+    marketplace: string;
+    dataSource?: string;
+  };
+  demand: {
+    level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' | 'UNKNOWN';
+    confidence: string;
+    indicators?: Record<string, unknown>;
+  };
+  riskSnapshot: {
+    level: 'HIGH' | 'MEDIUM' | 'LOW';
+    flags: string[];
+  };
+  analyzedAt: string;
+}
+
+// Union type for any product type
+export type AnyProduct = Product | DiscoveryProduct | QuickLookupProduct;
+

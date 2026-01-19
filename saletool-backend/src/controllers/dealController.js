@@ -332,6 +332,8 @@ export const analyzeDeal = async (req, res) => {
             data: {
               ean,
               productName: productData?.title || `Product ${ean}`,
+              analysisMode: 'DEAL',  // Tag as Deal mode
+              dataSourceMode,  // Track if mock or live data was used
               quantity,
               buyPrice,
               currency,

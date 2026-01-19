@@ -2,20 +2,28 @@ import { useState, useEffect } from 'react';
 import { FiPlus, FiPackage } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import AddProductForm, { ProductInput } from '../components/AddProductForm';
-import Button from '../components/Button';
+import AddDiscoveryForm, { DiscoveryInput } from '../components/AddDiscoveryForm';
+import AddQuickLookupForm, { QuickLookupInput } from '../components/AddQuickLookupForm';
+import ModeSelector from '../components/ModeSelector';
 import ProductCard from '../components/ProductCard';
+import DiscoveryCard from '../components/DiscoveryCard';
+import QuickLookupCard from '../components/QuickLookupCard';
+import Button from '../components/Button';
 import Loader from '../components/Loader';
 import DataSourceToggle, { DataSourceMode } from '../components/DataSourceToggle';
 import VersionInfo from '../components/VersionInfo';
 import Pagination from '../components/Pagination';
-import { Product } from '../types/product';
+import { Product, AnalysisMode, DiscoveryProduct, QuickLookupProduct, AnyProduct } from '../types/product';
 import { API_ENDPOINTS } from '../config/api';
 
 interface DealFromDB {
   id: string;
   ean: string;
   productName: string | null;
+  analysisMode?: string;  // 'DEAL', 'DISCOVERY', 'QUICK_LOOKUP'
+  dataSourceMode?: string;  // 'live' or 'mock'
   quantity: number;
   buyPrice: number;
   currency: string;
@@ -57,17 +65,32 @@ interface DealFromDB {
   productData: Record<string, unknown> | null;
   marketData: Record<string, unknown> | null;
   assumptions: Record<string, unknown> | null;
+  // Discovery mode specific fields
+  priceByRegion?: Record<string, unknown>;
+  highestPriceRegions?: unknown[];
+  largestVolumeRegions?: unknown[];
+  demandSignals?: { level?: string; signals?: string[] };
+  // Quick Lookup mode specific fields
+  currentPrice?: { price: number; currency: string; market: string };
+  riskSnapshot?: { level?: string; flags?: string[] };
+  analyzedAt?: string;
 }
 
 function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedMode, setSelectedMode] = useState<AnalysisMode | null>(null);
+  const [products, setProducts] = useState<AnyProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingDeals, setIsLoadingDeals] = useState(true);
   const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>('mock');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 5;
+
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; mode?: string; name?: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch saved deals when page changes
   useEffect(() => {
@@ -94,8 +117,45 @@ function Dashboard() {
       const result = await response.json();
 
       if (result.success && result.data) {
-        // Convert database deals to Product format
-        const convertedProducts: Product[] = result.data.map((deal: DealFromDB) => {
+        // Convert database deals to appropriate product format based on analysisMode
+        const convertedProducts: AnyProduct[] = result.data.map((deal: DealFromDB) => {
+          const mode = deal.analysisMode?.toLowerCase() || 'deal';
+
+          // For Discovery mode, return DiscoveryProduct
+          if (mode === 'discovery') {
+            return {
+              id: deal.id,
+              ean: deal.ean || undefined,
+              productName: deal.productName || undefined,
+              analysisMode: 'discovery' as const,
+              dataSourceMode: deal.dataSourceMode as 'live' | 'mock' | undefined,
+              product: deal.productData as DiscoveryProduct['product'],
+              priceByRegion: deal.priceByRegion || {},
+              highestPriceRegions: (deal.highestPriceRegions || []) as DiscoveryProduct['highestPriceRegions'],
+              largestVolumeRegions: (deal.largestVolumeRegions || []) as DiscoveryProduct['largestVolumeRegions'],
+              demandSignals: (deal.demandSignals || { level: 'UNKNOWN', signals: [] }) as DiscoveryProduct['demandSignals'],
+              marketsAnalyzed: (deal.marketData as any)?.marketsAnalyzed,
+              analyzedAt: deal.analyzedAt || new Date().toISOString(),
+            } as DiscoveryProduct;
+          }
+
+          // For Quick Lookup mode, return QuickLookupProduct
+          if (mode === 'quick_lookup') {
+            return {
+              id: deal.id,
+              ean: deal.ean || '',
+              productName: deal.productName || undefined,
+              analysisMode: 'quickLookup' as const,
+              dataSourceMode: deal.dataSourceMode as 'live' | 'mock' | undefined,
+              product: deal.productData as QuickLookupProduct['product'],
+              currentPrice: (deal.currentPrice || { price: 0, currency: 'USD', market: 'Unknown', channel: '', marketplace: '' }) as QuickLookupProduct['currentPrice'],
+              demand: (deal.demandSignals || { level: 'UNKNOWN', confidence: 'NONE' }) as QuickLookupProduct['demand'],
+              riskSnapshot: (deal.riskSnapshot || { level: 'UNKNOWN', flags: [] }) as QuickLookupProduct['riskSnapshot'],
+              analyzedAt: deal.analyzedAt || new Date().toISOString(),
+            } as QuickLookupProduct;
+          }
+
+          // For Deal mode (default), return Product
           const evaluation = deal.evaluationData || {};
           const channelAnalysis = evaluation.channelAnalysis || [];
           const firstChannel = channelAnalysis[0] || {};
@@ -104,6 +164,8 @@ function Dashboard() {
             id: deal.id,
             ean: deal.ean,
             productName: deal.productName || `Product ${deal.ean}`,
+            analysisMode: 'deal' as const,  // Tag as Deal mode
+            dataSourceMode: deal.dataSourceMode as 'live' | 'mock' | undefined,
             // Basic input fields
             quantity: deal.quantity,
             buy_price: deal.buyPrice,
@@ -188,18 +250,36 @@ function Dashboard() {
     }
   };
 
-  const handleDeleteProduct = async (dealId: string) => {
+  // Show delete confirmation dialog
+  const handleDeleteProduct = async (dealId: string, analysisMode?: string, productName?: string) => {
     if (!dealId) {
       toast.error('Deal ID is required');
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      return;
-    }
+    setDeleteTarget({ id: dealId, mode: analysisMode, name: productName });
+    setDeleteDialogOpen(true);
+  };
 
+  // Perform the actual delete
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setIsDeleting(true);
     try {
-      const response = await fetch(API_ENDPOINTS.DEAL_DELETE(dealId), {
+      // Determine the correct delete endpoint based on analysisMode
+      const mode = deleteTarget.mode?.toLowerCase() || 'deal';
+      let deleteUrl: string;
+
+      if (mode === 'discovery') {
+        deleteUrl = API_ENDPOINTS.DISCOVERY_DELETE(deleteTarget.id);
+      } else if (mode === 'quick_lookup' || mode === 'quicklookup') {
+        deleteUrl = API_ENDPOINTS.QUICKLOOKUP_DELETE(deleteTarget.id);
+      } else {
+        deleteUrl = API_ENDPOINTS.DEAL_DELETE(deleteTarget.id);
+      }
+
+      const response = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +292,7 @@ function Dashboard() {
       }
 
       // Remove from local state
-      const updatedProducts = products.filter(p => p.id !== dealId);
+      const updatedProducts = products.filter(p => p.id !== deleteTarget.id);
       setProducts(updatedProducts);
 
       // Update total count
@@ -234,6 +314,10 @@ function Dashboard() {
     } catch (error) {
       console.error('Error deleting product:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete product');
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -286,6 +370,126 @@ function Dashboard() {
     }
   };
 
+  // Handle Discovery mode analysis
+  const handleAddDiscovery = async (data: DiscoveryInput) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.DISCOVERY_ANALYZE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ean: data.ean,
+          productName: data.productName,
+          dataSourceMode
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `API Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        setTotalCount(prev => prev + 1);
+        setCurrentPage(1);
+        await fetchSavedDeals(1);
+      }
+      return result.data;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Quick Lookup mode analysis
+  const handleAddQuickLookup = async (data: QuickLookupInput) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.QUICKLOOKUP_ANALYZE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ean: data.ean,
+          dataSourceMode
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `API Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        setTotalCount(prev => prev + 1);
+        setCurrentPage(1);
+        await fetchSavedDeals(1);
+      }
+      return result.data;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle mode selection from ModeSelector
+  const handleModeSelect = (mode: AnalysisMode) => {
+    setSelectedMode(mode);
+    setIsModalOpen(true);
+  };
+
+  // Close modal and reset mode
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedMode(null);
+  };
+
+  // Get modal title based on selected mode
+  const getModalTitle = () => {
+    switch (selectedMode) {
+      case 'deal': return 'Add New Product - Deal Analysis';
+      case 'discovery': return 'Add New Product - Discovery Mode';
+      case 'quickLookup': return 'Add New Product - Quick Lookup';
+      default: return 'Add New Product';
+    }
+  };
+
+  // Render the correct card based on product's analysisMode
+  const renderProductCard = (product: AnyProduct, index: number) => {
+    // Check analysisMode from database
+    const mode = (product as any).analysisMode?.toLowerCase?.() || 'deal';
+    const productName = (product as any).productName || (product as any).product?.title || 'Unknown Product';
+
+    if (mode === 'discovery') {
+      return (
+        <DiscoveryCard
+          key={product.id || `discovery-${index}`}
+          product={product as DiscoveryProduct}
+          onDelete={product.id ? () => handleDeleteProduct(product.id!, 'discovery', productName) : undefined}
+        />
+      );
+    }
+
+    if (mode === 'quick_lookup' || mode === 'quicklookup') {
+      return (
+        <QuickLookupCard
+          key={product.id || `quicklookup-${index}`}
+          product={product as QuickLookupProduct}
+          onDelete={product.id ? () => handleDeleteProduct(product.id!, 'quick_lookup', productName) : undefined}
+        />
+      );
+    }
+
+    // Default: Deal mode (and backwards compatibility for existing products)
+    return (
+      <ProductCard
+        key={product.id || `${(product as Product).ean}-${index}`}
+        product={product as Product}
+        onDelete={product.id ? () => handleDeleteProduct(product.id!, 'deal', productName) : undefined}
+        onUpdate={() => fetchSavedDeals(currentPage)}
+      />
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* Full-screen Loader */}
@@ -314,29 +518,25 @@ function Dashboard() {
 
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">Sales Dashboard</h1>
-            <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Sales Dashboard</h1>
+            <div className="flex items-center gap-3 sm:gap-4">
               <DataSourceToggle
                 mode={dataSourceMode}
                 onChange={setDataSourceMode}
               />
-              <Button
-                variant="primary"
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 text-white"
-              >
-                <FiPlus size={18} />
-                Add Product
-              </Button>
+              <ModeSelector
+                onSelectMode={handleModeSelect}
+                buttonClassName="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm sm:text-base"
+              />
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-10">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-700">
             <div className="flex items-center justify-between">
@@ -373,14 +573,7 @@ function Dashboard() {
             <>
               <div className="p-6">
                 <div className="space-y-6">
-                  {products.map((product, index) => (
-                    <ProductCard
-                      key={product.id || `${product.ean}-${index}`}
-                      product={product}
-                      onDelete={product.id ? () => handleDeleteProduct(product.id!) : undefined}
-                      onUpdate={() => fetchSavedDeals(currentPage)}
-                    />
-                  ))}
+                  {products.map((product, index) => renderProductCard(product, index))}
                 </div>
               </div>
 
@@ -401,19 +594,35 @@ function Dashboard() {
       {/* Add Product Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Product"
+        onClose={handleCloseModal}
+        title={getModalTitle()}
       >
-        <AddProductForm
-          onSubmit={handleAddProduct}
-          onClose={() => setIsModalOpen(false)}
-          onLoadingStart={() => setIsLoading(true)}
-        />
+        {selectedMode === 'deal' && (
+          <AddProductForm
+            onSubmit={handleAddProduct}
+            onClose={handleCloseModal}
+            onLoadingStart={() => setIsLoading(true)}
+          />
+        )}
+        {selectedMode === 'discovery' && (
+          <AddDiscoveryForm
+            onSubmit={handleAddDiscovery}
+            onClose={handleCloseModal}
+            onLoadingStart={() => setIsLoading(true)}
+          />
+        )}
+        {selectedMode === 'quickLookup' && (
+          <AddQuickLookupForm
+            onSubmit={handleAddQuickLookup}
+            onClose={handleCloseModal}
+            onLoadingStart={() => setIsLoading(true)}
+          />
+        )}
       </Modal>
       {/* Footer with version info */}
       <footer className="bg-gray-800 border-t border-gray-700 mt-auto">
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <VersionInfo />
             <span className="text-xs text-gray-500">
               Sales Analytic Tool
@@ -421,6 +630,22 @@ function Dashboard() {
           </div>
         </div>
       </footer>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setDeleteTarget(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${deleteTarget?.name || 'this product'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
