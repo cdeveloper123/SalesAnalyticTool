@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiHash, FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings, FiCopy, FiClock } from 'react-icons/fi';
+import { FiCheckCircle, FiXCircle, FiAlertCircle, FiRefreshCw, FiShoppingCart, FiDollarSign, FiPackage, FiInfo, FiChevronDown, FiChevronUp, FiShield, FiAlertTriangle, FiTrash2, FiChevronRight, FiSettings, FiCopy, FiClock } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { Product } from '../types/product';
 import AssumptionHistory from './AssumptionHistory';
