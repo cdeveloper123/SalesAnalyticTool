@@ -5,7 +5,7 @@
  * No margin/score/decision calculation
  */
 
-import { getAmazonProductData } from '../services/amazonService.js';
+import { getAmazonProductData, searchByKeyword } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
 import { getPrisma } from '../config/database.js';
 import PerformanceLogger from '../utils/performanceLogger.js';
@@ -28,6 +28,7 @@ export const analyzeDiscovery = async (req, res) => {
         const {
             ean,
             productName,
+            searchType,  // 'ean' or 'keyword' - explicit from frontend
             dataSourceMode = 'live'
         } = req.body;
 
@@ -39,7 +40,7 @@ export const analyzeDiscovery = async (req, res) => {
             });
         }
 
-        console.log(`[Discovery] Analyzing: EAN=${ean || 'N/A'}, Name=${productName || 'N/A'}`);
+        console.log(`[Discovery] Analyzing: EAN=${ean || 'N/A'}, Name=${productName || 'N/A'}, SearchType=${searchType || 'auto'}`);
 
         // Fetch prices from all markets
         const amazonMarkets = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'];
@@ -49,11 +50,162 @@ export const analyzeDiscovery = async (req, res) => {
         const volumeByRegion = {};
         let productData = null;
         let productFoundInAnyMarket = false;
+        let lookupIdentifier = null;  // Either EAN or ASIN from keyword search
 
-        // Use EAN for lookup if available
-        const lookupEan = ean;
+        // Determine search method based on searchType or available data
+        const useKeywordSearch = searchType === 'keyword' || (!ean && productName);
 
-        if (lookupEan) {
+        if (useKeywordSearch && productName) {
+            // ========================================================================
+            // KEYWORD SEARCH MODE: Find product by name first
+            // ========================================================================
+            console.log(`[Discovery] Using KEYWORD search for: "${productName}"`);
+
+            const keywordResult = await perfLogger.trackAPI(
+                'Amazon',
+                'searchByKeyword-US',
+                () => searchByKeyword(productName, 'US', dataSourceMode),
+                { keyword: productName }
+            );
+
+            if (!keywordResult.success || !keywordResult.product) {
+                return res.status(404).json({
+                    success: false,
+                    message: `No products found for "${productName}"`,
+                    data: { productName }
+                });
+            }
+
+            // Extract product info from search result
+            const product = keywordResult.product;
+            productData = {
+                title: product.title,
+                asin: product.asin || keywordResult.asin,
+                category: product.categories?.[0]?.name || product.main_category?.name || 'Unknown',
+                brand: product.brand,
+                searchTerm: productName
+            };
+
+            productFoundInAnyMarket = true;
+            lookupIdentifier = product.asin || keywordResult.asin;
+
+            // Get US price from the search result
+            const usPrice = product.buybox_winner?.price?.value || product.price?.value || 0;
+            const usCurrency = product.buybox_winner?.price?.currency || product.price?.currency || 'USD';
+
+            if (usPrice > 0) {
+                priceByRegion['Amazon-US'] = {
+                    price: usPrice,
+                    currency: usCurrency,
+                    channel: 'Amazon',
+                    marketplace: 'US',
+                    dataSource: keywordResult.dataSource || dataSourceMode
+                };
+            }
+
+            // Get sales rank from product
+            let salesRank = 999999;
+            if (product.bestsellers_rank && product.bestsellers_rank.length > 0) {
+                salesRank = product.bestsellers_rank[0].rank || 999999;
+            }
+
+            volumeByRegion['Amazon-US'] = {
+                salesRank,
+                recentSales: product.recent_sales || null,
+                ratingsTotal: product.ratings_total || 0,
+                channel: 'Amazon',
+                marketplace: 'US',
+                dataSource: keywordResult.dataSource || dataSourceMode
+            };
+
+            console.log(`[Discovery] Found product: "${productData.title}" ASIN: ${lookupIdentifier}`);
+
+            // Now fetch from other Amazon markets using ASIN
+            for (const market of amazonMarkets.filter(m => m !== 'US')) {
+                try {
+                    const amazonResult = await perfLogger.trackAPI(
+                        'Amazon',
+                        `getProductData-${market}`,
+                        () => getAmazonProductData(lookupIdentifier, market, dataSourceMode),
+                        { market, asin: lookupIdentifier }
+                    );
+
+                    if (amazonResult.success && amazonResult.product) {
+                        const mktProduct = amazonResult.product;
+                        const price = mktProduct.buybox_winner?.price?.value || 0;
+                        const currency = mktProduct.buybox_winner?.price?.currency || 'USD';
+
+                        let mktSalesRank = 999999;
+                        if (mktProduct.bestsellers_rank && mktProduct.bestsellers_rank.length > 0) {
+                            mktSalesRank = mktProduct.bestsellers_rank[0].rank || 999999;
+                        }
+
+                        priceByRegion[`Amazon-${market}`] = {
+                            price,
+                            currency,
+                            channel: 'Amazon',
+                            marketplace: market,
+                            dataSource: amazonResult.dataSource || dataSourceMode
+                        };
+
+                        volumeByRegion[`Amazon-${market}`] = {
+                            salesRank: mktSalesRank,
+                            recentSales: mktProduct.recent_sales || null,
+                            ratingsTotal: mktProduct.ratings_total || 0,
+                            channel: 'Amazon',
+                            marketplace: market,
+                            dataSource: amazonResult.dataSource || dataSourceMode
+                        };
+
+                        console.log(`[Discovery Amazon ${market}] Price: ${currency} ${price}, Rank: ${mktSalesRank}`);
+                    }
+                } catch (error) {
+                    console.error(`[Discovery Amazon ${market}] Error:`, error.message);
+                }
+            }
+
+            // eBay keyword search for each market
+            for (const market of ebayMarkets) {
+                try {
+                    // Use product title for eBay keyword search
+                    const ebayResult = await perfLogger.trackAPI(
+                        'eBay',
+                        `keywordSearch-${market}`,
+                        () => ebayService.getProductPricingByKeyword(productData.title, market),
+                        { market, keyword: productData.title }
+                    );
+
+                    if (ebayResult && ebayResult.buyBoxPrice > 0) {
+                        priceByRegion[`eBay-${market}`] = {
+                            price: ebayResult.buyBoxPrice,
+                            currency: ebayResult.currency || 'USD',
+                            channel: 'eBay',
+                            marketplace: market,
+                            dataSource: ebayResult.dataSource || dataSourceMode
+                        };
+
+                        volumeByRegion[`eBay-${market}`] = {
+                            estimatedMonthlySales: ebayResult.estimatedMonthlySales || 0,
+                            activeListings: ebayResult.activeListings || 0,
+                            confidence: ebayResult.confidence || 'LOW',
+                            channel: 'eBay',
+                            marketplace: market,
+                            dataSource: ebayResult.dataSource || dataSourceMode
+                        };
+
+                        console.log(`[Discovery eBay ${market}] Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
+                    }
+                } catch (error) {
+                    console.error(`[Discovery eBay ${market}] Error:`, error.message);
+                }
+            }
+
+        } else if (ean) {
+            // ========================================================================
+            // EAN LOOKUP MODE (Original flow)
+            // ========================================================================
+            lookupIdentifier = ean;
+
             // Amazon price & volume data
             for (const market of amazonMarkets) {
                 try {
@@ -65,8 +217,8 @@ export const analyzeDiscovery = async (req, res) => {
                     const amazonResult = await perfLogger.trackAPI(
                         'Amazon',
                         `getProductData-${market}`,
-                        () => getAmazonProductData(lookupEan, market, dataSourceMode),
-                        { market, ean: lookupEan }
+                        () => getAmazonProductData(ean, market, dataSourceMode),
+                        { market, ean }
                     );
 
                     if (amazonResult.success && amazonResult.product) {
@@ -79,7 +231,7 @@ export const analyzeDiscovery = async (req, res) => {
                                 asin: product.asin,
                                 category: product.categories?.[0]?.name || product.main_category?.name || 'Unknown',
                                 brand: product.brand,
-                                ean: lookupEan
+                                ean
                             };
                         }
 
@@ -111,7 +263,8 @@ export const analyzeDiscovery = async (req, res) => {
                             recentSales: product.recent_sales || null,
                             ratingsTotal: product.ratings_total || 0,
                             channel: 'Amazon',
-                            marketplace: market
+                            marketplace: market,
+                            dataSource: amazonResult.dataSource || dataSourceMode
                         };
 
                         console.log(`[Discovery Amazon ${market}] Price: ${currency} ${price}, Rank: ${salesRank}`);
@@ -128,8 +281,8 @@ export const analyzeDiscovery = async (req, res) => {
                         const ebayResult = await perfLogger.trackAPI(
                             'eBay',
                             `getProductPricingByEAN-${market}`,
-                            () => ebayService.getProductPricingByEAN(lookupEan, market),
-                            { market, ean: lookupEan }
+                            () => ebayService.getProductPricingByEAN(ean, market),
+                            { market, ean }
                         );
 
                         if (ebayResult && ebayResult.buyBoxPrice > 0) {
@@ -146,7 +299,8 @@ export const analyzeDiscovery = async (req, res) => {
                                 activeListings: ebayResult.activeListings || 0,
                                 confidence: ebayResult.confidence || 'LOW',
                                 channel: 'eBay',
-                                marketplace: market
+                                marketplace: market,
+                                dataSource: ebayResult.dataSource || dataSourceMode
                             };
 
                             console.log(`[Discovery eBay ${market}] Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
@@ -157,6 +311,7 @@ export const analyzeDiscovery = async (req, res) => {
                 }
             }
         }
+
 
         if (Object.keys(priceByRegion).length === 0) {
             return res.status(404).json({
@@ -194,12 +349,12 @@ export const analyzeDiscovery = async (req, res) => {
         // Generate demand signals
         const demandSignals = {
             level: calculateDemandLevel(volumeByRegion),
-            signals: generateDemandSignals(volumeByRegion, priceByRegion)
+            signals: generateDemandSignals(volumeByRegion, priceByRegion, dataSourceMode)
         };
 
         // Prepare response
         const responseData = {
-            ean: lookupEan,
+            ean: lookupIdentifier,
             productName: productData?.title || productName,
             analysisMode: 'discovery',
             dataSourceMode,  // Track if mock or live data was used
@@ -223,8 +378,8 @@ export const analyzeDiscovery = async (req, res) => {
                     'deal.create',
                     () => prisma.deal.create({
                         data: {
-                            ean: lookupEan || null,
-                            productName: productData?.title || productName || `Discovery ${lookupEan || 'Unknown'}`,
+                            ean: lookupIdentifier || null,
+                            productName: productData?.title || productName || `Discovery ${lookupIdentifier || 'Unknown'}`,
                             analysisMode: 'DISCOVERY',
                             dataSourceMode,  // Track if mock or live data was used
                             // Discovery specific fields
@@ -237,7 +392,7 @@ export const analyzeDiscovery = async (req, res) => {
                             marketData: { priceByRegion, volumeByRegion }
                         }
                     }),
-                    { ean: lookupEan }
+                    { ean: lookupIdentifier }
                 );
 
                 responseData.id = savedDeal.id;
@@ -248,7 +403,7 @@ export const analyzeDiscovery = async (req, res) => {
 
         // Log performance
         const perfSummary = perfLogger.getSummary();
-        console.log(`[PERF Discovery] ${lookupEan || productName} - Total: ${perfSummary.total}ms`);
+        console.log(`[PERF Discovery] ${lookupIdentifier || productName} - Total: ${perfSummary.total}ms`);
 
         res.status(200).json({
             success: true,
@@ -294,10 +449,21 @@ export const getDiscoveryProducts = async (req, res) => {
             orderBy: { analyzedAt: 'desc' }
         });
 
+        const dealsWithMetadata = deals.map(deal => {
+            const priceByRegion = (deal.priceByRegion || {});
+            return {
+                ...deal,
+                marketsAnalyzed: {
+                    amazon: Object.keys(priceByRegion).filter(k => k.startsWith('Amazon')).length,
+                    ebay: Object.keys(priceByRegion).filter(k => k.startsWith('eBay')).length
+                }
+            };
+        });
+
         res.status(200).json({
             success: true,
-            data: deals,
-            count: deals.length,
+            data: dealsWithMetadata,
+            count: dealsWithMetadata.length,
             total: totalCount,
             limit: parseInt(limit),
             offset: parseInt(offset)
@@ -376,7 +542,9 @@ function calculateDemandLevel(volumeByRegion) {
 }
 
 // Helper: Generate demand signals
-function generateDemandSignals(volumeByRegion, priceByRegion) {
+function generateDemandSignals(volumeByRegion, priceByRegion, dataSourceMode = 'live') {
+    const isMock = dataSourceMode === 'mock';
+    const prefix = isMock ? '[Mock] ' : '';
     const signals = [];
 
     // Check for high-volume markets
@@ -384,7 +552,7 @@ function generateDemandSignals(volumeByRegion, priceByRegion) {
         .filter(([k, v]) => k.startsWith('Amazon') && v.salesRank < 10000);
 
     if (highVolumeMarkets.length > 0) {
-        signals.push(`High volume in ${highVolumeMarkets.length} Amazon market(s)`);
+        signals.push(`${prefix}High volume in ${highVolumeMarkets.length} Amazon market(s)`);
     }
 
     // Check for recent sales data
@@ -392,7 +560,8 @@ function generateDemandSignals(volumeByRegion, priceByRegion) {
         .filter(([, v]) => v.recentSales);
 
     if (recentSalesMarkets.length > 0) {
-        signals.push(`Recent sales data available: ${recentSalesMarkets.map(([k, v]) => `${k}: ${v.recentSales}`).join(', ')}`);
+        const salesLabel = isMock ? 'Mock sales data' : 'Recent sales data';
+        signals.push(`${salesLabel} available: ${recentSalesMarkets.map(([k, v]) => `${k}: ${v.recentSales}`).join(', ')}`);
     }
 
     // Price variance analysis

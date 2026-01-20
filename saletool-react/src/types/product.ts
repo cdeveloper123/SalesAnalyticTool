@@ -224,6 +224,7 @@ export interface DiscoveryProduct {
     currency: string;
     channel: string;
     marketplace: string;
+    dataSource?: string;
   }>;
   largestVolumeRegions: Array<{
     region: string;
@@ -232,6 +233,7 @@ export interface DiscoveryProduct {
     estimatedMonthlySales?: number;
     channel: string;
     marketplace: string;
+    dataSource?: string;
   }>;
   demandSignals: {
     level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' | 'UNKNOWN';

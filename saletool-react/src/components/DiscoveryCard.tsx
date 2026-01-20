@@ -130,17 +130,6 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
             {/* Expanded Content */}
             {isExpanded && (
                 <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                    {/* Data Source Indicator */}
-                    {product.dataSourceMode && (
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${product.dataSourceMode === 'mock'
-                            ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                            : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                            }`}>
-                            <span className="w-2 h-2 rounded-full bg-current"></span>
-                            {product.dataSourceMode === 'mock' ? 'Analysis based on Mock Data' : 'Analysis based on Live Data'}
-                        </div>
-                    )}
-
                     {/* Key Metrics */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         {/* Demand Level */}
@@ -195,6 +184,13 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                         <span className="text-sm font-bold text-emerald-400">
                                             {formatCurrency(region.price, region.currency)}
                                         </span>
+                                        {/* LIVE/MOCK badge */}
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${region.dataSource === 'live' || region.dataSource === 'api'
+                                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                            }`}>
+                                            {region.dataSource === 'live' || region.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
@@ -209,17 +205,28 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                 Largest Volume Regions
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                {product.largestVolumeRegions.slice(0, 5).map((region, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg">
-                                        <span className="text-sm font-medium text-gray-300">{region.region}</span>
-                                        {region.salesRank && (
-                                            <span className="text-xs text-gray-400">Rank #{region.salesRank.toLocaleString()}</span>
-                                        )}
-                                        {region.recentSales && (
-                                            <span className="text-xs text-emerald-400">{region.recentSales}</span>
-                                        )}
-                                    </div>
-                                ))}
+                                {product.largestVolumeRegions.slice(0, 5).map((region, idx) => {
+                                    // Use actual dataSource from backend
+                                    const isLiveData = region.dataSource === 'live' || region.dataSource === 'api';
+                                    return (
+                                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg">
+                                            <span className="text-sm font-medium text-gray-300">{region.region}</span>
+                                            {region.salesRank && (
+                                                <span className="text-xs text-gray-400">Rank #{region.salesRank.toLocaleString()}</span>
+                                            )}
+                                            {region.recentSales && (
+                                                <span className="text-xs text-emerald-400">{region.recentSales}</span>
+                                            )}
+                                            {/* LIVE/MOCK badge - uses actual dataSource */}
+                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isLiveData
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                }`}>
+                                                {isLiveData ? 'LIVE' : 'MOCK'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -246,7 +253,16 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                 {Object.entries(product.priceByRegion).map(([key, data]) => (
                                     <div key={key} className="flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg">
-                                        <span className="text-xs text-gray-400">{key}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-gray-400">{key}</span>
+                                            {/* LIVE/MOCK badge */}
+                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${data.dataSource === 'live' || data.dataSource === 'api'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                }`}>
+                                                {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                            </span>
+                                        </div>
                                         <span className="text-sm font-medium text-white">
                                             {formatCurrency(data.price, data.currency)}
                                         </span>

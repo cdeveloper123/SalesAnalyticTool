@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { FiLoader, FiSearch } from 'react-icons/fi';
+import { FiLoader, FiSearch, FiHash, FiType } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Input from './Input';
 import Button from './Button';
@@ -7,6 +7,7 @@ import Button from './Button';
 export interface DiscoveryInput {
     ean?: string;
     productName?: string;
+    searchType?: 'ean' | 'keyword';
 }
 
 interface AddDiscoveryFormProps {
@@ -20,17 +21,15 @@ export default function AddDiscoveryForm({
     onClose,
     onLoadingStart
 }: AddDiscoveryFormProps) {
-    const [formData, setFormData] = useState<DiscoveryInput>({
-        ean: '',
-        productName: ''
-    });
+    const [searchMode, setSearchMode] = useState<'ean' | 'keyword'>('ean');
+    const [inputValue, setInputValue] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [eanError, setEanError] = useState('');
+    const [inputError, setInputError] = useState('');
 
-    // Validate EAN format (if provided)
+    // Validate EAN format
     const validateEAN = (ean: string): { isValid: boolean; error?: string } => {
         if (!ean || ean.trim() === '') {
-            return { isValid: true }; // Empty is OK if productName is provided
+            return { isValid: false, error: 'EAN is required' };
         }
 
         const cleanEan = ean.replace(/\D/g, '');
@@ -40,29 +39,36 @@ export default function AddDiscoveryForm({
         return { isValid: true };
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    // Handle search mode change
+    const handleModeChange = (mode: 'ean' | 'keyword') => {
+        setSearchMode(mode);
+        setInputValue(''); // Clear input when switching modes
+        setInputError('');
+    };
 
-        if (name === 'ean') {
-            setEanError('');
-        }
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = searchMode === 'ean'
+            ? e.target.value.replace(/[^0-9]/g, '') // Only digits for EAN
+            : e.target.value;
+        setInputValue(value);
+        setInputError('');
     };
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
-        // Validate: at least one field required
-        if (!formData.ean?.trim() && !formData.productName?.trim()) {
-            toast.error('Please provide either EAN or Product Name');
+        if (!inputValue.trim()) {
+            const errorMsg = searchMode === 'ean' ? 'Please enter an EAN' : 'Please enter a product name';
+            toast.error(errorMsg);
+            setInputError(errorMsg);
             return;
         }
 
-        // Validate EAN format if provided
-        if (formData.ean?.trim()) {
-            const eanValidation = validateEAN(formData.ean);
+        // Validate EAN format if in EAN mode
+        if (searchMode === 'ean') {
+            const eanValidation = validateEAN(inputValue);
             if (!eanValidation.isValid) {
-                setEanError(eanValidation.error || 'Invalid EAN');
+                setInputError(eanValidation.error || 'Invalid EAN');
                 toast.error(eanValidation.error || 'Invalid EAN format');
                 return;
             }
@@ -70,12 +76,13 @@ export default function AddDiscoveryForm({
 
         setIsSubmitting(true);
         onLoadingStart?.();
-        onClose(); // Close modal immediately
+        onClose();
 
         try {
             await onSubmit({
-                ean: formData.ean?.trim() || undefined,
-                productName: formData.productName?.trim() || undefined
+                ean: searchMode === 'ean' ? inputValue.trim() : undefined,
+                productName: searchMode === 'keyword' ? inputValue.trim() : undefined,
+                searchType: searchMode
             });
             toast.success('Discovery analysis completed!');
         } catch (error) {
@@ -100,34 +107,56 @@ export default function AddDiscoveryForm({
                 </p>
             </div>
 
-            {/* EAN Input */}
-            <Input
-                label="Product EAN/UPC"
-                name="ean"
-                type="text"
-                value={formData.ean}
-                onChange={handleChange}
-                placeholder="e.g., 0045496395230"
-                error={eanError}
-                hint="Optional if product name is provided"
-            />
-
-            {/* OR Divider */}
-            <div className="flex items-center gap-4">
-                <div className="flex-1 border-t border-gray-700"></div>
-                <span className="text-gray-500 text-sm">OR</span>
-                <div className="flex-1 border-t border-gray-700"></div>
+            {/* Search Mode Selector */}
+            <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Search By
+                </label>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleModeChange('ean')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all duration-200 ${searchMode === 'ean'
+                                ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                                : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600'
+                            }`}
+                    >
+                        <FiHash size={16} />
+                        <span className="font-medium">EAN / UPC</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleModeChange('keyword')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all duration-200 ${searchMode === 'keyword'
+                                ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
+                                : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600'
+                            }`}
+                    >
+                        <FiType size={16} />
+                        <span className="font-medium">Product Name</span>
+                    </button>
+                </div>
             </div>
 
-            {/* Product Name Input */}
+            {/* Dynamic Input Field */}
             <Input
-                label="Product Name"
-                name="productName"
+                label={searchMode === 'ean' ? 'Product EAN/UPC' : 'Product Name'}
+                name="searchInput"
                 type="text"
-                value={formData.productName}
-                onChange={handleChange}
-                placeholder="e.g., Nintendo Switch Pro Controller"
-                hint="Optional if EAN is provided"
+                value={inputValue}
+                onChange={handleInputChange}
+                placeholder={
+                    searchMode === 'ean'
+                        ? 'e.g., 0045496395230'
+                        : 'e.g., Nintendo Switch Pro Controller'
+                }
+                error={inputError}
+                maxLength={searchMode === 'ean' ? 14 : 200}
+                hint={
+                    searchMode === 'ean'
+                        ? 'Enter the 8-14 digit barcode number'
+                        : 'Enter the product name to search Amazon'
+                }
             />
 
             {/* What You'll Get */}
@@ -154,7 +183,7 @@ export default function AddDiscoveryForm({
                 <Button
                     type="submit"
                     variant="primary"
-                    disabled={isSubmitting || (!formData.ean?.trim() && !formData.productName?.trim())}
+                    disabled={isSubmitting || !inputValue.trim()}
                     className="flex items-center gap-2"
                 >
                     {isSubmitting ? (

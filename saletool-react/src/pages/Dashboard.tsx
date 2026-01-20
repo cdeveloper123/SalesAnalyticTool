@@ -380,6 +380,7 @@ function Dashboard() {
         body: JSON.stringify({
           ean: data.ean,
           productName: data.productName,
+          searchType: data.searchType,  // 'ean' or 'keyword'
           dataSourceMode
         }),
       });

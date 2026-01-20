@@ -155,10 +155,10 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
 
     // Step 1: Try GTIN (EAN) lookup first
     const gtinResult = await getProductByGTIN(apiKey, amazonDomain, ean);
-    console.log('GTIN Result------------------------>>>>>:', gtinResult);
+    console.log('GTIN Result------------------------>>>>>', gtinResult);
 
     if (gtinResult.success) {
-      const result = {
+      return {
         source: 'amazon',
         success: true,
         domain: amazonDomain,
@@ -168,13 +168,6 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
         product: gtinResult.product,
         dataSource: 'live',
       };
-
-      // Cache the result if in cached mode
-      if (dataSourceMode === 'cached') {
-        dataCache.set(cacheKey, result);
-      }
-
-      return result;
     }
 
     console.log('ASIN WILL BE CALLED------------------------>>>>>');
@@ -182,9 +175,9 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
     // Step 2: If GTIN lookup failed, try treating the input as ASIN
     const asinResult = await getProductByASIN(apiKey, amazonDomain, ean);
 
-    console.log('ASIN Result------------------------>>>>>:', asinResult);
+    console.log('ASIN Result------------------------>>>>>', asinResult);
     if (asinResult.success) {
-      const result = {
+      return {
         source: 'amazon',
         success: true,
         domain: amazonDomain,
@@ -194,13 +187,6 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
         product: asinResult.product,
         dataSource: 'live',
       };
-
-      // Cache the result if in cached mode
-      if (dataSourceMode === 'cached') {
-        dataCache.set(cacheKey, result);
-      }
-
-      return result;
     }
 
     return {
@@ -231,6 +217,160 @@ export const getAmazonProductData = async (ean, country = 'US', dataSourceMode =
       success: false,
       error: error.message,
       dataSource: dataSourceMode,
+    };
+  }
+};
+
+/**
+ * Search Amazon by keyword/product name
+ * Uses Rainforest API type=search to find products by name
+ * 
+ * @param {string} keyword - Product name or search term
+ * @param {string} country - Target country code (US, UK, DE, etc.)
+ * @param {string} dataSourceMode - 'live' or 'mock'
+ * @returns {Object} - Search result with top product data
+ */
+export const searchByKeyword = async (keyword, country = 'US', dataSourceMode = 'live') => {
+  try {
+    // MOCK MODE: Return mock search result
+    if (dataSourceMode === 'mock') {
+      console.log(`[Amazon Service] Using MOCK keyword search for: ${keyword}, Country: ${country}`);
+      const mockData = loadMockData();
+      const mockResult = mockData[country] || mockData['US'] || null;
+
+      if (mockResult) {
+        return {
+          source: 'amazon',
+          success: true,
+          domain: getAmazonDomain(country),
+          country: country,
+          lookupMethod: 'keyword-mock',
+          product: mockResult.product,
+          searchTerm: keyword,
+          dataSource: 'mock',
+          fetchedAt: new Date().toISOString()
+        };
+      }
+
+      return {
+        source: 'amazon',
+        success: false,
+        domain: getAmazonDomain(country),
+        country: country,
+        dataSource: 'mock',
+        message: 'No mock data available for keyword search'
+      };
+    }
+
+    // LIVE MODE: Search via Rainforest API
+    const apiKey = process.env.RAINFOREST_API_KEY;
+    if (!apiKey) {
+      console.log('[Amazon Service] No API key, falling back to mock for keyword search');
+      return searchByKeyword(keyword, country, 'mock');
+    }
+
+    const amazonDomain = getAmazonDomain(country);
+
+    console.log(`[Amazon Service] Keyword search: "${keyword}" on ${amazonDomain}`);
+
+    const params = {
+      api_key: apiKey,
+      type: 'search',
+      amazon_domain: amazonDomain,
+      search_term: keyword,
+      sort_by: 'relevance'
+    };
+
+    const response = await axios.get('https://api.rainforestapi.com/request', { params });
+
+    if (response.data && response.data.search_results && response.data.search_results.length > 0) {
+      // Get the top result
+      const topResult = response.data.search_results[0];
+
+      // If we have an ASIN, fetch full product details
+      if (topResult.asin) {
+        const productResult = await getProductByASIN(apiKey, amazonDomain, topResult.asin);
+        if (productResult.success) {
+          return {
+            source: 'amazon',
+            success: true,
+            domain: amazonDomain,
+            country: country,
+            lookupMethod: 'keyword',
+            product: productResult.product,
+            asin: topResult.asin,
+            searchTerm: keyword,
+            searchResultsCount: response.data.search_results.length,
+            dataSource: 'live',
+            fetchedAt: new Date().toISOString()
+          };
+        }
+      }
+
+      // If no ASIN or product fetch failed, return search result data
+      return {
+        source: 'amazon',
+        success: true,
+        domain: amazonDomain,
+        country: country,
+        lookupMethod: 'keyword',
+        product: {
+          title: topResult.title,
+          asin: topResult.asin,
+          price: topResult.price?.value ? {
+            value: topResult.price.value,
+            currency: topResult.price.currency || 'USD'
+          } : null,
+          rating: topResult.rating,
+          ratings_total: topResult.ratings_total,
+          image: topResult.image,
+          categories: topResult.categories || []
+        },
+        asin: topResult.asin,
+        searchTerm: keyword,
+        searchResultsCount: response.data.search_results.length,
+        dataSource: 'live',
+        fetchedAt: new Date().toISOString()
+      };
+    }
+
+    return {
+      source: 'amazon',
+      success: false,
+      domain: amazonDomain,
+      country: country,
+      searchTerm: keyword,
+      dataSource: 'live',
+      message: 'No products found for search term'
+    };
+
+  } catch (error) {
+    console.error(`[Amazon Service] Keyword search error: ${error.message}`);
+
+    // Fallback to mock data
+    console.log('[Amazon Service] Keyword search error, falling back to mock data');
+    const mockData = loadMockData();
+    const mockResult = mockData[country] || mockData['US'] || null;
+    if (mockResult) {
+      return {
+        source: 'amazon',
+        success: true,
+        domain: getAmazonDomain(country),
+        country: country,
+        lookupMethod: 'keyword-mock-fallback',
+        product: mockResult.product,
+        searchTerm: keyword,
+        dataSource: 'mock-fallback',
+        fetchedAt: new Date().toISOString()
+      };
+    }
+
+    return {
+      source: 'amazon',
+      success: false,
+      error: error.message,
+      searchTerm: keyword,
+      dataSource: dataSourceMode
     };
   }
 };

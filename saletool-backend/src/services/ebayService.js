@@ -555,6 +555,7 @@ export default {
   findCompletedItems,
   getProductPricing,
   getProductPricingByEAN,
+  getProductPricingByKeyword: getProductPricing,  // Alias for keyword-based pricing
   calculateEbayFees,
   MARKETPLACE_SITE_IDS
 };
