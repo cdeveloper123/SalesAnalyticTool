@@ -55,11 +55,13 @@ function getSalesRankStyle(rank: number): string {
 
 export default function QuickLookupCard({ product, onDelete }: QuickLookupCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isMarketsExpanded, setIsMarketsExpanded] = useState(true); // For collapsible markets section
     const demandStyle = getDemandStyle(product.demand?.level || 'UNKNOWN');
     const riskStyle = getRiskStyle(product.riskSnapshot?.level || 'UNKNOWN');
 
-    // Extract demand indicators
+    // Extract demand indicators and prices
     const indicators = product.demand?.indicators as Record<string, any> || {};
+    const pricesByChannel = (product as any).pricesByChannel as Record<string, any> || {};
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -189,12 +191,14 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                     {/* Three Key Metrics - Premium Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {/* Best Price Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent rounded-xl p-5 border border-emerald-500/20 group hover:border-emerald-500/40 transition-all duration-300">
-                            {/* Background Glow */}
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+                        <div className="relative bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent rounded-xl p-5 border border-emerald-500/20 group hover:border-emerald-500/40 transition-all duration-300">
+                            {/* Background Glow - Contained */}
+                            <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+                            </div>
 
                             <div className="relative">
-                                <div className="flex items-center gap-3 mb-4">
+                                <div className="flex items-center gap-3 mb-3">
                                     <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30">
                                         <FiDollarSign size={22} className="text-emerald-400" />
                                     </div>
@@ -217,6 +221,12 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                                 </span>
                                             )}
                                         </div>
+                                        {/* Price range info */}
+                                        {pricesByChannel && Object.keys(pricesByChannel).length > 1 && (
+                                            <div className="pt-2 mt-1 border-t border-gray-600/30 text-[10px] text-gray-500">
+                                                {Object.keys(pricesByChannel).length} markets compared
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="text-2xl font-bold text-gray-500">N/A</div>
@@ -224,8 +234,8 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                             </div>
                         </div>
 
-                        {/* Demand Level Card */}
-                        <div className={`relative overflow-hidden rounded-xl p-5 border group hover:border-opacity-60 transition-all duration-300 ${product.demand?.level === 'HIGH'
+                        {/* Overall Demand Card - Now shows average-based demand with highest region */}
+                        <div className={`relative rounded-xl p-5 border group hover:border-opacity-60 transition-all duration-300 ${product.demand?.level === 'HIGH'
                             ? 'bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent border-emerald-500/20 hover:border-emerald-500/40'
                             : product.demand?.level === 'MEDIUM'
                                 ? 'bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-transparent border-yellow-500/20 hover:border-yellow-500/40'
@@ -233,12 +243,14 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                     ? 'bg-gradient-to-br from-orange-500/20 via-orange-500/10 to-transparent border-orange-500/20 hover:border-orange-500/40'
                                     : 'bg-gradient-to-br from-red-500/20 via-red-500/10 to-transparent border-red-500/20 hover:border-red-500/40'
                             }`}>
-                            {/* Background Glow */}
-                            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-all ${product.demand?.level === 'HIGH' ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' :
-                                product.demand?.level === 'MEDIUM' ? 'bg-yellow-500/10 group-hover:bg-yellow-500/20' :
-                                    product.demand?.level === 'LOW' ? 'bg-orange-500/10 group-hover:bg-orange-500/20' :
-                                        'bg-red-500/10 group-hover:bg-red-500/20'
-                                }`}></div>
+                            {/* Background Glow - Contained */}
+                            <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                                <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-all ${product.demand?.level === 'HIGH' ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' :
+                                    product.demand?.level === 'MEDIUM' ? 'bg-yellow-500/10 group-hover:bg-yellow-500/20' :
+                                        product.demand?.level === 'LOW' ? 'bg-orange-500/10 group-hover:bg-orange-500/20' :
+                                            'bg-red-500/10 group-hover:bg-red-500/20'
+                                    }`}></div>
+                            </div>
 
                             <div className="relative">
                                 <div className="flex items-center gap-3 mb-4">
@@ -249,35 +261,147 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                         }`}>
                                         <FiActivity size={22} className={demandStyle.color} />
                                     </div>
-                                    <div className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Demand</div>
+                                    <div className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Overall Demand</div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <div className={`text-3xl font-bold tracking-tight ${demandStyle.color}`}>
                                         {product.demand?.level || 'N/A'}
                                     </div>
-                                    <div className="text-sm text-gray-400">
-                                        {product.demand?.confidence || 'Unknown'} confidence
-                                    </div>
+
+                                    {/* Composite score info with tooltip */}
+                                    {(product.demand as any)?.compositeScore !== undefined && (
+                                        <div className="relative group/score-tooltip inline-block">
+                                            <div className="text-xs text-gray-500 cursor-help hover:text-gray-400 transition-colors flex items-center gap-1">
+                                                Score: {(product.demand as any).compositeScore}/100 ({(product.demand as any).marketsAnalyzed} markets)
+                                                <span className="opacity-60 text-[10px]">ⓘ</span>
+                                            </div>
+
+                                            {/* Custom Instant Tooltip - Fixed and Minimized */}
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-max min-w-[180px] p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl opacity-0 invisible group-hover/score-tooltip:opacity-100 group-hover/score-tooltip:visible transition-all duration-150 z-[100] pointer-events-none ring-1 ring-white/5 backdrop-blur-sm">
+                                                <div className="text-[10px] font-bold text-gray-200 mb-1.5 border-b border-gray-700/50 pb-1 flex items-center gap-1">
+                                                    <FiActivity size={10} className="text-blue-400" />
+                                                    Weight Distribution
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
+                                                            <span className="text-xs text-gray-400">Amazon BSR</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-white font-bold bg-white/5 px-1 rounded">50%</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                            <span className="text-xs text-gray-400">eBay Sales</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-white font-bold bg-white/5 px-1 rounded">35%</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                                                            <span className="text-xs text-gray-400">Retail Sales</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-white font-bold bg-white/5 px-1 rounded">15%</span>
+                                                    </div>
+                                                </div>
+                                                {/* Tooltip Arrow */}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Sources breakdown */}
+                                    {(product.demand as any)?.sources && (
+                                        <div className="flex flex-wrap gap-1 text-[10px]">
+                                            {(product.demand as any).sources.amazon?.count > 0 && (
+                                                <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
+                                                    Amazon: {(product.demand as any).sources.amazon.count}
+                                                </span>
+                                            )}
+                                            {(product.demand as any).sources.ebay?.count > 0 && (
+                                                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                                                    eBay: {(product.demand as any).sources.ebay.count}
+                                                </span>
+                                            )}
+                                            {(product.demand as any).sources.retailers?.count > 0 && (
+                                                <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                                                    Retail: {(product.demand as any).sources.retailers.count}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Best Per Channel - Compact with tooltip */}
+                                    {(product.demand as any)?.sources && (
+                                        (() => {
+                                            const sources = (product.demand as any).sources;
+                                            const hasBest = !!(sources.amazon?.best || sources.ebay?.best || sources.retailers?.best);
+
+                                            return hasBest ? (
+                                                <div className="pt-2 mt-1 border-t border-gray-600/30">
+                                                    <div className="relative group/tooltip inline-flex items-center gap-1 text-[10px] text-gray-500 cursor-help hover:text-gray-300 transition-colors">
+                                                        <span>🏆 Best Markets</span>
+                                                        <span className="text-gray-400 font-normal opacity-60">(hover)</span>
+
+                                                        {/* Custom Instant Tooltip */}
+                                                        <div className="absolute bottom-full left-0 mb-2 w-max max-w-[250px] p-2.5 bg-gray-900/95 border border-gray-700/50 rounded-lg shadow-2xl backdrop-blur-md opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-150 z-50 pointer-events-none ring-1 ring-white/10">
+                                                            <div className="text-[10px] space-y-1.5">
+                                                                {sources.amazon?.best && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-4 h-4 rounded-sm bg-orange-500/20 flex items-center justify-center text-[9px] font-bold text-orange-400">A</div>
+                                                                        <span className="text-gray-300">Amazon:</span>
+                                                                        <span className="text-white font-semibold">{sources.amazon.best.marketCode}</span>
+                                                                        <span className="text-emerald-400 font-medium">#{formatNumber(sources.amazon.best.rank)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {sources.ebay?.best && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-4 h-4 rounded-sm bg-blue-500/20 flex items-center justify-center text-[9px] font-bold text-blue-400">E</div>
+                                                                        <span className="text-gray-300">eBay:</span>
+                                                                        <span className="text-white font-semibold">{sources.ebay.best.marketCode}</span>
+                                                                        <span className="text-emerald-400 font-medium">{formatNumber(sources.ebay.best.monthlySales)}/mo</span>
+                                                                    </div>
+                                                                )}
+                                                                {sources.retailers?.best && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-4 h-4 rounded-sm bg-purple-500/20 flex items-center justify-center text-[9px] font-bold text-purple-400">R</div>
+                                                                        <span className="text-gray-300">Retail:</span>
+                                                                        <span className="text-white font-semibold truncate max-w-[80px]">{sources.retailers.best.market}</span>
+                                                                        <span className="text-yellow-400 font-medium">{formatNumber(sources.retailers.best.monthlySales)}/mo</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Tooltip Arrow */}
+                                                            <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900/95"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null;
+                                        })()
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Risk Level Card */}
-                        <div className={`relative overflow-hidden rounded-xl p-5 border group hover:border-opacity-60 transition-all duration-300 ${product.riskSnapshot?.level === 'HIGH'
+                        <div className={`relative rounded-xl p-5 border group hover:border-opacity-60 transition-all duration-300 ${product.riskSnapshot?.level === 'HIGH'
                             ? 'bg-gradient-to-br from-red-500/20 via-red-500/10 to-transparent border-red-500/20 hover:border-red-500/40'
                             : product.riskSnapshot?.level === 'MEDIUM'
                                 ? 'bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-transparent border-yellow-500/20 hover:border-yellow-500/40'
                                 : 'bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent border-emerald-500/20 hover:border-emerald-500/40'
                             }`}>
-                            {/* Background Glow */}
-                            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-all ${product.riskSnapshot?.level === 'HIGH' ? 'bg-red-500/10 group-hover:bg-red-500/20' :
-                                product.riskSnapshot?.level === 'MEDIUM' ? 'bg-yellow-500/10 group-hover:bg-yellow-500/20' :
-                                    'bg-emerald-500/10 group-hover:bg-emerald-500/20'
-                                }`}></div>
+                            {/* Background Glow - Contained */}
+                            <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                                <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-all ${product.riskSnapshot?.level === 'HIGH' ? 'bg-red-500/10 group-hover:bg-red-500/20' :
+                                    product.riskSnapshot?.level === 'MEDIUM' ? 'bg-yellow-500/10 group-hover:bg-yellow-500/20' :
+                                        'bg-emerald-500/10 group-hover:bg-emerald-500/20'
+                                    }`}></div>
+                            </div>
 
                             <div className="relative">
-                                <div className="flex items-center gap-3 mb-4">
+                                <div className="flex items-center gap-3 mb-3">
                                     <div className={`p-2.5 rounded-xl border ${riskStyle.bg} ${riskStyle.border}`}>
                                         <FiAlertTriangle size={22} className={riskStyle.color} />
                                     </div>
@@ -289,11 +413,22 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                         {product.riskSnapshot?.level || 'N/A'}
                                     </div>
                                     {product.riskSnapshot?.flags && product.riskSnapshot.flags.length > 0 ? (
-                                        <div className="text-sm text-gray-400">
-                                            {product.riskSnapshot.flags.length} {product.riskSnapshot.flags.length === 1 ? 'issue' : 'issues'} detected
-                                        </div>
+                                        <>
+                                            <div className="text-sm text-gray-400">
+                                                {product.riskSnapshot.flags.length} {product.riskSnapshot.flags.length === 1 ? 'issue' : 'issues'} detected
+                                            </div>
+                                            {/* Show first flag as preview */}
+                                            <div className="pt-2 mt-1 border-t border-gray-600/30 text-[10px] text-gray-500 truncate" title={product.riskSnapshot.flags[0]}>
+                                                ⚠️ {product.riskSnapshot.flags[0].length > 35 ? product.riskSnapshot.flags[0].substring(0, 35) + '...' : product.riskSnapshot.flags[0]}
+                                            </div>
+                                        </>
                                     ) : (
-                                        <div className="text-sm text-gray-400">No issues found</div>
+                                        <>
+                                            <div className="text-sm text-gray-400">No issues found</div>
+                                            <div className="pt-2 mt-1 border-t border-gray-600/30 text-[10px] text-emerald-400">
+                                                ✓ Safe to proceed
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -301,110 +436,186 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                     </div>
 
 
-                    {/* Market Demand Indicators */}
+                    {/* Market Demand Indicators & Prices - Collapsible */}
                     {Object.keys(indicators).length > 0 && (
-                        <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-lg p-4 border border-blue-500/20">
-                            <div className="flex items-center gap-2 mb-4">
-                                <FiTrendingUp className="text-blue-400" size={16} />
-                                <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Market Demand Indicators</span>
-                            </div>
+                        <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-lg border border-blue-500/20 overflow-hidden">
+                            {/* Collapsible Header */}
+                            <button
+                                type="button"
+                                onClick={() => setIsMarketsExpanded(!isMarketsExpanded)}
+                                className="w-full flex items-center justify-between p-4 hover:bg-blue-500/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <FiTrendingUp className="text-blue-400" size={16} />
+                                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Market Demand Indicators & Prices</span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                                        {Object.keys(indicators).length} markets
+                                    </span>
+                                </div>
+                                {isMarketsExpanded ? (
+                                    <FiChevronDown className="text-gray-400" size={18} />
+                                ) : (
+                                    <FiChevronRight className="text-gray-400" size={18} />
+                                )}
+                            </button>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {Object.entries(indicators).map(([market, data]: [string, any]) => {
-                                    const isAmazonMarket = market === 'US' || market === 'UK';
-                                    const isEbayMarket = market.startsWith('eBay-');
+                            {/* Collapsible Content */}
+                            {isMarketsExpanded && (
+                                <div className="px-4 pb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {Object.entries(indicators).map(([market, data]: [string, any]) => {
+                                            // Detect market type
+                                            const isAmazonMarket = ['US', 'UK', 'DE', 'FR', 'IT', 'AU'].includes(market);
+                                            const isEbayMarket = market.startsWith('eBay-');
+                                            const isRetailer = market.startsWith('Walmart-') || market.startsWith('Target-');
 
-                                    return (
-                                        <div key={market} className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-semibold text-white">
-                                                        {isAmazonMarket ? `Amazon ${market}` : market}
-                                                    </span>
-                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${isAmazonMarket
-                                                        ? 'bg-orange-500/20 text-orange-400'
-                                                        : 'bg-blue-500/20 text-blue-400'
-                                                        }`}>
-                                                        {isAmazonMarket ? 'Amazon' : 'eBay'}
-                                                    </span>
+                                            // Determine channel label and styling
+                                            let channelLabel = market;
+                                            let channelBg = 'bg-gray-500/20';
+                                            let channelColor = 'text-gray-400';
+
+                                            // Get the price for this market
+                                            let priceKey = isAmazonMarket ? `Amazon-${market}` : market;
+                                            const priceData = pricesByChannel[priceKey];
+
+                                            if (isAmazonMarket) {
+                                                channelLabel = `Amazon ${market}`;
+                                                channelBg = 'bg-orange-500/20';
+                                                channelColor = 'text-orange-400';
+                                            } else if (isEbayMarket) {
+                                                channelLabel = market;
+                                                channelBg = 'bg-blue-500/20';
+                                                channelColor = 'text-blue-400';
+                                            } else if (isRetailer) {
+                                                channelLabel = market.replace('-', ' ');
+                                                channelBg = 'bg-purple-500/20';
+                                                channelColor = 'text-purple-400';
+                                            }
+
+                                            return (
+                                                <div key={market} className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-semibold text-white">
+                                                                {channelLabel}
+                                                            </span>
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${channelBg} ${channelColor}`}>
+                                                                {isAmazonMarket ? 'Amazon' : isEbayMarket ? 'eBay' : 'Retail'}
+                                                            </span>
+                                                        </div>
+                                                        {/* Data Source Badge */}
+                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${data.dataSource === 'live' || data.dataSource === 'api'
+                                                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                            }`}>
+                                                            {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Price Display - Always show if available */}
+                                                    {priceData && priceData.price > 0 && (
+                                                        <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-gray-600/30">
+                                                            <span className="text-gray-400 flex items-center gap-1">
+                                                                <FiDollarSign size={12} /> Price
+                                                            </span>
+                                                            <span className="font-bold text-emerald-400">
+                                                                {formatCurrency(priceData.price, priceData.currency)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-2">
+                                                        {/* Amazon-specific indicators */}
+                                                        {isAmazonMarket && (
+                                                            <>
+                                                                {data.salesRank && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Sales Rank</span>
+                                                                        <span className={`font-bold ${getSalesRankStyle(data.salesRank)}`}>
+                                                                            #{formatNumber(data.salesRank)}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {data.recentSales && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Recent Sales</span>
+                                                                        <span className="font-medium text-emerald-400">{data.recentSales}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(data.ratingsTotal !== undefined || data.rating !== undefined) && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400 flex items-center gap-1">
+                                                                            <FiStar size={12} /> Ratings
+                                                                        </span>
+                                                                        <span className="font-medium text-white">
+                                                                            {data.rating ? `${data.rating}★` : ''}
+                                                                            {data.ratingsTotal ? ` (${formatNumber(data.ratingsTotal)})` : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+
+                                                        {/* eBay-specific indicators */}
+                                                        {isEbayMarket && (
+                                                            <>
+                                                                {data.estimatedMonthlySales !== undefined && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Est. Monthly Sales</span>
+                                                                        <span className="font-bold text-emerald-400">
+                                                                            {formatNumber(data.estimatedMonthlySales)}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {data.activeListings !== undefined && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Active Listings</span>
+                                                                        <span className="font-medium text-white">
+                                                                            {formatNumber(data.activeListings)}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {data.confidence && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Confidence</span>
+                                                                        <span className={`font-medium ${data.confidence === 'HIGH' ? 'text-emerald-400' :
+                                                                            data.confidence === 'MEDIUM' ? 'text-yellow-400' : 'text-orange-400'
+                                                                            }`}>
+                                                                            {data.confidence}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+
+                                                        {/* Retailer-specific indicators (Walmart, Target) */}
+                                                        {isRetailer && (
+                                                            <>
+                                                                {data.estimatedMonthlySales !== undefined && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Est. Monthly Sales</span>
+                                                                        <span className="font-bold text-emerald-400">
+                                                                            {formatNumber(data.estimatedMonthlySales)}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {data.confidence && (
+                                                                    <div className="flex items-center justify-between text-sm">
+                                                                        <span className="text-gray-400">Confidence</span>
+                                                                        <span className="text-orange-400 font-medium">
+                                                                            {data.confidence}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                {/* Data Source Badge */}
-                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${data.dataSource === 'live' || data.dataSource === 'api'
-                                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                    : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                                                    }`}>
-                                                    {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : 'MOCK'}
-                                                </span>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                {/* Amazon-specific indicators */}
-                                                {isAmazonMarket && (
-                                                    <>
-                                                        {data.salesRank && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400">Sales Rank</span>
-                                                                <span className={`font-bold ${getSalesRankStyle(data.salesRank)}`}>
-                                                                    #{formatNumber(data.salesRank)}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        {data.recentSales && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400">Recent Sales</span>
-                                                                <span className="font-medium text-emerald-400">{data.recentSales}</span>
-                                                            </div>
-                                                        )}
-                                                        {(data.ratingsTotal !== undefined || data.rating !== undefined) && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400 flex items-center gap-1">
-                                                                    <FiStar size={12} /> Ratings
-                                                                </span>
-                                                                <span className="font-medium text-white">
-                                                                    {data.rating ? `${data.rating}★` : ''}
-                                                                    {data.ratingsTotal ? ` (${formatNumber(data.ratingsTotal)})` : ''}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
-
-                                                {/* eBay-specific indicators */}
-                                                {isEbayMarket && (
-                                                    <>
-                                                        {data.estimatedMonthlySales !== undefined && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400">Est. Monthly Sales</span>
-                                                                <span className="font-bold text-emerald-400">
-                                                                    {formatNumber(data.estimatedMonthlySales)}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        {data.activeListings !== undefined && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400">Active Listings</span>
-                                                                <span className="font-medium text-white">
-                                                                    {formatNumber(data.activeListings)}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        {data.confidence && (
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="text-gray-400">Confidence</span>
-                                                                <span className={`font-medium ${data.confidence === 'HIGH' ? 'text-emerald-400' :
-                                                                    data.confidence === 'MEDIUM' ? 'text-yellow-400' : 'text-orange-400'
-                                                                    }`}>
-                                                                    {data.confidence}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiPlus, FiPackage } from 'react-icons/fi';
+import { FiPackage, FiTrendingUp, FiSearch, FiZap } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -10,7 +10,6 @@ import ModeSelector from '../components/ModeSelector';
 import ProductCard from '../components/ProductCard';
 import DiscoveryCard from '../components/DiscoveryCard';
 import QuickLookupCard from '../components/QuickLookupCard';
-import Button from '../components/Button';
 import Loader from '../components/Loader';
 import DataSourceToggle, { DataSourceMode } from '../components/DataSourceToggle';
 import VersionInfo from '../components/VersionInfo';
@@ -149,6 +148,7 @@ function Dashboard() {
               dataSourceMode: deal.dataSourceMode as 'live' | 'mock' | undefined,
               product: deal.productData as QuickLookupProduct['product'],
               currentPrice: (deal.currentPrice || { price: 0, currency: 'USD', market: 'Unknown', channel: '', marketplace: '' }) as QuickLookupProduct['currentPrice'],
+              pricesByChannel: deal.priceByRegion || {},  // Restore market prices
               demand: (deal.demandSignals || { level: 'UNKNOWN', confidence: 'NONE' }) as QuickLookupProduct['demand'],
               riskSnapshot: (deal.riskSnapshot || { level: 'UNKNOWN', flags: [] }) as QuickLookupProduct['riskSnapshot'],
               analyzedAt: deal.analyzedAt || new Date().toISOString(),
@@ -548,25 +548,58 @@ function Dashboard() {
           </div>
 
           {products.length === 0 && !isLoading && !isLoadingDeals ? (
-            <div className="p-12">
-              <div className="text-center py-16">
-                <div className="inline-flex p-6 bg-gray-700/50 rounded-2xl border border-gray-600/50 mb-6">
-                  <FiPackage size={56} className="text-gray-500" />
+            <div className="p-8 sm:p-12">
+              <div className="text-center">
+                <div className="inline-flex p-4 bg-gray-700/30 rounded-xl border border-gray-600/30 mb-4">
+                  <FiPackage size={40} className="text-gray-500" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-300 mb-2">
+                <h3 className="text-lg font-semibold text-gray-300 mb-1">
                   No products yet
                 </h3>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  Get started by adding your first product to the inventory
+                <p className="text-sm text-gray-500 mb-8 max-w-sm mx-auto">
+                  Get started by selecting an analysis mode below
                 </p>
-                <Button
-                  variant="primary"
-                  onClick={() => setIsModalOpen(true)}
-                  className="inline-flex items-center gap-2"
-                >
-                  <FiPlus size={18} />
-                  Add Your First Product
-                </Button>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-3xl mx-auto">
+                  <button
+                    onClick={() => handleModeSelect('deal')}
+                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/20 transition-all group"
+                  >
+                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                      <FiTrendingUp size={20} />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-white text-sm">Deal Analysis</div>
+                      <div className="text-[10px] text-gray-400 uppercase tracking-wider">Full Eval</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleModeSelect('discovery')}
+                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/20 transition-all group"
+                  >
+                    <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                      <FiSearch size={20} />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-white text-sm">Discovery</div>
+                      <div className="text-[10px] text-gray-400 uppercase tracking-wider">Research</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleModeSelect('quickLookup')}
+                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/20 transition-all group"
+                  >
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 group-hover:scale-110 transition-transform">
+                      <FiZap size={20} />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-white text-sm">Quick Lookup</div>
+                      <div className="text-[10px] text-gray-400 uppercase tracking-wider">Fast Snap</div>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

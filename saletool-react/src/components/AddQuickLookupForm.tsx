@@ -37,8 +37,43 @@ export default function AddQuickLookupForm({
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setEan(e.target.value);
+        // Only allow numeric input (digits 0-9)
+        const numericValue = e.target.value.replace(/[^0-9]/g, '');
+        setEan(numericValue);
         setEanError('');
+    };
+
+    // Block non-numeric key presses
+    const handleEANKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        // Allow control key combinations (Ctrl+A, Ctrl+C, Ctrl+V, etc.)
+        if (e.ctrlKey || e.metaKey) {
+            return;
+        }
+
+        // Allow navigation and control keys
+        const allowedKeys = [
+            'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+            'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+            'Home', 'End'
+        ];
+        if (allowedKeys.includes(e.key)) {
+            return;
+        }
+
+        // Only allow digits 0-9
+        if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+        }
+    };
+
+    // Validate on blur
+    const handleEANBlur = () => {
+        if (ean) {
+            const validation = validateEAN(ean);
+            if (!validation.isValid) {
+                setEanError(validation.error || 'Invalid EAN');
+            }
+        }
     };
 
     const handleSubmit = async (e: FormEvent) => {
@@ -88,9 +123,14 @@ export default function AddQuickLookupForm({
                 type="text"
                 value={ean}
                 onChange={handleChange}
+                onBlur={handleEANBlur}
+                onKeyPress={handleEANKeyPress}
                 placeholder="e.g., 0045496395230"
                 error={eanError}
                 required
+                maxLength={14}
+                pattern="[0-9]*"
+                inputMode="numeric"
             />
 
             {/* What You'll Get */}
