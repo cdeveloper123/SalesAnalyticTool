@@ -222,9 +222,9 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                             )}
                                         </div>
                                         {/* Price range info */}
-                                        {pricesByChannel && Object.keys(pricesByChannel).length > 1 && (
+                                        {Object.keys(indicators).length > 1 && (
                                             <div className="pt-2 mt-1 border-t border-gray-600/30 text-[10px] text-gray-500">
-                                                {Object.keys(pricesByChannel).length} markets compared
+                                                {Object.keys(indicators).length} markets compared
                                             </div>
                                         )}
                                     </div>
