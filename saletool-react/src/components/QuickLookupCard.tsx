@@ -512,17 +512,19 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                                         </span>
                                                     </div>
 
-                                                    {/* Price Display - Always show if available */}
-                                                    {priceData && priceData.price > 0 && (
-                                                        <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-gray-600/30">
-                                                            <span className="text-gray-400 flex items-center gap-1">
-                                                                <FiDollarSign size={12} /> Price
-                                                            </span>
+                                                    {/* Price Display - Always show */}
+                                                    <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-gray-600/30">
+                                                        <span className="text-gray-400 flex items-center gap-1">
+                                                            <FiDollarSign size={12} /> Price
+                                                        </span>
+                                                        {priceData && priceData.price > 0 ? (
                                                             <span className="font-bold text-emerald-400">
                                                                 {formatCurrency(priceData.price, priceData.currency)}
                                                             </span>
-                                                        </div>
-                                                    )}
+                                                        ) : (
+                                                            <span className="text-gray-500 text-xs italic">N/A</span>
+                                                        )}
+                                                    </div>
 
                                                     <div className="space-y-2">
                                                         {/* Amazon-specific indicators */}
@@ -536,12 +538,14 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                                                         </span>
                                                                     </div>
                                                                 )}
-                                                                {data.recentSales && (
-                                                                    <div className="flex items-center justify-between text-sm">
-                                                                        <span className="text-gray-400">Recent Sales</span>
+                                                                <div className="flex items-center justify-between text-sm">
+                                                                    <span className="text-gray-400">Recent Sales</span>
+                                                                    {data.recentSales ? (
                                                                         <span className="font-medium text-emerald-400">{data.recentSales}</span>
-                                                                    </div>
-                                                                )}
+                                                                    ) : (
+                                                                        <span className="text-gray-500 text-xs italic">Not available</span>
+                                                                    )}
+                                                                </div>
                                                                 {(data.ratingsTotal !== undefined || data.rating !== undefined) && (
                                                                     <div className="flex items-center justify-between text-sm">
                                                                         <span className="text-gray-400 flex items-center gap-1">
