@@ -586,13 +586,13 @@ function Dashboard() {
                   No products yet
                 </h3>
                 <p className="text-sm text-gray-500 mb-8 max-w-sm mx-auto">
-                  Get started by selecting an analysis mode below
+                  Get started by selecting an mode below
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-3xl mx-auto">
                   <button
                     onClick={() => handleModeSelect('deal')}
-                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/20 transition-all group"
+                    className="w-full sm:w-auto flex items-center gap-3 pr-5 pl-3 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/20 transition-all group"
                   >
                     <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
                       <FiTrendingUp size={20} />
@@ -605,7 +605,7 @@ function Dashboard() {
 
                   <button
                     onClick={() => handleModeSelect('discovery')}
-                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/20 transition-all group"
+                    className="w-full sm:w-auto flex items-center gap-3 pr-9 pl-3 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/20 transition-all group"
                   >
                     <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
                       <FiSearch size={20} />
@@ -618,7 +618,7 @@ function Dashboard() {
 
                   <button
                     onClick={() => handleModeSelect('quickLookup')}
-                    className="w-full sm:w-auto flex items-center gap-3 px-5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/20 transition-all group"
+                    className="w-full sm:w-auto flex items-center gap-3 pr-5 pl-3 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/20 transition-all group"
                   >
                     <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 group-hover:scale-110 transition-transform">
                       <FiZap size={20} />
