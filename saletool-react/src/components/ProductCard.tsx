@@ -635,14 +635,6 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               {isRetailer && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Retail</span>}
                               {isDistributor && <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">Distributor</span>}
                               <span className="font-semibold text-white text-sm">{displayName}</span>
-                              {(() => {
-                                const allocationQty = getChannelAllocation(channel);
-                                return allocationQty > 0 ? (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-bold uppercase tracking-wider">
-                                    ALLOCATED: {allocationQty}
-                                  </span>
-                                ) : null;
-                              })()}
                             </div>
                             <div className="space-y-0.5">
                               <div className="text-xs text-gray-400">
@@ -721,6 +713,14 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               {channel.recommendation}
                             </div>
                           )}
+                          {(() => {
+                            const allocationQty = getChannelAllocation(channel);
+                            return allocationQty > 0 ? (
+                              <span className="text-[10px] px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-bold uppercase tracking-wider">
+                                ALLOCATED: {allocationQty}
+                              </span>
+                            ) : null;
+                          })()}
                           {/* Data Source Breakdown - Per Component */}
                           {(channel as any).dataSources ? (
                             <div className="relative group/datasources">

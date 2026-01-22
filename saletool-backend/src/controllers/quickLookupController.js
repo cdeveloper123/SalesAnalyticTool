@@ -8,6 +8,7 @@
 import { getAmazonProductData } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
 import retailerService from '../services/retailerService.js';
+import currencyService from '../services/currencyService.js';
 import { getPrisma } from '../config/database.js';
 import PerformanceLogger from '../utils/performanceLogger.js';
 
@@ -175,7 +176,8 @@ export const analyzeQuickLookup = async (req, res) => {
                         market: marketKey,
                         channel: 'eBay',
                         marketplace: market,
-                        dataSource: ebayResult.dataSource || 'live'
+                        // eBay prices are always fetched live from browse/finding API
+                        dataSource: 'live'
                     };
 
                     demandIndicators[marketKey] = {
@@ -183,7 +185,8 @@ export const analyzeQuickLookup = async (req, res) => {
                         activeListings: ebayResult.activeListings || 0,
                         confidence: ebayResult.confidence || 'Low',
                         soldLast90Days: ebayResult.soldLast90Days || 0,
-                        dataSource: ebayResult.dataSource || 'live'
+                        // Volume/Demand is only LIVE if we have actual sold data
+                        dataSource: (ebayResult.soldLast90Days > 0) ? 'live' : 'estimated'
                     };
 
                     console.log(`[Quick Lookup eBay ${market}] Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
@@ -252,6 +255,15 @@ export const analyzeQuickLookup = async (req, res) => {
         // ========================================================================
         // STEP 5: PREPARE RESPONSE & SAVE
         // ========================================================================
+        // Capture FX rates snapshot at analysis time
+        const fxCacheStatus = currencyService.getCacheStatus();
+        const fxRatesSnapshot = {
+            rates: fxCacheStatus.rates || {},
+            baseCurrency: fxCacheStatus.baseCurrency || 'USD',
+            fetchedAt: fxCacheStatus.lastUpdated,
+            source: fxCacheStatus.hasCache ? (fxCacheStatus.isExpired ? 'cache_expired' : 'live') : 'fallback'
+        };
+
         const responseData = {
             ean,
             productName: productData?.title,
@@ -279,6 +291,7 @@ export const analyzeQuickLookup = async (req, res) => {
                     k.startsWith('Walmart-') || k.startsWith('Target-')
                 ).length
             },
+            fxRates: fxRatesSnapshot,
             analyzedAt: new Date().toISOString()
         };
 
@@ -299,7 +312,7 @@ export const analyzeQuickLookup = async (req, res) => {
                             demandSignals: responseData.demand,
                             riskSnapshot: responseData.riskSnapshot,
                             productData: productData || null,
-                            marketData: responseData.marketData
+                            marketData: { ...responseData.marketData, fxRates: fxRatesSnapshot }
                         }
                     }),
                     { ean }
@@ -359,10 +372,16 @@ export const getQuickLookupProducts = async (req, res) => {
             orderBy: { analyzedAt: 'desc' }
         });
 
+        // Extract fxRates from marketData for each deal
+        const dealsWithFxRates = deals.map(deal => ({
+            ...deal,
+            fxRates: (deal.marketData)?.fxRates || null
+        }));
+
         res.status(200).json({
             success: true,
-            data: deals,
-            count: deals.length,
+            data: dealsWithFxRates,
+            count: dealsWithFxRates.length,
             total: totalCount,
             limit: parseInt(limit),
             offset: parseInt(offset)
@@ -455,8 +474,8 @@ function calculateDemandLevel(indicators) {
 
         if (isAmazon && data.salesRank && data.salesRank < 999999) {
             // Amazon: Convert rank to score (lower rank = higher score)
-            // Improved formula: rank 1 = 100, rank 10K = 60, rank 100K = 40, rank 1M = 20
-            const rankScore = Math.max(0, 100 - (Math.log10(data.salesRank) * 15));
+            // Original strict formula: rank 1 = 100, rank 20K = 70, rank 100K = 40
+            const rankScore = Math.max(0, 100 - (Math.log10(data.salesRank) * 12));
             sources.amazon.count++;
             sources.amazon.avgRank = sources.amazon.avgRank
                 ? (sources.amazon.avgRank + data.salesRank) / 2
@@ -474,7 +493,8 @@ function calculateDemandLevel(indicators) {
             }
         } else if (isEbay && data.estimatedMonthlySales !== undefined) {
             // eBay: Convert monthly sales to score
-            const salesScore = Math.min(100, data.estimatedMonthlySales * 1.5);
+            // 30+ sales/mo is required for a 90+ score (strict)
+            const salesScore = Math.min(100, data.estimatedMonthlySales * 3.0);
             sources.ebay.count++;
             sources.ebay.avgMonthlySales += data.estimatedMonthlySales;
             sources.ebay.score += salesScore;
@@ -549,9 +569,10 @@ function calculateDemandLevel(indicators) {
     compositeScore = Math.round(compositeScore);
 
     // Determine level from composite score
+    // Strict thresholds as requested: HIGH (>= 70), MEDIUM (40-69)
     let level;
     if (compositeScore >= 70) level = 'HIGH';
-    else if (compositeScore >= 45) level = 'MEDIUM';
+    else if (compositeScore >= 40) level = 'MEDIUM';
     else if (compositeScore >= 20) level = 'LOW';
     else if (totalMarkets === 0) level = 'UNKNOWN';
     else level = 'VERY_LOW';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiSearch, FiTrendingUp, FiMapPin, FiDollarSign, FiTrash2, FiChevronDown, FiChevronRight, FiCopy } from 'react-icons/fi';
+import { FiSearch, FiTrendingUp, FiMapPin, FiDollarSign, FiTrash2, FiChevronDown, FiChevronRight, FiCopy, FiInfo } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import type { DiscoveryProduct } from '../types/product';
 
@@ -15,6 +15,92 @@ function formatCurrency(amount: number, currency: string): string {
     };
     const symbol = currencySymbols[currency] || currency + ' ';
     return `${symbol}${amount.toFixed(2)}`;
+}
+
+// Convert amount to USD using provided rates (returns null if conversion not possible)
+function convertToUSD(amount: number, currency: string, rates?: Record<string, number>): number | null {
+    if (!rates) return null;
+    if (currency === 'USD') return amount;
+    const rate = rates[currency];
+    if (!rate || rate === 0) return null;
+    return amount / rate;  // Convert foreign currency to USD
+}
+
+// FX Rates Tooltip Component - only shows if fxRates available
+interface FxRatesTooltipProps {
+    fxRates?: {
+        rates: Record<string, number>;
+        baseCurrency: string;
+        fetchedAt: string | null;
+        source: 'live' | 'cache_expired' | 'fallback' | string;
+    };
+}
+
+function FxRatesTooltip({ fxRates }: FxRatesTooltipProps) {
+    const [isVisible, setIsVisible] = useState(false);
+
+    // Don't render if no FX data
+    if (!fxRates?.rates) return null;
+
+    const rates = fxRates.rates;
+    const source = fxRates.source;
+    const fetchedAt = fxRates.fetchedAt;
+
+    // Filter to show only currency conversions we care about
+    const displayCurrencies = ['GBP', 'EUR', 'AUD'];
+
+    // Get source message based on FX source
+    const getSourceMessage = () => {
+        switch (source) {
+            case 'live': return 'Live rates from freecurrencyapi.com';
+            case 'cache_expired': return 'Cached rates (refresh pending)';
+            default: return 'Rates at analysis time';
+        }
+    };
+
+    return (
+        <div className="relative inline-block">
+            <button
+                type="button"
+                onMouseEnter={() => setIsVisible(true)}
+                onMouseLeave={() => setIsVisible(false)}
+                onClick={(e) => { e.stopPropagation(); setIsVisible(!isVisible); }}
+                className="text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-2"
+            >
+                <FiInfo size={12} />
+                <span>FX Rates when analyzed</span>
+            </button>
+
+            {isVisible && (
+                <div className="absolute z-50 bottom-full right-0 mb-2 w-56">
+                    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl text-left">
+                        <div className="text-xs font-semibold text-gray-300 mb-2">FX Rates (1 USD =)</div>
+                        <div className="space-y-1 text-xs">
+                            {displayCurrencies.map(currency => {
+                                const rate = rates[currency];
+                                return rate ? (
+                                    <div key={currency} className="flex justify-between text-gray-400">
+                                        <span>{currency}</span>
+                                        <span className="text-gray-300">{rate.toFixed(4)}</span>
+                                    </div>
+                                ) : null;
+                            })}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-500">
+                            {getSourceMessage()}
+                            {fetchedAt && (
+                                <div className="mt-1 text-gray-600">
+                                    {new Date(fetchedAt).toLocaleString()}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Arrow */}
+                    <div className="absolute top-full right-4 -mt-1 border-4 border-transparent border-t-gray-700"></div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 // Get demand level color
@@ -49,13 +135,14 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
 
     const handleCopyEAN = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!product.ean) return;
+        const valueToCopy = product.ean || (product as any).asin || product.product?.asin;
+        if (!valueToCopy) return;
         try {
-            await navigator.clipboard.writeText(product.ean);
-            toast.success('EAN copied to clipboard!');
+            await navigator.clipboard.writeText(valueToCopy);
+            toast.success(`${product.ean ? 'EAN' : 'ASIN'} copied to clipboard!`);
         } catch (error) {
-            console.error('Failed to copy EAN:', error);
-            toast.error('Failed to copy EAN');
+            console.error('Failed to copy:', error);
+            toast.error('Failed to copy to clipboard');
         }
     };
 
@@ -87,14 +174,17 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                     </div>
                                 </div>
                             </div>
-                            {product.ean && (
+                            {/* Show EAN if available, otherwise show ASIN for keyword searches */}
+                            {(product.ean || (product as any).asin || product.product?.asin) && (
                                 <div className="flex items-center gap-2">
-                                    <span className="text-gray-400 text-sm font-mono">EAN: {product.ean}</span>
+                                    <span className="text-gray-400 text-sm font-mono">
+                                        {product.ean ? `EAN: ${product.ean}` : `ASIN: ${(product as any).asin || product.product?.asin}`}
+                                    </span>
                                     <button
                                         type="button"
                                         onClick={handleCopyEAN}
                                         className="p-1 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 rounded transition-colors"
-                                        title="Copy EAN to clipboard"
+                                        title={product.ean ? "Copy EAN to clipboard" : "Copy ASIN to clipboard"}
                                     >
                                         <FiCopy size={14} />
                                     </button>
@@ -143,28 +233,62 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                         {/* Markets Analyzed */}
                         <div className="bg-gray-700/50 rounded-lg p-4 text-center">
                             <div className="text-sm text-gray-400 mb-1">Markets Analyzed</div>
-                            <div className="text-xl font-bold text-white">
-                                {(product.marketsAnalyzed?.amazon || 0) + (product.marketsAnalyzed?.ebay || 0)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                                {product.marketsAnalyzed?.amazon || 0} Amazon, {product.marketsAnalyzed?.ebay || 0} eBay
-                            </div>
+                            {(() => {
+                                const amazonCount = product.marketsAnalyzed?.amazon ||
+                                    (product.priceByRegion ? Object.keys(product.priceByRegion).filter(k => k.startsWith('Amazon')).length : 0);
+                                const ebayCount = product.marketsAnalyzed?.ebay ||
+                                    (product.priceByRegion ? Object.keys(product.priceByRegion).filter(k => k.startsWith('eBay')).length : 0);
+                                return (
+                                    <>
+                                        <div className="text-xl font-bold text-white">
+                                            {amazonCount + ebayCount}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            {amazonCount} Amazon, {ebayCount} eBay
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
 
-                        {/* Price Range */}
+                        {/* Price Range - Always in USD (if FX rates available) */}
                         <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-                            <div className="text-sm text-gray-400 mb-1">Price Range</div>
-                            {product.highestPriceRegions && product.highestPriceRegions.length > 0 ? (
-                                <div className="text-xl font-bold text-emerald-400">
-                                    {formatCurrency(
-                                        Math.min(...product.highestPriceRegions.map(r => r.price)),
-                                        product.highestPriceRegions[0]?.currency || 'USD'
-                                    )} - {formatCurrency(
-                                        Math.max(...product.highestPriceRegions.map(r => r.price)),
-                                        product.highestPriceRegions[0]?.currency || 'USD'
-                                    )}
-                                </div>
-                            ) : (
+                            <div className="text-sm text-gray-400 mb-1">
+                                {product.fxRates?.rates ? 'Price Range (USD)' : 'Price Range'}
+                            </div>
+                            {product.priceByRegion && Object.keys(product.priceByRegion).length > 0 ? (() => {
+                                const regions = Object.values(product.priceByRegion);
+
+                                // If FX rates available, convert to USD
+                                if (product.fxRates?.rates) {
+                                    const usdPrices = regions
+                                        .map(p => convertToUSD(p.price, p.currency, product.fxRates?.rates))
+                                        .filter((p): p is number => p !== null && p > 0);
+
+                                    if (usdPrices.length > 0) {
+                                        const minUsd = Math.min(...usdPrices);
+                                        const maxUsd = Math.max(...usdPrices);
+                                        return (
+                                            <div className="text-xl font-bold text-emerald-400">
+                                                ${minUsd.toFixed(2)} - ${maxUsd.toFixed(2)}
+                                            </div>
+                                        );
+                                    }
+                                }
+
+                                // Fallback: show raw price range without USD conversion
+                                const prices = regions.map(p => p.price).filter(p => p > 0);
+                                if (prices.length > 0) {
+                                    const minPrice = Math.min(...prices);
+                                    const maxPrice = Math.max(...prices);
+                                    return (
+                                        <div className="text-xl font-bold text-emerald-400">
+                                            {formatCurrency(minPrice, regions[0].currency)} - {formatCurrency(maxPrice, regions[0].currency)}
+                                        </div>
+                                    );
+                                }
+                                return <div className="text-xl font-bold text-gray-500">N/A</div>;
+                            })() : (
                                 <div className="text-xl font-bold text-gray-500">N/A</div>
                             )}
                         </div>
@@ -184,12 +308,14 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                         <span className="text-sm font-bold text-emerald-400">
                                             {formatCurrency(region.price, region.currency)}
                                         </span>
-                                        {/* LIVE/MOCK badge */}
+                                        {/* Status badge - handles Live, Estimated, and Mock */}
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${region.dataSource === 'live' || region.dataSource === 'api'
                                             ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                            : region.dataSource === 'estimated'
+                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                             }`}>
-                                            {region.dataSource === 'live' || region.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                            {region.dataSource === 'live' || region.dataSource === 'api' ? 'LIVE' : region.dataSource === 'estimated' ? 'ESTIMATED' : 'MOCK'}
                                         </span>
                                     </div>
                                 ))}
@@ -208,6 +334,7 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                 {product.largestVolumeRegions.slice(0, 5).map((region, idx) => {
                                     // Use actual dataSource from backend
                                     const isLiveData = region.dataSource === 'live' || region.dataSource === 'api';
+                                    const isEstimated = region.dataSource === 'estimated';
                                     return (
                                         <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg">
                                             <span className="text-sm font-medium text-gray-300">{region.region}</span>
@@ -217,12 +344,14 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                             {region.recentSales && (
                                                 <span className="text-xs text-emerald-400">{region.recentSales}</span>
                                             )}
-                                            {/* LIVE/MOCK badge - uses actual dataSource */}
+                                            {/* Status badge - handles Live, Estimated (fallback), and Mock */}
                                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isLiveData
                                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                : isEstimated
+                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                                    : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                                 }`}>
-                                                {isLiveData ? 'LIVE' : 'MOCK'}
+                                                {isLiveData ? 'LIVE' : isEstimated ? 'ESTIMATED' : 'MOCK'}
                                             </span>
                                         </div>
                                     );
@@ -255,12 +384,14 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                                     <div key={key} className="flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg">
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs text-gray-400">{key}</span>
-                                            {/* LIVE/MOCK badge */}
+                                            {/* Status badge - handles Live, Estimated, and Mock */}
                                             <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${data.dataSource === 'live' || data.dataSource === 'api'
                                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                : data.dataSource === 'estimated'
+                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                                    : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                                 }`}>
-                                                {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                                {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : data.dataSource === 'estimated' ? 'ESTIMATED' : 'MOCK'}
                                             </span>
                                         </div>
                                         <span className="text-sm font-medium text-white">
@@ -272,9 +403,10 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
                         </div>
                     )}
 
-                    {/* Analyzed At */}
-                    <div className="text-xs text-gray-500">
-                        Analyzed: {new Date(product.analyzedAt).toLocaleString()}
+                    {/* Analyzed At & FX Rates */}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Analyzed: {new Date(product.analyzedAt).toLocaleString()}</span>
+                        <FxRatesTooltip fxRates={product.fxRates} />
                     </div>
                 </div>
             )}

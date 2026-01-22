@@ -68,11 +68,27 @@ interface DealFromDB {
   priceByRegion?: Record<string, unknown>;
   highestPriceRegions?: unknown[];
   largestVolumeRegions?: unknown[];
-  demandSignals?: { level?: string; signals?: string[] };
+  demandSignals?: {
+    level?: string;
+    signals?: string[];
+    compositeScore?: number;
+    sources?: Record<string, any>;
+    marketsAnalyzed?: number;
+    confidence?: string;
+    indicators?: Record<string, any>;
+  };
+  marketsAnalyzed?: { amazon: number; ebay: number };  // Added by backend for Discovery mode
   // Quick Lookup mode specific fields
   currentPrice?: { price: number; currency: string; market: string };
   riskSnapshot?: { level?: string; flags?: string[] };
   analyzedAt?: string;
+  // FX rates snapshot at analysis time (Discovery mode)
+  fxRates?: {
+    rates: Record<string, number>;
+    baseCurrency: string;
+    fetchedAt: string | null;
+    source: string;
+  };
 }
 
 function Dashboard() {
@@ -133,13 +149,17 @@ function Dashboard() {
               highestPriceRegions: (deal.highestPriceRegions || []) as DiscoveryProduct['highestPriceRegions'],
               largestVolumeRegions: (deal.largestVolumeRegions || []) as DiscoveryProduct['largestVolumeRegions'],
               demandSignals: (deal.demandSignals || { level: 'UNKNOWN', signals: [] }) as DiscoveryProduct['demandSignals'],
-              marketsAnalyzed: (deal.marketData as any)?.marketsAnalyzed,
+              marketsAnalyzed: deal.marketsAnalyzed || (deal.marketData as any)?.marketsAnalyzed,
+              fxRates: deal.fxRates || (deal.marketData as any)?.fxRates,
               analyzedAt: deal.analyzedAt || new Date().toISOString(),
             } as DiscoveryProduct;
           }
 
           // For Quick Lookup mode, return QuickLookupProduct
-          if (mode === 'quick_lookup') {
+          if (mode === 'quick_lookup' || mode === 'quicklookup') {
+            const rawDemand = deal.demandSignals as any;
+            const demandData = typeof rawDemand === 'string' ? JSON.parse(rawDemand) : rawDemand;
+
             return {
               id: deal.id,
               ean: deal.ean || '',
@@ -149,8 +169,16 @@ function Dashboard() {
               product: deal.productData as QuickLookupProduct['product'],
               currentPrice: (deal.currentPrice || { price: 0, currency: 'USD', market: 'Unknown', channel: '', marketplace: '' }) as QuickLookupProduct['currentPrice'],
               pricesByChannel: deal.priceByRegion || {},  // Restore market prices
-              demand: (deal.demandSignals || { level: 'UNKNOWN', confidence: 'NONE' }) as QuickLookupProduct['demand'],
+              demand: {
+                level: (demandData?.level || 'UNKNOWN').toUpperCase(),
+                confidence: demandData?.confidence || 'NONE',
+                indicators: demandData?.indicators || {},
+                compositeScore: demandData?.compositeScore || demandData?.score, // Handle both naming conventions
+                sources: demandData?.sources,
+                marketsAnalyzed: demandData?.marketsAnalyzed || demandData?.totalMarkets,
+              } as QuickLookupProduct['demand'],
               riskSnapshot: (deal.riskSnapshot || { level: 'UNKNOWN', flags: [] }) as QuickLookupProduct['riskSnapshot'],
+              fxRates: deal.fxRates || (deal.marketData as any)?.fxRates,
               analyzedAt: deal.analyzedAt || new Date().toISOString(),
             } as QuickLookupProduct;
           }

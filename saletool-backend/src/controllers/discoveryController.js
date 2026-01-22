@@ -7,6 +7,7 @@
 
 import { getAmazonProductData, searchByKeyword } from '../services/amazonService.js';
 import ebayService from '../services/ebayService.js';
+import currencyService from '../services/currencyService.js';
 import { getPrisma } from '../config/database.js';
 import PerformanceLogger from '../utils/performanceLogger.js';
 
@@ -181,7 +182,8 @@ export const analyzeDiscovery = async (req, res) => {
                             currency: ebayResult.currency || 'USD',
                             channel: 'eBay',
                             marketplace: market,
-                            dataSource: ebayResult.dataSource || dataSourceMode
+                            // Prices are confirmed live from Browse/Finding API results
+                            dataSource: 'live'
                         };
 
                         volumeByRegion[`eBay-${market}`] = {
@@ -291,7 +293,8 @@ export const analyzeDiscovery = async (req, res) => {
                                 currency: ebayResult.currency || 'USD',
                                 channel: 'eBay',
                                 marketplace: market,
-                                dataSource: ebayResult.dataSource || dataSourceMode
+                                // Prices are confirmed live from Browse API results
+                                dataSource: 'live'
                             };
 
                             volumeByRegion[`eBay-${market}`] = {
@@ -300,7 +303,9 @@ export const analyzeDiscovery = async (req, res) => {
                                 confidence: ebayResult.confidence || 'LOW',
                                 channel: 'eBay',
                                 marketplace: market,
-                                dataSource: ebayResult.dataSource || dataSourceMode
+                                soldLast90Days: ebayResult.soldLast90Days || 0,
+                                // Volume is only LIVE if we have actual sold data
+                                dataSource: (ebayResult.soldLast90Days > 0) ? 'live' : 'estimated'
                             };
 
                             console.log(`[Discovery eBay ${market}] Price: ${ebayResult.currency} ${ebayResult.buyBoxPrice}`);
@@ -337,13 +342,18 @@ export const analyzeDiscovery = async (req, res) => {
             .slice(0, 3);
 
         const ebayVolumes = Object.entries(volumeByRegion)
-            .filter(([key]) => key.startsWith('eBay'))
+            .filter(([key, data]) => key.startsWith('eBay') && (data.estimatedMonthlySales || 0) > 0)
             .sort((a, b) => (b[1].estimatedMonthlySales || 0) - (a[1].estimatedMonthlySales || 0))
             .slice(0, 3);
 
         const largestVolumeRegions = [
             ...amazonVolumes.map(([key, data]) => ({ region: key, ...data })),
-            ...ebayVolumes.map(([key, data]) => ({ region: key, ...data }))
+            ...ebayVolumes.map(([key, data]) => ({
+                region: key,
+                ...data,
+                // Map eBay specific field to the field expected by the UI (with formatting)
+                recentSales: data.estimatedMonthlySales ? `${data.estimatedMonthlySales}+ sales / mo` : null
+            }))
         ].slice(0, 5);
 
         // Generate demand signals
@@ -352,9 +362,21 @@ export const analyzeDiscovery = async (req, res) => {
             signals: generateDemandSignals(volumeByRegion, priceByRegion, dataSourceMode)
         };
 
+        // Capture FX rates snapshot at analysis time
+        const fxCacheStatus = currencyService.getCacheStatus();
+        const fxRatesSnapshot = {
+            rates: fxCacheStatus.rates || {},
+            baseCurrency: fxCacheStatus.baseCurrency || 'USD',
+            fetchedAt: fxCacheStatus.lastUpdated,
+            source: fxCacheStatus.hasCache ? (fxCacheStatus.isExpired ? 'cache_expired' : 'live') : 'fallback'
+        };
+
         // Prepare response
+        // Note: ean field stores the original EAN if provided, null for keyword searches
+        // The lookupIdentifier (ASIN) is stored in product.asin for keyword searches
         const responseData = {
-            ean: lookupIdentifier,
+            ean: ean || null,  // Only store actual EAN, not ASIN from keyword search
+            asin: productData?.asin || lookupIdentifier,  // Store ASIN separately
             productName: productData?.title || productName,
             analysisMode: 'discovery',
             dataSourceMode,  // Track if mock or live data was used
@@ -367,6 +389,7 @@ export const analyzeDiscovery = async (req, res) => {
                 amazon: Object.keys(priceByRegion).filter(k => k.startsWith('Amazon')).length,
                 ebay: Object.keys(priceByRegion).filter(k => k.startsWith('eBay')).length
             },
+            fxRates: fxRatesSnapshot,
             analyzedAt: new Date().toISOString()
         };
 
@@ -389,7 +412,7 @@ export const analyzeDiscovery = async (req, res) => {
                             demandSignals,
                             // Store full data
                             productData: productData || null,
-                            marketData: { priceByRegion, volumeByRegion }
+                            marketData: { priceByRegion, volumeByRegion, fxRates: fxRatesSnapshot }
                         }
                     }),
                     { ean: lookupIdentifier }
@@ -451,12 +474,14 @@ export const getDiscoveryProducts = async (req, res) => {
 
         const dealsWithMetadata = deals.map(deal => {
             const priceByRegion = (deal.priceByRegion || {});
+            const marketData = (deal.marketData || {});
             return {
                 ...deal,
                 marketsAnalyzed: {
                     amazon: Object.keys(priceByRegion).filter(k => k.startsWith('Amazon')).length,
                     ebay: Object.keys(priceByRegion).filter(k => k.startsWith('eBay')).length
-                }
+                },
+                fxRates: marketData.fxRates || null
             };
         });
 

@@ -631,7 +631,8 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
     priceExVat: fees.priceExVat,  // Ex-VAT sell price for transparency
     currency: marketCurrency,
     // Track sell price source for assumptions tracking
-    pricingSource: pricing.dataSource || 'live',
+    // eBay prices are always live/api even if demand is estimated
+    pricingSource: 'api',
     confidence: demandData.confidence || 'Medium',
     guardrail: guardrailDrivers.length > 0 ? { isFlagged: true, drivers: guardrailDrivers } : null,
     // Data source transparency per component

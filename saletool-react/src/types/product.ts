@@ -243,6 +243,12 @@ export interface DiscoveryProduct {
     amazon: number;
     ebay: number;
   };
+  fxRates?: {
+    rates: Record<string, number>;
+    baseCurrency: string;
+    fetchedAt: string | null;
+    source: 'live' | 'cache_expired' | 'fallback';
+  };
   analyzedAt: string;
 }
 
@@ -271,10 +277,19 @@ export interface QuickLookupProduct {
     level: 'HIGH' | 'MEDIUM' | 'LOW' | 'VERY_LOW' | 'UNKNOWN';
     confidence: string;
     indicators?: Record<string, unknown>;
+    compositeScore?: number;
+    sources?: Record<string, any>;
+    marketsAnalyzed?: number;
   };
   riskSnapshot: {
     level: 'HIGH' | 'MEDIUM' | 'LOW';
     flags: string[];
+  };
+  fxRates?: {
+    rates: Record<string, number>;
+    baseCurrency: string;
+    fetchedAt: string | null;
+    source: 'live' | 'cache_expired' | 'fallback';
   };
   analyzedAt: string;
 }

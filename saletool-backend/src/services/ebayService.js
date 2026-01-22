@@ -41,6 +41,18 @@ const MARKETPLACE_SITE_IDS = {
   AU: eBayApi.SiteId.EBAY_AU
 };
 
+// eBay Browse API marketplace ID mapping (required for regional search)
+const MARKETPLACE_IDS = {
+  US: 'EBAY_US',
+  UK: 'EBAY_GB',
+  DE: 'EBAY_DE',
+  FR: 'EBAY_FR',
+  IT: 'EBAY_IT',
+  ES: 'EBAY_ES',
+  CA: 'EBAY_CA',
+  AU: 'EBAY_AU'
+};
+
 // eBay fee structure (2025 rates - effective Feb 14, 2025)
 // Payment processing is now INCLUDED in Final Value Fee
 const EBAY_FEES = {
@@ -124,33 +136,49 @@ export async function searchByEAN(ean, marketplace = 'US') {
 
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
+    const marketplaceId = MARKETPLACE_IDS[marketplace] || 'EBAY_US';
+
+    // Set the marketplace/siteId on the eBay instance for this request
+    eBay.config.siteId = siteId;
+    eBay.config.marketplaceId = marketplaceId;
+
+    // Use marketplace-specific header for Browse API (maximum reliability)
+    const options = {
+      headers: { 'X-EBAY-C-MARKETPLACE-ID': marketplaceId }
+    };
 
     // eBay accepts EAN-13, UPC-12, ISBN
     const results = await eBay.buy.browse.search({
       gtin: ean, // Use GTIN filter for barcode search
       limit: 50,
       filter: 'buyingOptions:{FIXED_PRICE}'
-    });
+    }, options);
 
     if (!results || !results.itemSummaries) {
       return [];
     }
 
-    const mappedResults = results.itemSummaries.map(item => ({
-      title: item.title,
-      price: Number(item.price?.value) || 0,  // Convert string to number
-      currency: item.price?.currency || 'USD',
-      itemId: item.itemId,
-      categoryName: item.categories?.[0]?.categoryName || 'Unknown',
-      condition: item.condition,
-      seller: {
-        username: item.seller?.username,
-        feedbackPercentage: item.seller?.feedbackPercentage
-      },
-      shippingCost: Number(item.shippingOptions?.[0]?.shippingCost?.value) || 0,
-      itemWebUrl: item.itemWebUrl,
-      ean: ean
-    }));
+    const mappedResults = results.itemSummaries.map(item => {
+      const rawPrice = item.price?.value || "0";
+      const cleanPrice = rawPrice.toString().replace(',', '.');
+      const price = parseFloat(cleanPrice) || 0;
+
+      return {
+        title: item.title,
+        price,
+        currency: item.price?.currency || 'USD',
+        itemId: item.itemId,
+        categoryName: item.categories?.[0]?.categoryName || 'Unknown',
+        condition: item.condition,
+        seller: {
+          username: item.seller?.username,
+          feedbackPercentage: item.seller?.feedbackPercentage
+        },
+        shippingCost: Number(item.shippingOptions?.[0]?.shippingCost?.value) || 0,
+        itemWebUrl: item.itemWebUrl,
+        ean: ean
+      };
+    });
 
     apiCache.set(cacheKey, { data: mappedResults, timestamp: Date.now() });
     return mappedResults;
@@ -172,29 +200,45 @@ export async function searchByKeyword(keyword, marketplace = 'US') {
 
   try {
     const siteId = MARKETPLACE_SITE_IDS[marketplace] || eBayApi.SiteId.EBAY_US;
+    const marketplaceId = MARKETPLACE_IDS[marketplace] || 'EBAY_US';
+
+    // Set the marketplace/siteId on the eBay instance for this request
+    eBay.config.siteId = siteId;
+    eBay.config.marketplaceId = marketplaceId;
+
+    const options = {
+      headers: { 'X-EBAY-C-MARKETPLACE-ID': marketplaceId }
+    };
 
     const results = await eBay.buy.browse.search({
       q: keyword,
       limit: 20,
       filter: 'buyingOptions:{FIXED_PRICE}'
-    });
+    }, options);
 
     if (!results || !results.itemSummaries) {
       return [];
     }
-    const mappedResults = results.itemSummaries.map(item => ({
-      title: item.title,
-      price: item.price?.value || 0,
-      currency: item.price?.currency || 'USD',
-      itemId: item.itemId,
-      condition: item.condition,
-      seller: {
-        username: item.seller?.username,
-        feedbackPercentage: item.seller?.feedbackPercentage
-      },
-      shippingCost: item.shippingOptions?.[0]?.shippingCost?.value || 0,
-      itemWebUrl: item.itemWebUrl
-    }));
+    const mappedResults = results.itemSummaries.map(item => {
+      const rawPrice = item.price?.value || "0";
+      const cleanPrice = rawPrice.toString().replace(',', '.');
+      const price = parseFloat(cleanPrice) || 0;
+
+      return {
+        title: item.title,
+        price,
+        currency: item.price?.currency || 'USD',
+        itemId: item.itemId,
+        condition: item.condition,
+        seller: {
+          username: item.seller?.username,
+          feedbackPercentage: item.seller?.feedbackPercentage
+        },
+        shippingCost: Number(item.shippingOptions?.[0]?.shippingCost?.value) || 0,
+        itemWebUrl: item.itemWebUrl,
+        ean: null
+      };
+    });
 
     apiCache.set(cacheKey, { data: mappedResults, timestamp: Date.now() });
     return mappedResults;
@@ -299,6 +343,9 @@ export async function findCompletedItems(keyword, marketplace = 'US', ean = null
       params.keywords = keyword;
     }
 
+    // Set the siteId on the eBay instance for this request
+    eBay.config.siteId = siteId;
+
     const results = await eBay.finding.findCompletedItems(params);
 
     if (!results || !results[0]?.searchResult?.[0]?.item) {
@@ -318,21 +365,22 @@ export async function findCompletedItems(keyword, marketplace = 'US', ean = null
       ? soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length
       : 0;
 
-    return {
+    const result = {
       items,
       averagePrice: Number(averagePrice.toFixed(2)),
       soldCount: items.length,
       priceRange: {
         min: Math.min(...soldPrices),
         max: Math.max(...soldPrices)
-      }
+      },
+      source: 'live'
     };
 
     apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
   } catch (error) {
     console.error('[eBayService] Finding API error:', error.message);
-    return { items: [], averagePrice: 0, soldCount: 0 };
+    return { items: [], averagePrice: 0, soldCount: 0, source: 'live' };
   }
 }
 
@@ -349,25 +397,36 @@ export async function getProductPricingByEAN(ean, marketplace = 'US') {
     const activeListings = await searchByEAN(ean, marketplace);
 
     if (activeListings.length === 0) {
-      console.warn('[eBayService] No listings found for EAN:', ean);
+      console.warn('[eBayService] No listings found for market:', marketplace, 'EAN:', ean);
       return null;
     }
 
-    // Calculate average active price (API returns USD)
+    // Calculate average active price and handle currency
     const activePrices = activeListings.map(l => l.price).filter(p => p > 0);
+    const sourceCurrency = activeListings[0]?.currency || 'USD';
+    const targetCurrency = currencyService.getCurrencyForMarketplace(marketplace);
 
     if (activePrices.length === 0) {
       console.warn('[eBayService] No valid prices found for EAN:', ean);
       return null;
     }
 
-    const avgActivePriceUSD = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
+    const avgSourcePrice = activePrices.reduce((a, b) => a + b, 0) / activePrices.length;
+    const minSourcePrice = Math.min(...activePrices);
+    const maxSourcePrice = Math.max(...activePrices);
 
-    // Convert USD price to local marketplace currency
-    const targetCurrency = currencyService.getCurrencyForMarketplace(marketplace);
-    const avgActivePrice = currencyService.convert(avgActivePriceUSD, 'USD', targetCurrency);
-    const minPrice = currencyService.convert(Math.min(...activePrices), 'USD', targetCurrency);
-    const maxPrice = currencyService.convert(Math.max(...activePrices), 'USD', targetCurrency);
+    // Convert to target currency ONLY if source doesn't match target
+    const avgActivePrice = sourceCurrency === targetCurrency
+      ? avgSourcePrice
+      : currencyService.convert(avgSourcePrice, sourceCurrency, targetCurrency);
+
+    const minPrice = sourceCurrency === targetCurrency
+      ? minSourcePrice
+      : currencyService.convert(minSourcePrice, sourceCurrency, targetCurrency);
+
+    const maxPrice = sourceCurrency === targetCurrency
+      ? maxSourcePrice
+      : currencyService.convert(maxSourcePrice, sourceCurrency, targetCurrency);
 
     // Get completed/sold items to estimate REAL demand
     let soldData = { soldCount: 0, averagePrice: 0 };
@@ -495,9 +554,10 @@ export async function getProductPricing(keyword, marketplace = 'US') {
       },
       soldPriceRange: soldData.priceRange,
       activeListings: activeListings.length,
-      soldLast30Days: soldData.soldCount,
+      soldLast90Days: soldData.soldCount,
       estimatedMonthlySales,
-      confidence: soldData.soldCount > 20 ? 'High' : soldData.soldCount > 5 ? 'Medium' : 'Low'
+      confidence: soldData.soldCount > 20 ? 'High' : soldData.soldCount > 5 ? 'Medium' : 'Low',
+      dataSource: 'live'
     };
   } catch (error) {
     console.error('[eBayService] Get pricing error:', error.message);

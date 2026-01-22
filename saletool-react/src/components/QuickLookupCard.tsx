@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiZap, FiDollarSign, FiActivity, FiAlertTriangle, FiTrash2, FiChevronDown, FiChevronRight, FiCopy, FiPackage, FiTrendingUp, FiStar, FiTag, FiHash, FiShoppingBag } from 'react-icons/fi';
+import { FiZap, FiDollarSign, FiActivity, FiAlertTriangle, FiTrash2, FiChevronDown, FiChevronRight, FiCopy, FiPackage, FiTrendingUp, FiStar, FiTag, FiHash, FiShoppingBag, FiInfo } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import type { QuickLookupProduct } from '../types/product';
 
@@ -53,9 +53,77 @@ function getSalesRankStyle(rank: number): string {
     return 'text-red-400';
 }
 
+// FX Rates Tooltip Component - only shows if fxRates available
+interface FxRatesTooltipProps {
+    fxRates?: {
+        rates: Record<string, number>;
+        baseCurrency: string;
+        fetchedAt: string | null;
+        source: 'live' | 'cache_expired' | 'fallback' | string;
+    };
+}
+
+function FxRatesTooltip({ fxRates }: FxRatesTooltipProps) {
+    const [isVisible, setIsVisible] = useState(false);
+
+    if (!fxRates?.rates) return null;
+
+    const rates = fxRates.rates;
+    const source = fxRates.source;
+    const fetchedAt = fxRates.fetchedAt;
+    const displayCurrencies = ['GBP', 'EUR', 'AUD'];
+
+    const getSourceMessage = () => {
+        switch (source) {
+            case 'live': return 'Live rates from freecurrencyapi.com';
+            case 'cache_expired': return 'Cached rates (refresh pending)';
+            default: return 'Rates at analysis time';
+        }
+    };
+
+    return (
+        <div className="relative inline-block">
+            <button
+                type="button"
+                onMouseEnter={() => setIsVisible(true)}
+                onMouseLeave={() => setIsVisible(false)}
+                onClick={(e) => { e.stopPropagation(); setIsVisible(!isVisible); }}
+                className="text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1 underline decoration-dotted underline-offset-2"
+            >
+                <FiInfo size={12} />
+                <span>FX Rates when analyzed</span>
+            </button>
+            {isVisible && (
+                <div className="absolute z-50 bottom-full right-0 mb-2 w-56">
+                    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl text-left">
+                        <div className="text-xs font-semibold text-gray-300 mb-2">FX Rates (1 USD =)</div>
+                        <div className="space-y-1 text-xs">
+                            {displayCurrencies.map(currency => {
+                                const rate = rates[currency];
+                                return rate ? (
+                                    <div key={currency} className="flex justify-between text-gray-400">
+                                        <span>{currency}</span>
+                                        <span className="text-gray-300">{rate.toFixed(4)}</span>
+                                    </div>
+                                ) : null;
+                            })}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-gray-700 text-[10px] text-gray-500">
+                            {getSourceMessage()}
+                            {fetchedAt && (
+                                <div className="mt-1 text-gray-600">{new Date(fetchedAt).toLocaleString()}</div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="absolute top-full right-4 -mt-1 border-4 border-transparent border-t-gray-700"></div>
+                </div>
+            )}
+        </div>
+    );
+}
 export default function QuickLookupCard({ product, onDelete }: QuickLookupCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [isMarketsExpanded, setIsMarketsExpanded] = useState(true); // For collapsible markets section
+    const [isMarketsExpanded, setIsMarketsExpanded] = useState(false); // Collapsed by default
     const demandStyle = getDemandStyle(product.demand?.level || 'UNKNOWN');
     const riskStyle = getRiskStyle(product.riskSnapshot?.level || 'UNKNOWN');
 
@@ -213,11 +281,14 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-gray-400">{product.currentPrice.market}</span>
                                             {product.currentPrice.dataSource && (
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${product.currentPrice.dataSource === 'live'
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${product.currentPrice.dataSource === 'live' || product.currentPrice.dataSource === 'api'
                                                     ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                    : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                    : product.currentPrice.dataSource === 'estimated'
+                                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                                        : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                                     }`}>
-                                                    {product.currentPrice.dataSource === 'live' ? 'LIVE' : 'MOCK'}
+                                                    {product.currentPrice.dataSource === 'live' || product.currentPrice.dataSource === 'api' ? 'LIVE' :
+                                                        product.currentPrice.dataSource === 'estimated' ? 'ESTIMATED' : 'MOCK'}
                                                 </span>
                                             )}
                                         </div>
@@ -504,11 +575,14 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                                             </span>
                                                         </div>
                                                         {/* Data Source Badge */}
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${data.dataSource === 'live' || data.dataSource === 'api'
+                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${priceData?.dataSource === 'live' || priceData?.dataSource === 'api'
                                                             ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                            : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                            : priceData?.dataSource === 'estimated'
+                                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                                                             }`}>
-                                                            {data.dataSource === 'live' || data.dataSource === 'api' ? 'LIVE' : 'MOCK'}
+                                                            {priceData?.dataSource === 'live' || priceData?.dataSource === 'api' ? 'LIVE' :
+                                                                priceData?.dataSource === 'estimated' ? 'ESTIMATED' : 'MOCK'}
                                                         </span>
                                                     </div>
 
@@ -565,12 +639,24 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                                                             <>
                                                                 {data.estimatedMonthlySales !== undefined && (
                                                                     <div className="flex items-center justify-between text-sm">
-                                                                        <span className="text-gray-400">Est. Monthly Sales</span>
+                                                                        <span className="text-gray-400 flex items-center gap-1">
+                                                                            Est. Monthly Sales
+                                                                            <span className="relative group cursor-help">
+                                                                                <FiInfo size={12} className="text-gray-500" />
+                                                                                <span className="absolute bottom-full left-0 mb-1 px-3 py-2 bg-gray-900 text-xs text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-gray-700 w-64">
+                                                                                    <div className="font-semibold text-white mb-1">eBay Heuristics</div>
+                                                                                    <div className="text-[10px] leading-relaxed">
+                                                                                        Listings × Market × Category × Competition
+                                                                                    </div>
+                                                                                </span>
+                                                                            </span>
+                                                                        </span>
                                                                         <span className="font-bold text-emerald-400">
                                                                             {formatNumber(data.estimatedMonthlySales)}
                                                                         </span>
                                                                     </div>
                                                                 )}
+
                                                                 {data.activeListings !== undefined && (
                                                                     <div className="flex items-center justify-between text-sm">
                                                                         <span className="text-gray-400">Active Listings</span>
@@ -659,9 +745,10 @@ export default function QuickLookupCard({ product, onDelete }: QuickLookupCardPr
                         </div>
                     )}
 
-                    {/* Footer */}
-                    <div className="text-xs text-gray-500">
-                        Analyzed: {new Date(product.analyzedAt).toLocaleString()}
+                    {/* Footer with FX Rates */}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Analyzed: {new Date(product.analyzedAt).toLocaleString()}</span>
+                        <FxRatesTooltip fxRates={product.fxRates} />
                     </div>
                 </div>
             )}
