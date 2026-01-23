@@ -171,7 +171,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
   }, [isExpanded, product.id]);
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-300">
+    <div className="bg-gray-800 border border-gray-700 rounded-xl hover:border-gray-600 transition-all duration-300">
       {/* Header Section */}
       <div className="bg-gray-800/50 border-b border-gray-700 px-4 sm:px-6 py-4 hover:bg-gray-750 transition-colors">
         <div className="flex flex-col sm:flex-row sm:justify-between gap-3 sm:gap-0">
@@ -369,7 +369,16 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                   <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-300">Volume Risk</span>
+                        <div className="relative group/volumerisk flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-gray-300">All Channels Combined Volume Risk</span>
+                          <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                          <div className="absolute left-0 bottom-full mb-2 w-64 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/volumerisk:opacity-100 group-hover/volumerisk:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                            This volume risk is calculated after allocating and holding volumes to all channels. It represents the overall inventory risk across your entire channel portfolio.
+                            <div className="absolute bottom-0 left-2 transform translate-y-full">
+                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                            </div>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-gray-500">
                           ({(product.scoreBreakdown.weights.volumeRisk * 100).toFixed(0)}% weight)
                         </span>
@@ -481,8 +490,58 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
               <div className="text-lg font-bold text-white">{product.demand_confidence}%</div>
             </div>
             <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
-              <div className="text-xs text-gray-400 mb-1.5 font-medium">Volume Risk</div>
-              <div className="text-lg font-bold text-white">{product.volume_risk}%</div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="relative group/volumeriskmetric flex items-center gap-1.5">
+                  <div className="text-xs text-gray-400 font-medium">All Channels Combined Volume Risk</div>
+                  <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                  <div className="absolute left-0 bottom-full mb-2 w-64 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/volumeriskmetric:opacity-100 group-hover/volumeriskmetric:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
+                    This volume risk is calculated after allocating and holding volumes to all channels. It represents the overall inventory risk across your entire channel portfolio.
+                    <div className="absolute bottom-0 left-2 transform translate-y-full">
+                      <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-lg font-bold text-white mb-1.5">{product.volume_risk}%</div>
+              {(() => {
+                // Find worst channel by volume risk (highest monthsToSell)
+                if (!product.channels || product.channels.length === 0 || !product.quantity) return null;
+
+                // Filter channels with valid absorption capacity and calculate monthsToSell
+                const channelsWithCapacity = product.channels
+                  .map(channel => {
+                    const absorptionCapacity = (channel as any).demand?.absorptionCapacity || 0;
+                    // Only include channels with valid absorption capacity (> 0)
+                    if (absorptionCapacity <= 0) return null;
+
+                    // Use monthsToSell from backend if available, otherwise calculate
+                    const monthsToSell = (channel as any).monthsToSell !== undefined
+                      ? (channel as any).monthsToSell
+                      : product.quantity! / absorptionCapacity;
+
+                    return { channel, monthsToSell, absorptionCapacity };
+                  })
+                  .filter((item): item is { channel: any; monthsToSell: number; absorptionCapacity: number } => item !== null);
+
+                if (channelsWithCapacity.length === 0) return null;
+
+                const worstChannel = channelsWithCapacity.reduce((worst, current) =>
+                  current.monthsToSell > worst.monthsToSell ? current : worst
+                );
+
+                const channelName = (worstChannel.channel as any).retailer
+                  ? `${(worstChannel.channel as any).retailer}-${worstChannel.channel.marketplace}`
+                  : (worstChannel.channel as any).distributor
+                    ? `${(worstChannel.channel as any).distributor}-${worstChannel.channel.marketplace}`
+                    : `${worstChannel.channel.channel}-${worstChannel.channel.marketplace}`;
+
+                return (
+                  <div className="text-[10px] text-gray-500 pt-1.5 border-t border-gray-700/30">
+                    <div className="text-gray-400">Slowest: <span className="text-gray-300 font-medium">{channelName}</span></div>
+                    <div className="text-gray-400">{worstChannel.monthsToSell.toFixed(1)} months to sell</div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="bg-gray-700/20 rounded-lg p-3 border border-gray-600/20">
               <div className="text-xs text-gray-400 mb-1.5 font-medium">Data Reliability</div>
@@ -594,6 +653,39 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                 </div>
               </button>
 
+              {/* Channel Classification Summary */}
+              {!isChannelsCollapsed && product.channelClassification && (
+                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FiInfo className="text-blue-400" size={14} />
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Channel Classification Summary</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                    <div className="text-xs">
+                      <span className="text-gray-500">Viable: </span>
+                      <span className="text-gray-300 font-medium">{product.channelClassification.viableCount}</span>
+                      <span className="text-gray-500 ml-1">(margin ≥ 15%)</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-gray-500">Recommended: </span>
+                      <span className="text-blue-400 font-medium">{product.channelClassification.recommendedCount}</span>
+                      <span className="text-gray-500 ml-1">(best options)</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-gray-500">Allocated: </span>
+                      <span className="text-green-400 font-medium">{product.channelClassification.allocatedCount}</span>
+                      <span className="text-gray-500 ml-1">(received quantity)</span>
+                    </div>
+                  </div>
+                  {product.channelClassification.explanation && (
+                    <div className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-700/50">
+                      <span className="text-gray-500">ℹ️ </span>
+                      {product.channelClassification.explanation}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {!isChannelsCollapsed && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                   {product.channels.map((channel, idx) => {
@@ -702,6 +794,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                             )}
                           </div>
                         </div>
+                        {/* Existing Badges Row */}
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           {channel.recommendation && (
                             <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${channel.recommendation === 'Sell'
@@ -713,14 +806,6 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               {channel.recommendation}
                             </div>
                           )}
-                          {(() => {
-                            const allocationQty = getChannelAllocation(channel);
-                            return allocationQty > 0 ? (
-                              <span className="text-[10px] px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-bold uppercase tracking-wider">
-                                ALLOCATED: {allocationQty}
-                              </span>
-                            ) : null;
-                          })()}
                           {/* Data Source Breakdown - Per Component */}
                           {(channel as any).dataSources ? (
                             <div className="relative group/datasources">
@@ -732,11 +817,11 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                 const hasLive = ds.price?.status === 'LIVE' || ds.demand?.status === 'LIVE';
 
                                 if (allMock) {
-                                  return <span className="text-xs px-1 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium cursor-help inline-flex items-center gap-1">MOCK <FiInfo size={10} /></span>;
+                                  return <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium cursor-help inline-flex items-center gap-1">MOCK <FiInfo size={10} /></span>;
                                 } else if (allLive) {
-                                  return <span className="text-xs px-1 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium cursor-help inline-flex items-center gap-1">LIVE <FiInfo size={10} /></span>;
+                                  return <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium cursor-help inline-flex items-center gap-1">LIVE <FiInfo size={10} /></span>;
                                 } else if (hasLive) {
-                                  return <span className="text-xs px-1 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium cursor-help inline-flex items-center gap-1">MIXED <FiInfo size={10} /></span>;
+                                  return <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium cursor-help inline-flex items-center gap-1">MIXED <FiInfo size={10} /></span>;
                                 }
                                 return null;
                               })()}
@@ -774,14 +859,80 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                           ) : (
                             /* Fallback to old logic if dataSources not present */
                             isAlwaysMocked ? (
-                              <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                              <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
                             ) : isLivePricing ? (
-                              <span className="text-[10px] px-1.5 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">LIVE DATA</span>
+                              <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">LIVE DATA</span>
                             ) : isMockPricing ? (
-                              <span className="text-[10px] px-1.5 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
+                              <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">MOCK DATA</span>
                             ) : null
                           )}
                         </div>
+                        {/* Classification Badges Row - New Line */}
+                        {channel.classification && (
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {channel.classification.isViable && (
+                              <span className="text-xs px-2 py-1 rounded bg-gray-500/20 text-gray-400 border border-gray-500/30 font-medium">
+                                Viable
+                              </span>
+                            )}
+                            {channel.classification.isRecommended && (
+                              <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium">
+                                Recommended
+                              </span>
+                            )}
+                            {channel.classification.isAllocated && (() => {
+                              const allocationQty = getChannelAllocation(channel);
+                              return (
+                                <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">
+                                  Allocated: {allocationQty}
+                                </span>
+                              );
+                            })()}
+                            {/* Classification Info Tooltip */}
+                            <div className="relative group/classification">
+                              <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                              <div className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/classification:opacity-100 group-hover/classification:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed whitespace-normal break-words">
+                                <div className="text-gray-400 font-bold mb-2 uppercase tracking-wider text-[10px] border-b border-gray-700 pb-1.5">
+                                  Channel Classification
+                                </div>
+                                <div className="space-y-1.5 mb-2">
+                                  <div className="flex items-center gap-2">
+                                    {channel.classification.isViable ? (
+                                      <span className="text-green-400 flex-shrink-0">✓</span>
+                                    ) : (
+                                      <span className="text-gray-600 flex-shrink-0">✗</span>
+                                    )}
+                                    <span className="break-words">Viable (margin ≥ 15%)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {channel.classification.isRecommended ? (
+                                      <span className="text-green-400 flex-shrink-0">✓</span>
+                                    ) : (
+                                      <span className="text-gray-600 flex-shrink-0">✗</span>
+                                    )}
+                                    <span className="break-words">Recommended (best option)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {channel.classification.isAllocated ? (
+                                      <span className="text-green-400 flex-shrink-0">✓</span>
+                                    ) : (
+                                      <span className="text-gray-600 flex-shrink-0">✗</span>
+                                    )}
+                                    <span className="break-words">Allocated (received quantity)</span>
+                                  </div>
+                                </div>
+                                {channel.classification.classificationReason && (
+                                  <div className="pt-2 border-t border-gray-700 text-[10px] text-gray-400 break-words whitespace-normal">
+                                    {channel.classification.classificationReason}
+                                  </div>
+                                )}
+                                <div className="absolute bottom-0 left-2 transform translate-y-full">
+                                  <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {(channel as any).explanation && (
                           <div className="mt-2 text-xs text-gray-400 leading-relaxed">
                             {(channel as any).explanation}
@@ -937,6 +1088,38 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
 
             {!isAllocationCollapsed && (
               <div className="p-4 pt-0">
+                {/* Channel Classification Explanation */}
+                {product.channelClassification && (
+                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FiInfo className="text-blue-400" size={14} />
+                      <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Classification Logic</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Viable: </span>
+                        <span className="text-gray-300 font-medium">{product.channelClassification.viableCount}</span>
+                        <span className="text-gray-500 ml-1">(margin ≥ 15%)</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Recommended: </span>
+                        <span className="text-blue-400 font-medium">{product.channelClassification.recommendedCount}</span>
+                        <span className="text-gray-500 ml-1">(recommendation = 'Sell')</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Allocated: </span>
+                        <span className="text-green-400 font-medium">{product.channelClassification.allocatedCount}</span>
+                        <span className="text-gray-500 ml-1">(received quantity)</span>
+                      </div>
+                    </div>
+                    {product.channelClassification.explanation && (
+                      <div className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-700/50">
+                        <span className="text-gray-500 font-medium">Why allocation differs from recommendations: </span>
+                        {product.channelClassification.explanation}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
                   {/* Allocation Plan */}
                   {product.allocation && (Object.keys(product.allocation.allocated).length > 0 || product.allocation.hold > 0) && (

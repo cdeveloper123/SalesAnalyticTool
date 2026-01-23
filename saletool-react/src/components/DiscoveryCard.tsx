@@ -147,7 +147,7 @@ export default function DiscoveryCard({ product, onDelete }: DiscoveryCardProps)
     };
 
     return (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-300">
+        <div className="bg-gray-800 border border-gray-700 rounded-xl hover:border-gray-600 transition-all duration-300">
             {/* Header Section - Clickable to expand/collapse */}
             <button
                 type="button"

@@ -566,7 +566,7 @@ function Dashboard() {
 
       {/* Main Content */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="bg-gray-800 rounded-lg border border-gray-700">
           <div className="px-6 py-4 border-b border-gray-700">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Products</h2>

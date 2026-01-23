@@ -138,7 +138,7 @@ function calculateDemandScore(demandData) {
 /**
  * Identify factors driving high margins for trust transparency
  */
-function identifyMarginDrivers(channel, landedCost, pricing) {
+function identifyMarginDrivers(channel, landedCost, pricing, input = null, marketplace = null) {
   const drivers = [];
 
   // Rule 1: Mock Pricing
@@ -173,6 +173,69 @@ function identifyMarginDrivers(channel, landedCost, pricing) {
     drivers.push({
       name: 'High Price Delta',
       description: 'Sell price is significantly (>3x) above the buy price'
+    });
+  }
+
+  // Rule 5: Assumed/Estimated Sell Price
+  // Retailer and Distributor channels always use assumed prices
+  if (channel?.channel === 'Retailer' || channel?.channel === 'Distributor') {
+    drivers.push({
+      name: 'Assumed Sell Price',
+      description: 'Sell price is estimated from reference marketplace, not live API data'
+    });
+  }
+  // Also check if pricing source indicates assumed price
+  else if (pricing?.dataSource === 'estimated' || pricing?.pricingSource === 'estimated') {
+    drivers.push({
+      name: 'Assumed Sell Price',
+      description: 'Sell price is estimated/derived, not from live marketplace API'
+    });
+  }
+
+  // Rule 6: Missing Costs
+  const missingCosts = [];
+  
+  // Check for missing duty (should be calculated for cross-border shipments)
+  if (landedCost && !landedCost.isOverridden && input) {
+    const hasOrigin = input?.supplier_region || input?.origin;
+    const hasDestination = marketplace || channel?.marketplace;
+    // Only flag if it's a cross-border shipment and duty is 0
+    if (hasOrigin && hasDestination && hasOrigin !== hasDestination && landedCost.duty === 0) {
+      missingCosts.push('duty');
+    }
+  }
+
+  // Check for missing shipping
+  if (landedCost && !landedCost.shipping?.isOverridden && input) {
+    const hasOrigin = input?.supplier_region || input?.origin;
+    const hasDestination = marketplace || channel?.marketplace;
+    // Only flag if it's a cross-border shipment and shipping cost is 0 or missing
+    if (hasOrigin && hasDestination && hasOrigin !== hasDestination) {
+      const shippingCost = landedCost.shipping?.cost || 0;
+      if (shippingCost === 0) {
+        missingCosts.push('shipping');
+      }
+    }
+  }
+
+  // Check for missing import VAT (when applicable for EU/UK markets)
+  if (landedCost) {
+    const hasDestination = marketplace || channel?.marketplace;
+    const vatMarkets = ['GB', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'AT', 'PL', 'SE', 'DK', 'FI', 'IE', 'PT', 'CZ', 'GR', 'RO', 'HU'];
+    if (hasDestination && vatMarkets.includes(hasDestination)) {
+      const importVat = landedCost.importVat || 0;
+      const importVatRate = landedCost.importVatRate || 0;
+      // Flag if VAT should apply but is 0 (unless explicitly reclaimed)
+      if (importVat === 0 && importVatRate === 0 && !landedCost.reclaimVat) {
+        missingCosts.push('import VAT');
+      }
+    }
+  }
+
+  if (missingCosts.length > 0) {
+    drivers.push({
+      name: 'Missing Costs',
+      description: `One or more cost components may be missing: ${missingCosts.join(', ')}. This could inflate margin calculations.`
     });
   }
 
@@ -400,7 +463,7 @@ function processEbayChannel(marketplace, pricing, buyPrice, currency, quantity) 
 /**
  * Process Amazon channel with landed cost (buy price + duty + shipping)
  */
-function processAmazonChannelWithLandedCost(marketplace, pricing, productData, landedCost, currency, quantity, feeOverrides = null) {
+function processAmazonChannelWithLandedCost(marketplace, pricing, productData, landedCost, currency, quantity, feeOverrides = null, input = null) {
   if (!pricing || !pricing.buyBoxPrice) return null;
 
   // Get marketplace-specific fee overrides
@@ -474,7 +537,7 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
 
   // Identify margin drivers for high-ROI transparency
   const guardrailDrivers = marginPercent > THRESHOLDS.marginGuardrailThreshold
-    ? identifyMarginDrivers({ sellPrice: fees.sellPrice }, landedCost, pricing)
+    ? identifyMarginDrivers({ sellPrice: fees.sellPrice, channel: 'Amazon' }, landedCost, pricing, input, marketplace)
     : [];
 
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
@@ -560,7 +623,7 @@ function processAmazonChannelWithLandedCost(marketplace, pricing, productData, l
 /**
  * Process eBay channel with landed cost
  */
-function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, currency, quantity, feeOverrides = null) {
+function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, currency, quantity, feeOverrides = null, input = null) {
   if (!pricing || !pricing.buyBoxPrice) return null;
 
   // Calculate eBay fees
@@ -605,7 +668,7 @@ function processEbayChannelWithLandedCost(marketplace, pricing, landedCost, curr
 
   // Identify margin drivers for high-ROI transparency
   const guardrailDrivers = marginPercent > THRESHOLDS.marginGuardrailThreshold
-    ? identifyMarginDrivers({ sellPrice: fees.sellPrice }, landedCost, pricing)
+    ? identifyMarginDrivers({ sellPrice: fees.sellPrice, channel: 'eBay' }, landedCost, pricing, input, marketplace)
     : [];
 
   const recommendation = marginPercent >= THRESHOLDS.minMarginPercent ? 'Sell' : 'Avoid';
@@ -836,7 +899,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   if (amazonPricing) {
     for (const [marketplace, pricing] of Object.entries(amazonPricing)) {
       const landed = landedCosts[marketplace] || landedCosts['US'];
-      const channel = processAmazonChannelWithLandedCost(marketplace, pricing, productData, landed, currency, quantity, feeOverrides);
+      const channel = processAmazonChannelWithLandedCost(marketplace, pricing, productData, landed, currency, quantity, feeOverrides, input);
       if (channel) allChannels.push(channel);
     }
   }
@@ -845,7 +908,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
   if (ebayPricing) {
     for (const [marketplace, pricing] of Object.entries(ebayPricing)) {
       const landed = landedCosts[marketplace] || landedCosts['US'];
-      const channel = processEbayChannelWithLandedCost(marketplace, pricing, landed, currency, quantity, feeOverrides);
+      const channel = processEbayChannelWithLandedCost(marketplace, pricing, landed, currency, quantity, feeOverrides, input);
       if (channel) allChannels.push(channel);
     }
   }
@@ -912,7 +975,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
       // Identify margin drivers for high-ROI transparency
       const guardrailDrivers = withMargin.marginPercent > THRESHOLDS.marginGuardrailThreshold
-        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice }, withMargin.landedCost, { dataSource: withMargin.pricingSource })
+        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice, channel: 'Retailer', marketplace: retailer.marketplace }, withMargin.landedCost, { dataSource: withMargin.pricingSource }, input, retailer.marketplace)
         : [];
 
       // Add explanation
@@ -1001,7 +1064,7 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
       // Identify margin drivers for high-ROI transparency
       const guardrailDrivers = withMargin.marginPercent > THRESHOLDS.marginGuardrailThreshold
-        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice }, withMargin.landedCost, { dataSource: withMargin.pricingSource })
+        ? identifyMarginDrivers({ sellPrice: withMargin.sellPrice, channel: 'Distributor', marketplace: distributor.marketplace }, withMargin.landedCost, { dataSource: withMargin.pricingSource }, input, distributor.marketplace)
         : [];
 
       // Add explanation  
@@ -1332,6 +1395,86 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
 
   // Get FX cache status for transparency
   const fxStatus = currencyService.getCacheStatus();
+
+  // Add classification metadata to each channel
+  for (const channel of allChannels) {
+    const key = getChannelKey(channel);
+    const isViable = channel.marginPercent >= THRESHOLDS.minMarginPercent;
+    const isRecommended = channel.recommendation === 'Sell';
+    const isAllocated = allocation[key] && allocation[key] > 0;
+
+    // Generate classification reason
+    let classificationReason = '';
+    if (isAllocated) {
+      const isMarginChannel = marginChannels.includes(key);
+      const isSpeedChannel = speedChannels.includes(key);
+      if (isMarginChannel && isSpeedChannel) {
+        classificationReason = `Allocated ${allocation[key]} units due to high margin and fast absorption.`;
+      } else if (isMarginChannel) {
+        classificationReason = `Allocated ${allocation[key]} units due to high margin (${channel.marginPercent.toFixed(1)}%).`;
+      } else if (isSpeedChannel) {
+        const monthsToSell = channel.demand?.absorptionCapacity > 0 
+          ? (allocation[key] / channel.demand.absorptionCapacity).toFixed(1)
+          : 'N/A';
+        classificationReason = `Allocated ${allocation[key]} units due to fast absorption (${monthsToSell} months to sell).`;
+      } else {
+        classificationReason = `Allocated ${allocation[key]} units.`;
+      }
+    } else if (isRecommended) {
+      const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+      if (absorptionCapacity === 0) {
+        classificationReason = 'Recommended but not allocated: insufficient market absorption capacity.';
+      } else {
+        const monthsToSell = quantity / absorptionCapacity;
+        classificationReason = `Recommended but not allocated: lower priority than other channels (${monthsToSell.toFixed(1)} months to sell).`;
+      }
+    } else if (isViable) {
+      classificationReason = `Viable (${channel.marginPercent.toFixed(1)}% margin) but not recommended due to ${channel.recommendation === 'Avoid' ? 'low demand confidence or other factors' : 'suboptimal conditions'}.`;
+    } else {
+      classificationReason = `Not viable: margin ${channel.marginPercent.toFixed(1)}% is below ${THRESHOLDS.minMarginPercent}% threshold.`;
+    }
+
+    channel.classification = {
+      isViable,
+      isRecommended,
+      isAllocated,
+      classificationReason
+    };
+  }
+
+  // Calculate classification summary statistics
+  const viableChannels = allChannels.filter(c => c.classification.isViable);
+  const recommendedChannelsCount = allChannels.filter(c => c.classification.isRecommended).length;
+  const allocatedChannelsCount = Object.keys(allocation).length;
+
+  // Generate explanation for why allocation differs from recommendations
+  let classificationExplanation = '';
+  if (recommendedChannelsCount > allocatedChannelsCount) {
+    const notAllocatedRecommended = allChannels.filter(
+      c => c.classification.isRecommended && !c.classification.isAllocated
+    );
+    const reasons = [];
+    
+    const lowCapacity = notAllocatedRecommended.filter(c => (c.demand?.absorptionCapacity || 0) === 0);
+    if (lowCapacity.length > 0) {
+      reasons.push(`${lowCapacity.length} channel${lowCapacity.length > 1 ? 's have' : ' has'} insufficient absorption capacity`);
+    }
+    
+    const lowerPriority = notAllocatedRecommended.filter(c => (c.demand?.absorptionCapacity || 0) > 0);
+    if (lowerPriority.length > 0) {
+      reasons.push(`${lowerPriority.length} channel${lowerPriority.length > 1 ? 's are' : ' is'} lower priority than allocated channels`);
+    }
+    
+    classificationExplanation = `${recommendedChannelsCount} channels are recommended, but only ${allocatedChannelsCount} received allocation. `;
+    if (reasons.length > 0) {
+      classificationExplanation += `Reason: ${reasons.join(' and ')}. `;
+    }
+    classificationExplanation += `Allocation prioritizes high-margin and fast-turnover channels (max 3 months per channel).`;
+  } else if (recommendedChannelsCount === allocatedChannelsCount && allocatedChannelsCount > 0) {
+    classificationExplanation = `All ${recommendedChannelsCount} recommended channels received allocation.`;
+  } else {
+    classificationExplanation = `No channels allocated. ${recommendedChannelsCount} channel${recommendedChannelsCount !== 1 ? 's are' : ' is'} recommended but allocation was not possible due to capacity constraints.`;
+  }
 
   return {
     ean,

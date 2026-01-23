@@ -45,6 +45,13 @@ export interface DemandData {
   methodology?: string;
 }
 
+export interface ChannelClassification {
+  isViable: boolean;
+  isRecommended: boolean;
+  isAllocated: boolean;
+  classificationReason: string;
+}
+
 export interface ChannelData {
   channel: string;
   marketplace: string;
@@ -59,6 +66,7 @@ export interface ChannelData {
   landedCostConverted?: number;  // Converted landed cost
   fx?: FxData;  // FX rate used for conversion
   demand?: DemandData;
+  classification?: ChannelClassification;
 }
 
 export interface NegotiationSupport {
@@ -165,6 +173,13 @@ export interface Product {
     hold: number;
     rationale?: string;
     channelDetails?: Record<string, string>;
+  };
+  channelClassification?: {
+    totalChannels: number;
+    viableCount: number;
+    recommendedCount: number;
+    allocatedCount: number;
+    explanation: string;
   };
   landedCost?: LandedCost;
   currencyInfo?: CurrencyInfo;  // FX transparency info
