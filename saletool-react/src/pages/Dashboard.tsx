@@ -204,7 +204,12 @@ function Dashboard() {
             demand_confidence: deal.demandConfidence,
             volume_risk: 100 - deal.volumeRisk,
             data_reliability: deal.dataReliability,
-            scoreBreakdown: evaluation.scoreBreakdown,
+            scoreBreakdown: evaluation.scoreBreakdown ? {
+              ...evaluation.scoreBreakdown,
+              calculationDetails: (evaluation as any).calculationDetails ?? undefined,
+              penalties: (evaluation as any).penalties ?? undefined,
+              scoreHistory: (evaluation as any).scoreHistory ?? undefined,
+            } : undefined,
             decision: deal.decision as Product['decision'],
             explanation: deal.explanation || '',
             bestChannel: deal.bestChannel ? {

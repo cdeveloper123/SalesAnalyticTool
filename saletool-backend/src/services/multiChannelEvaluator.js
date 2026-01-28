@@ -1142,22 +1142,278 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     });
   }
 
-  // Calculate overall scores using landed cost (not just buy price) to properly reflect overrides
-  const marginScore = calculateMarginScore(bestNetProceedsUSD, bestLandedCostUSD);
-  const demandScore = calculateDemandScore(bestChannel.demand);
-
-  // Calculate total absorption across all recommended channels
+  // Recommended channels and absorption (needed for allocation and volume risk)
   const recommendedChannels = allChannels.filter(c => c.recommendation === 'Sell');
   const totalAbsorption = recommendedChannels.reduce((sum, c) => sum + (c.demand?.absorptionCapacity || 0), 0);
   const overallMonthsToSell = totalAbsorption > 0 ? quantity / totalAbsorption : 999;
 
-  const volumeRiskScore = overallMonthsToSell <= 1 ? 100
-    : overallMonthsToSell <= 3 ? 85
-      : overallMonthsToSell <= 6 ? 60
-        : overallMonthsToSell <= 12 ? 35
-          : 10;
+  const getChannelKey = (channel) => {
+    if (channel.retailer) return `${channel.retailer}-${channel.marketplace}`;
+    if (channel.distributor) return `${channel.distributor}-${channel.marketplace}`;
+    return `${channel.channel}-${channel.marketplace}`;
+  };
 
-  const dataReliabilityScore = Math.min(100, allChannels.length * 20); // 20 points per channel with data, capped at 100
+  // Run allocation before scoring so margin/demand/data reliability are deal-level (allocated channels)
+  const sortedByMargin = [...recommendedChannels].sort((a, b) => b.marginPercent - a.marginPercent);
+  const sortedBySpeed = [...recommendedChannels]
+    .filter(c => (c.demand?.absorptionCapacity || 0) > 0)
+    .sort((a, b) => {
+      const monthsA = a.demand?.absorptionCapacity > 0 ? quantity / a.demand.absorptionCapacity : 999;
+      const monthsB = b.demand?.absorptionCapacity > 0 ? quantity / b.demand.absorptionCapacity : 999;
+      return monthsA - monthsB;
+    });
+
+  const allocation = {};
+  const allocationDetails = {};
+  let remainingQty = quantity;
+  const marginAllocationTarget = Math.floor(quantity * 0.65);
+  let marginAllocated = 0;
+  const marginChannels = [];
+  const speedChannels = [];
+
+  for (const channel of sortedByMargin) {
+    if (marginAllocated >= marginAllocationTarget || remainingQty <= 0) break;
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0) continue;
+    const maxAllocation = absorptionCapacity * 3;
+    const availableForMargin = marginAllocationTarget - marginAllocated;
+    const allocated = Math.min(remainingQty, Math.floor(maxAllocation), availableForMargin);
+    if (allocated > 0) {
+      const key = getChannelKey(channel);
+      allocation[key] = (allocation[key] || 0) + allocated;
+      marginAllocated += allocated;
+      marginChannels.push(key);
+      remainingQty -= allocated;
+    }
+  }
+
+  for (const channel of sortedBySpeed) {
+    if (remainingQty <= 0) break;
+    const key = getChannelKey(channel);
+    if (allocation[key]) continue;
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0) continue;
+    const allocated = Math.min(remainingQty, Math.floor(absorptionCapacity * 3));
+    if (allocated > 0) {
+      allocation[key] = allocated;
+      speedChannels.push(key);
+      remainingQty -= allocated;
+    }
+  }
+
+  for (const [channelKey, allocatedQty] of Object.entries(allocation)) {
+    const channel = allChannels.find(c => getChannelKey(c) === channelKey);
+    if (!channel) continue;
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    const monthlySales = channel.demand?.estimatedMonthlySales?.mid || 0;
+    const monthsToSell = absorptionCapacity > 0 ? allocatedQty / absorptionCapacity : 0;
+    const isMarginCh = marginChannels.includes(channelKey);
+    const isSpeedCh = speedChannels.includes(channelKey);
+    let channelRationale = `Allocated ${allocatedQty} units to ${channelKey} `;
+    if (isMarginCh && isSpeedCh) channelRationale += `(hybrid: high margin ${channel.marginPercent.toFixed(1)}% + fast absorption ${monthsToSell.toFixed(1)} months). `;
+    else if (isMarginCh) channelRationale += `based on HIGH MARGIN strategy (${channel.marginPercent.toFixed(1)}% margin). `;
+    else if (isSpeedCh) channelRationale += `based on FAST ABSORPTION strategy (${monthsToSell.toFixed(1)} months to sell). `;
+    if (absorptionCapacity > 0) {
+      channelRationale += `Monthly absorption capacity: ${absorptionCapacity} units (${monthlySales} estimated sales × market share). This allocation represents ${monthsToSell.toFixed(1)} months of sales capacity. `;
+    }
+    channelRationale += `Margin: ${channel.marginPercent.toFixed(1)}%.`;
+    allocationDetails[channelKey] = channelRationale;
+  }
+
+  for (const channel of sortedByMargin) {
+    const key = getChannelKey(channel);
+    if (allocation[key]) continue;
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    if (absorptionCapacity === 0 && channel.marginPercent >= THRESHOLDS.minMarginPercent) {
+      allocationDetails[key] = `Skipped ${key} despite ${channel.marginPercent.toFixed(1)}% margin due to insufficient market absorption capacity (no reliable demand data available).`;
+    } else if (absorptionCapacity > 0 && !allocation[key]) {
+      allocationDetails[key] = `Skipped ${key} (${channel.marginPercent.toFixed(1)}% margin, ${(quantity / absorptionCapacity).toFixed(1)} months to sell) - lower priority than allocated channels.`;
+    }
+  }
+
+  for (const channel of allChannels) {
+    const key = getChannelKey(channel);
+    if (allocation[key] || channel.recommendation === 'Sell') continue;
+    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
+    let reason = channel.marginPercent < THRESHOLDS.minMarginPercent
+      ? `Not allocated: ${key} has margin of ${channel.marginPercent.toFixed(1)}% (below ${THRESHOLDS.minMarginPercent}% threshold). `
+      : `Not allocated: ${key} not recommended for selling. `;
+    reason += absorptionCapacity === 0 ? 'No reliable demand data available.' : `Estimated ${(quantity / absorptionCapacity).toFixed(1)} months to sell through quantity.`;
+    allocationDetails[key] = reason;
+  }
+
+  let overallRationale = '';
+  if (Object.keys(allocation).length === 0) {
+    overallRationale = 'No channels allocated due to insufficient market absorption capacity.';
+  } else {
+    const allocatedChannels = Object.keys(allocation);
+    const marginChannelsList = marginChannels.filter(c => allocation[c]);
+    const speedChannelsList = speedChannels.filter(c => allocation[c]);
+    const marginPct = Math.round((marginAllocated / quantity) * 100);
+    const speedPct = Math.round((speedChannelsList.reduce((sum, c) => sum + (allocation[c] || 0), 0) / quantity) * 100);
+    if (remainingQty > 0) {
+      overallRationale = `${marginPct}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPct}% to fast-absorption channels (${speedChannelsList.join(', ')}). ${remainingQty} units held back.`;
+    } else {
+      const maxMonths = Math.max(...allocatedChannels.map(c => {
+        const ch = allChannels.find(ch => getChannelKey(ch) === c);
+        return ch?.demand?.absorptionCapacity > 0 ? (allocation[c] / ch.demand.absorptionCapacity) : 0;
+      }), 0);
+      overallRationale = `${marginPct}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPct}% to fast-absorption channels (${speedChannelsList.join(', ')}). Estimated sell-through: ${maxMonths.toFixed(1)} months.`;
+    }
+  }
+
+  // --- Deal-level scoring: margin/demand from allocated channels; volume as-is; data = how much is live vs mock ---
+  const allocKeys = Object.keys(allocation);
+  const hasAllocation = allocKeys.length > 0;
+
+  const getLandedCostUSD = (ch) => {
+    const total = ch.landedCost?.total ?? landedCosts[ch.marketplace]?.totalLandedCost ?? buyPrice;
+    return currencyService.toUSD(total, currency);
+  };
+  const getNetProceedsUSD = (ch) => currencyService.toUSD(ch.netProceeds, ch.currency);
+
+  let marginScore;
+  let marginPercentActual;
+  let marginDetailSource;
+
+  if (hasAllocation) {
+    let totalLandedUSD = 0;
+    let totalProceedsUSD = 0;
+    for (const key of allocKeys) {
+      const ch = allChannels.find(c => getChannelKey(c) === key);
+      if (!ch) continue;
+      const q = allocation[key];
+      totalLandedUSD += getLandedCostUSD(ch) * q;
+      totalProceedsUSD += getNetProceedsUSD(ch) * q;
+    }
+    marginPercentActual = totalLandedUSD > 0 ? ((totalProceedsUSD - totalLandedUSD) / totalLandedUSD) * 100 : 0;
+    marginScore = totalLandedUSD > 0 ? calculateMarginScore(totalProceedsUSD, totalLandedUSD) : 0;
+    marginDetailSource = 'allocated';
+  } else {
+    marginPercentActual = bestLandedCostUSD > 0 ? ((bestNetProceedsUSD - bestLandedCostUSD) / bestLandedCostUSD) * 100 : 0;
+    marginScore = calculateMarginScore(bestNetProceedsUSD, bestLandedCostUSD);
+    marginDetailSource = 'bestChannel';
+  }
+
+  let demandScore;
+  let demandDetailSource;
+  let demandBreakdown = null; // per-channel breakdown when allocated, for "how we got 54" transparency
+  if (hasAllocation) {
+    let weightedSum = 0;
+    let totalQty = 0;
+    const breakdown = [];
+    for (const key of allocKeys) {
+      const ch = allChannels.find(c => getChannelKey(c) === key);
+      if (!ch) continue;
+      const q = allocation[key];
+      const d = ch.demand;
+      const baseScore = d && d.confidence !== 'None' ? (d.confidenceScore ?? 50) : 0;
+      const salesMid = d?.estimatedMonthlySales?.mid;
+      const addedTen = !!(salesMid != null && salesMid > 200);
+      const channelScore = calculateDemandScore(d);
+      weightedSum += channelScore * q;
+      totalQty += q;
+      breakdown.push({
+        channelKey: key,
+        allocatedQty: q,
+        baseScore,
+        estimatedMonthlySales: salesMid,
+        addedTen,
+        channelScore: Math.round(channelScore * 10) / 10
+      });
+    }
+    demandScore = totalQty > 0 ? weightedSum / totalQty : calculateDemandScore(bestChannel.demand);
+    demandDetailSource = 'allocated';
+    if (breakdown.length > 0 && totalQty > 0) {
+      const sumParts = breakdown.map(b => `${b.channelScore}×${b.allocatedQty}`).join(' + ');
+      demandBreakdown = {
+        rows: breakdown,
+        totalQty,
+        weightedFormula: `${Math.round(demandScore * 10) / 10} = (${sumParts}) / ${totalQty}`
+      };
+    }
+  } else {
+    const pool = recommendedChannels.length > 0 ? recommendedChannels : allChannels;
+    const totalAbs = pool.reduce((s, c) => s + (c.demand?.absorptionCapacity || 0), 0);
+    if (totalAbs > 0) {
+      let weightedSum = 0;
+      for (const ch of pool) {
+        const cap = ch.demand?.absorptionCapacity || 0;
+        weightedSum += calculateDemandScore(ch.demand) * cap;
+      }
+      demandScore = weightedSum / totalAbs;
+    } else {
+      const n = pool.length;
+      demandScore = n > 0 ? pool.reduce((s, c) => s + calculateDemandScore(c.demand), 0) / n : calculateDemandScore(bestChannel.demand);
+    }
+    demandDetailSource = recommendedChannels.length > 0 ? 'recommended' : 'all';
+  }
+
+  // Volume risk months: when there is allocation, use slowest allocated channel (bottleneck), else quantity/totalAbsorption
+  const volumeRiskMonthsToSell = hasAllocation && allocKeys.length > 0
+    ? (() => {
+        const perChannel = allocKeys.map(k => {
+          const ch = allChannels.find(c => getChannelKey(c) === k);
+          const cap = ch?.demand?.absorptionCapacity || 0;
+          return cap > 0 ? allocation[k] / cap : 0;
+        });
+        const maxM = perChannel.length ? Math.max(...perChannel) : 0;
+        return maxM > 0 ? maxM : 999;
+      })()
+    : overallMonthsToSell;
+
+  // Volume risk bands: ≤2 no risk, then 2-3→15, 3-4→25, 4-5→30, 5-7→50, 7-9→70, 9-12→90, >12→100
+  const volumeRiskScore = volumeRiskMonthsToSell <= 2 ? 100
+    : volumeRiskMonthsToSell <= 3 ? 15
+      : volumeRiskMonthsToSell <= 4 ? 25
+        : volumeRiskMonthsToSell <= 5 ? 30
+          : volumeRiskMonthsToSell <= 7 ? 50
+            : volumeRiskMonthsToSell <= 9 ? 70
+              : volumeRiskMonthsToSell <= 12 ? 90
+                : 100;
+
+  // Live = real prices and demand (not mock). A channel is mock if pricing/demand source is mock or dataSources.price/demand.status is MOCK. (Costs/landed cost are not tracked as live vs mock.)
+  const isMock = (ch) => {
+    const ps = ch.pricingSource || ch.dataSource;
+    if (ps === 'mock' || ps === 'mock-fallback') return true;
+    const status = ch.dataSources?.price?.status || ch.dataSources?.demand?.status;
+    return status === 'MOCK';
+  };
+
+  let dataReliabilityScore;
+  let dataReliabilityDetail;
+  if (hasAllocation) {
+    let liveQty = 0;
+    let totalQty = 0;
+    for (const key of allocKeys) {
+      const ch = allChannels.find(c => getChannelKey(c) === key);
+      if (!ch) continue;
+      const q = allocation[key];
+      totalQty += q;
+      if (!isMock(ch)) liveQty += q;
+    }
+    dataReliabilityScore = totalQty > 0 ? Math.round(100 * (liveQty / totalQty)) : 0;
+    dataReliabilityDetail = {
+      liveQty,
+      totalQty,
+      formula: '100 × (live allocated qty / total allocated qty)',
+      whatCounts: 'Live = real prices and demand (not mock or fallback).'
+    };
+  } else {
+    const pool = recommendedChannels.length > 0 ? recommendedChannels : allChannels;
+    let liveN = 0;
+    for (const ch of pool) {
+      if (!isMock(ch)) liveN += 1;
+    }
+    const n = pool.length;
+    dataReliabilityScore = n > 0 ? Math.round(100 * (liveN / n)) : 0;
+    dataReliabilityDetail = {
+      liveChannels: liveN,
+      totalChannels: n,
+      formula: '100 × (live channels / total channels)',
+      whatCounts: 'Live = real prices and demand (not mock or fallback).'
+    };
+  }
 
   // Calculate overall score
   const overallScore =
@@ -1166,10 +1422,109 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     volumeRiskScore * WEIGHTS.volumeRisk +
     dataReliabilityScore * WEIGHTS.dataReliability;
 
-  // Generate decision
-  const decision = overallScore >= 75 && bestChannel.marginPercent >= THRESHOLDS.minMarginPercent ? 'Buy'
-    : overallScore >= 55 && bestChannel.marginPercent >= 10 ? 'Renegotiate'
-      : overallScore >= 40 && bestChannel.marginPercent > 0 ? 'Source Elsewhere'
+  // Build calculation details per component — whole-deal only; no single-channel emphasis
+  const marginNetProceedsUSD = hasAllocation
+    ? allocKeys.reduce((s, k) => { const ch = allChannels.find(c => getChannelKey(c) === k); return ch ? s + getNetProceedsUSD(ch) * (allocation[k] || 0) : s; }, 0)
+    : bestNetProceedsUSD;
+  const marginLandedUSD = hasAllocation
+    ? allocKeys.reduce((s, k) => { const ch = allChannels.find(c => getChannelKey(c) === k); return ch ? s + getLandedCostUSD(ch) * (allocation[k] || 0) : s; }, 0)
+    : bestLandedCostUSD;
+
+  const calculationDetails = {
+    margin: {
+      netProceedsUSD: Number(marginNetProceedsUSD.toFixed(2)),
+      landedCostUSD: Number(marginLandedUSD.toFixed(2)),
+      marginPercent: Number(marginPercentActual.toFixed(1)),
+      formula: 'Margin % = (Net proceeds − Landed cost) / Landed cost × 100',
+      bands: `Score bands: <15% → 0–30 pts, 15–30% → 30–60 pts, 30–50% → 60–85 pts, 50%+ → 85–100 pts`,
+      scope: marginDetailSource === 'allocated' ? 'deal' : 'single',
+      allocatedChannels: marginDetailSource === 'allocated' ? allocKeys : undefined,
+      bestChannel: marginDetailSource === 'allocated' ? undefined : `${bestChannel.channel}-${bestChannel.marketplace}`,
+      source: marginDetailSource === 'allocated' ? `Deal margin across allocated channels: ${allocKeys.join(', ')}` : 'Single best-margin channel (no allocation)'
+    },
+    demand: {
+      confidence: demandDetailSource === 'allocated' ? 'Weighted over allocated channels' : (bestChannel.demand?.confidence || 'None'),
+      confidenceScore: Math.round(demandScore),
+      scope: demandDetailSource === 'allocated' ? 'deal' : 'single',
+      allocatedChannelCount: demandDetailSource === 'allocated' ? allocKeys.length : undefined,
+      source: demandDetailSource === 'allocated' ? `Demand score weighted by allocated qty across ${allocKeys.length} channel(s)` : (demandDetailSource === 'recommended' ? 'Weighted by absorption over recommended channels' : 'Average over channels'),
+      estimatedMonthlySales: demandDetailSource === 'allocated' ? undefined : bestChannel.demand?.estimatedMonthlySales?.mid,
+      factors: demandDetailSource === 'allocated' ? undefined : (bestChannel.demand?.signals || []),
+      methodology: demandDetailSource === 'allocated' ? undefined : (bestChannel.demand?.methodology || 'Estimated'),
+      ...(demandBreakdown && { breakdown: demandBreakdown })
+    },
+    volumeRisk: {
+      quantity,
+      totalAbsorptionCapacity: hasAllocation
+        ? Math.round(allocKeys.reduce((s, k) => s + (allChannels.find(c => getChannelKey(c) === k)?.demand?.absorptionCapacity || 0), 0))
+        : Math.round(totalAbsorption),
+      monthsToSell: Number(volumeRiskMonthsToSell.toFixed(1)),
+      formula: hasAllocation
+        ? "Months to sell = slowest allocated channel's (allocated qty ÷ absorption)"
+        : 'Months to sell = Quantity / Total absorption across recommended channels',
+      bands: '≤2 mo → 100 (no risk), 2–3 → 15, 3–4 → 25, 4–5 → 30, 5–7 → 50, 7–9 → 70, 9–12 → 90, >12 → 100',
+      scope: 'deal',
+      basedOnAllocatedChannels: !!hasAllocation
+    },
+    dataReliability: {
+      channelsWithData: dataReliabilityDetail.totalQty ?? dataReliabilityDetail.totalChannels ?? 0,
+      liveChannels: dataReliabilityDetail.liveQty ?? dataReliabilityDetail.liveChannels ?? 0,
+      formula: dataReliabilityDetail.formula,
+      whatCounts: dataReliabilityDetail.whatCounts,
+      metric: dataReliabilityDetail.totalQty != null ? 'allocated_units' : 'channels',
+      maxChannelsFor100: (dataReliabilityDetail.totalChannels != null) ? 5 : undefined,
+      scope: 'deal'
+    }
+  };
+
+  // Penalties: points lost from ideal (100) per component, with reason (deal-level wording when applicable)
+  const penalties = [];
+  if (marginScore < 100) {
+    const lost = Math.round(100 - marginScore);
+    let reason = '';
+    if (marginPercentActual < 0) reason = 'Negative margin';
+    else if (marginPercentActual < THRESHOLDS.minMarginPercent) reason = `Margin ${marginPercentActual.toFixed(1)}% below minimum ${THRESHOLDS.minMarginPercent}%`;
+    else if (marginPercentActual < THRESHOLDS.goodMarginPercent) reason = `Margin ${marginPercentActual.toFixed(1)}% below good threshold (${THRESHOLDS.goodMarginPercent}%)`;
+    else reason = `Margin ${marginPercentActual.toFixed(1)}% below excellent (${THRESHOLDS.excellentMarginPercent}%+)`;
+    if (marginDetailSource === 'allocated') reason += ' (allocation-weighted)';
+    penalties.push({ component: 'margin', pointsLost: lost, reason, weight: WEIGHTS.netMargin, weightedImpact: Number((lost * WEIGHTS.netMargin).toFixed(1)) });
+  }
+  if (demandScore < 100) {
+    const roundedDemand = Math.round(demandScore);
+    const lost = 100 - roundedDemand; // Match displayed score: 54/100 → −46 pts
+    const reason = demandDetailSource === 'allocated'
+      ? 'Base from demand confidence (50 when not reported); +10 only if est. monthly sales > 200. Weighted by allocated qty.'
+      : (bestChannel.demand?.confidence === 'None' || !bestChannel.demand)
+        ? 'No or low demand data'
+        : `Demand confidence ${bestChannel.demand.confidence} (estimated sales: ${bestChannel.demand?.estimatedMonthlySales?.mid ?? 'n/a'})`;
+    penalties.push({ component: 'demand', pointsLost: lost, reason, weight: WEIGHTS.demandConfidence, weightedImpact: Number((lost * WEIGHTS.demandConfidence).toFixed(1)) });
+  }
+  if (volumeRiskScore < 100) {
+    const lost = Math.round(100 - volumeRiskScore);
+    let reason = '';
+    if (volumeRiskMonthsToSell > THRESHOLDS.dangerMonthsToSell) reason = `High inventory risk: ${volumeRiskMonthsToSell.toFixed(0)}+ months to sell`;
+    else if (volumeRiskMonthsToSell > THRESHOLDS.maxMonthsToSell) reason = `Volume risk: ${volumeRiskMonthsToSell.toFixed(1)} months to sell (threshold ${THRESHOLDS.maxMonthsToSell})`;
+    else reason = hasAllocation ? `Slowest allocated channel: ${volumeRiskMonthsToSell.toFixed(1)} months to sell` : `${volumeRiskMonthsToSell.toFixed(1)} months to sell through quantity`;
+    penalties.push({ component: 'volumeRisk', pointsLost: lost, reason, weight: WEIGHTS.volumeRisk, weightedImpact: Number((lost * WEIGHTS.volumeRisk).toFixed(1)) });
+  }
+  if (dataReliabilityScore < 100) {
+    const lost = Math.round(100 - dataReliabilityScore);
+    const reason = dataReliabilityDetail.totalQty != null
+      ? `${dataReliabilityDetail.totalQty - (dataReliabilityDetail.liveQty || 0)} of ${dataReliabilityDetail.totalQty} allocated units use mock prices or demand`
+      : `${(dataReliabilityDetail.totalChannels || 0) - (dataReliabilityDetail.liveChannels || 0)} of ${dataReliabilityDetail.totalChannels || 0} channels use mock prices or demand`;
+    penalties.push({
+      component: 'dataReliability',
+      pointsLost: lost,
+      reason,
+      weight: WEIGHTS.dataReliability,
+      weightedImpact: Number((lost * WEIGHTS.dataReliability).toFixed(1))
+    });
+  }
+
+  // Generate decision using deal-level margin (allocation-weighted or best-channel)
+  const decision = overallScore >= 75 && marginPercentActual >= THRESHOLDS.minMarginPercent ? 'Buy'
+    : overallScore >= 55 && marginPercentActual >= 10 ? 'Renegotiate'
+      : overallScore >= 40 && marginPercentActual > 0 ? 'Source Elsewhere'
         : 'Pass';
 
   // Generate explanation
@@ -1193,178 +1548,8 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
     explanation += `Recommended channels: ${recommendedChannels.map(c => `${c.channel}-${c.marketplace}`).join(', ')}. `;
   }
 
-  if (overallMonthsToSell > THRESHOLDS.dangerMonthsToSell) {
-    explanation += `High inventory risk: ${overallMonthsToSell.toFixed(0)}+ months to sell through quantity. `;
-  }
-
-  // Helper function to get channel display name (uses retailer/distributor name if available)
-  const getChannelKey = (channel) => {
-    if (channel.retailer) {
-      return `${channel.retailer}-${channel.marketplace}`;
-    } else if (channel.distributor) {
-      return `${channel.distributor}-${channel.marketplace}`;
-    } else {
-      return `${channel.channel}-${channel.marketplace}`;
-    }
-  };
-
-  // Hybrid Allocation Strategy: Balance high-margin channels with fast-absorption channels
-  // Phase 1: Allocate 60-70% to highest-margin channels (profit optimization)
-  // Phase 2: Allocate 30-40% to fastest-absorption channels (inventory turnover optimization)
-
-  const sortedByMargin = [...recommendedChannels].sort((a, b) => b.marginPercent - a.marginPercent);
-  const sortedBySpeed = [...recommendedChannels]
-    .filter(c => (c.demand?.absorptionCapacity || 0) > 0)
-    .sort((a, b) => {
-      const monthsA = a.demand?.absorptionCapacity > 0
-        ? quantity / a.demand.absorptionCapacity
-        : 999;
-      const monthsB = b.demand?.absorptionCapacity > 0
-        ? quantity / b.demand.absorptionCapacity
-        : 999;
-      return monthsA - monthsB; // Fastest first
-    });
-
-  const allocation = {};
-  const allocationDetails = {}; // Store details for each allocation
-  let remainingQty = quantity;
-
-  // Phase 1: Allocate to high-margin channels (60-70% of quantity)
-  const marginAllocationTarget = Math.floor(quantity * 0.65); // 65% to margin channels
-  let marginAllocated = 0;
-  const marginChannels = [];
-
-  for (const channel of sortedByMargin) {
-    if (marginAllocated >= marginAllocationTarget || remainingQty <= 0) break;
-
-    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
-    if (absorptionCapacity === 0) continue; // Skip channels with no absorption capacity
-
-    const maxAllocation = absorptionCapacity * 3; // 3 months of capacity
-    const availableForMargin = marginAllocationTarget - marginAllocated;
-    const allocated = Math.min(remainingQty, Math.floor(maxAllocation), availableForMargin);
-
-    if (allocated > 0) {
-      const key = getChannelKey(channel);
-      allocation[key] = (allocation[key] || 0) + allocated;
-      marginAllocated += allocated;
-      marginChannels.push(key);
-      remainingQty -= allocated;
-    }
-  }
-
-  // Phase 2: Allocate remaining to fastest-absorption channels (30-40% of quantity)
-  const speedChannels = [];
-  for (const channel of sortedBySpeed) {
-    if (remainingQty <= 0) break;
-
-    // Skip if already allocated in Phase 1
-    const key = getChannelKey(channel);
-    if (allocation[key]) continue;
-
-    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
-    if (absorptionCapacity === 0) continue;
-
-    const maxAllocation = absorptionCapacity * 3; // 3 months of capacity
-    const allocated = Math.min(remainingQty, Math.floor(maxAllocation));
-
-    if (allocated > 0) {
-      allocation[key] = allocated;
-      speedChannels.push(key);
-      remainingQty -= allocated;
-    }
-  }
-
-  // Build detailed rationale for each allocated channel
-  for (const [channelKey, allocatedQty] of Object.entries(allocation)) {
-    const channel = allChannels.find(c => getChannelKey(c) === channelKey);
-    if (!channel) continue;
-
-    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
-    const monthlySales = channel.demand?.estimatedMonthlySales?.mid || 0;
-    const monthsToSell = absorptionCapacity > 0 ? allocatedQty / absorptionCapacity : 0;
-    const isMarginChannel = marginChannels.includes(channelKey);
-    const isSpeedChannel = speedChannels.includes(channelKey);
-
-    let channelRationale = `Allocated ${allocatedQty} units to ${channelKey} `;
-
-    if (isMarginChannel && isSpeedChannel) {
-      channelRationale += `(hybrid: high margin ${channel.marginPercent.toFixed(1)}% + fast absorption ${monthsToSell.toFixed(1)} months). `;
-    } else if (isMarginChannel) {
-      channelRationale += `based on HIGH MARGIN strategy (${channel.marginPercent.toFixed(1)}% margin). `;
-    } else if (isSpeedChannel) {
-      channelRationale += `based on FAST ABSORPTION strategy (${monthsToSell.toFixed(1)} months to sell). `;
-    }
-
-    if (absorptionCapacity > 0) {
-      channelRationale += `Monthly absorption capacity: ${absorptionCapacity} units (${monthlySales} estimated sales × market share). `;
-      channelRationale += `This allocation represents ${monthsToSell.toFixed(1)} months of sales capacity. `;
-    }
-
-    channelRationale += `Margin: ${channel.marginPercent.toFixed(1)}%.`;
-    allocationDetails[channelKey] = channelRationale;
-  }
-
-  // Add skipped channels to details - include all channels that weren't allocated
-  // First, add skipped recommended channels (those in sortedByMargin but not allocated)
-  for (const channel of sortedByMargin) {
-    const key = getChannelKey(channel);
-    if (allocation[key]) continue;
-
-    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
-    if (absorptionCapacity === 0 && channel.marginPercent >= THRESHOLDS.minMarginPercent) {
-      allocationDetails[key] = `Skipped ${key} despite ${channel.marginPercent.toFixed(1)}% margin due to insufficient market absorption capacity (no reliable demand data available).`;
-    } else if (absorptionCapacity > 0 && !allocation[key]) {
-      allocationDetails[key] = `Skipped ${key} (${channel.marginPercent.toFixed(1)}% margin, ${(quantity / absorptionCapacity).toFixed(1)} months to sell) - lower priority than allocated channels.`;
-    }
-  }
-
-  // Add channels that weren't recommended (recommendation === 'Avoid') - these weren't considered for allocation
-  for (const channel of allChannels) {
-    const key = getChannelKey(channel);
-    if (allocation[key] || channel.recommendation === 'Sell') continue; // Skip if already allocated or recommended
-
-    const absorptionCapacity = channel.demand?.absorptionCapacity || 0;
-    let reason = '';
-
-    if (channel.marginPercent < THRESHOLDS.minMarginPercent) {
-      reason = `Not allocated: ${key} has margin of ${channel.marginPercent.toFixed(1)}% (below ${THRESHOLDS.minMarginPercent}% threshold). `;
-    } else {
-      reason = `Not allocated: ${key} not recommended for selling. `;
-    }
-
-    if (absorptionCapacity === 0) {
-      reason += `No reliable demand data available.`;
-    } else {
-      const monthsToSell = quantity / absorptionCapacity;
-      reason += `Estimated ${monthsToSell.toFixed(1)} months to sell through quantity.`;
-    }
-
-    allocationDetails[key] = reason;
-  }
-
-  // Build overall rationale explaining the hybrid strategy (concise one-liner)
-  let overallRationale = '';
-  if (Object.keys(allocation).length === 0) {
-    overallRationale = 'No channels allocated due to insufficient market absorption capacity.';
-  } else {
-    const allocatedChannels = Object.keys(allocation);
-    const marginChannelsList = marginChannels.filter(c => allocation[c]);
-    const speedChannelsList = speedChannels.filter(c => allocation[c]);
-
-    const channelNames = allocatedChannels.join(', ');
-    const marginPercent = Math.round((marginAllocated / quantity) * 100);
-    const speedPercent = Math.round((speedChannelsList.reduce((sum, c) => sum + (allocation[c] || 0), 0) / quantity) * 100);
-
-    if (remainingQty > 0) {
-      overallRationale = `${marginPercent}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPercent}% to fast-absorption channels (${speedChannelsList.join(', ')}). ${remainingQty} units held back.`;
-    } else {
-      const maxMonths = Math.max(...allocatedChannels.map(c => {
-        const ch = allChannels.find(ch => `${ch.channel}-${ch.marketplace}` === c);
-        return ch?.demand?.absorptionCapacity > 0 ? (allocation[c] / ch.demand.absorptionCapacity) : 0;
-      }));
-      overallRationale = `${marginPercent}% allocated to high-margin channels (${marginChannelsList.join(', ')}) and ${speedPercent}% to fast-absorption channels (${speedChannelsList.join(', ')}). Estimated sell-through: ${maxMonths.toFixed(1)} months.`;
-    }
+  if (volumeRiskMonthsToSell > THRESHOLDS.dangerMonthsToSell) {
+    explanation += `High inventory risk: ${volumeRiskMonthsToSell.toFixed(0)}+ months to sell${hasAllocation ? ' (slowest allocated channel)' : ' through quantity'}. `;
   }
 
   // Calculate negotiation support if needed
@@ -1509,7 +1694,9 @@ export async function evaluateMultiChannel(input, productData, amazonPricing, eb
         demandConfidence: WEIGHTS.demandConfidence,
         volumeRisk: WEIGHTS.volumeRisk,
         dataReliability: WEIGHTS.dataReliability
-      }
+      },
+      calculationDetails,
+      penalties
     },
     decision,
     explanation: explanation.trim(),

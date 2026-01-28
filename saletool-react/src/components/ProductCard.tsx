@@ -317,7 +317,37 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                   <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-300">Net Margin</span>
+                        <div className="relative group/margin flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-gray-300">Net Margin</span>
+                          <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/margin:opacity-100 group-hover/margin:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed space-y-1">
+                            {product.scoreBreakdown.calculationDetails?.margin ? (
+                              (product.scoreBreakdown.calculationDetails.margin as { scope?: string }).scope === 'deal' && (product.scoreBreakdown.calculationDetails.margin as { allocatedChannels?: string[] }).allocatedChannels ? (
+                                <>
+                                  <div>Margin across allocated channels</div>
+                                  <div>Channels: {(product.scoreBreakdown.calculationDetails.margin as { allocatedChannels?: string[] }).allocatedChannels!.join(', ')}</div>
+                                  <div>Total net proceeds (USD): {product.scoreBreakdown.calculationDetails.margin.netProceedsUSD.toLocaleString()}</div>
+                                  <div> Total landed cost (USD): {product.scoreBreakdown.calculationDetails.margin.landedCostUSD.toLocaleString()}</div>
+                                  <div>Deal margin: {product.scoreBreakdown.calculationDetails.margin.marginPercent}%</div>
+                                  <div className="text-gray-400 pt-1">{product.scoreBreakdown.calculationDetails.margin.formula}</div>
+                                  <div className="text-gray-500 text-[10px]">{product.scoreBreakdown.calculationDetails.margin.bands}</div>
+                                </>
+                              ) : (
+                                <>
+                                  <div><strong>Whole deal</strong> — single channel (no allocation)</div>
+                                  <div>Channel: {(product.scoreBreakdown.calculationDetails.margin as { bestChannel?: string }).bestChannel ?? '—'}</div>
+                                  <div>Net proceeds (USD): {product.scoreBreakdown.calculationDetails.margin.netProceedsUSD.toLocaleString()} · Landed cost (USD): {product.scoreBreakdown.calculationDetails.margin.landedCostUSD.toLocaleString()}</div>
+                                  <div>Margin: {product.scoreBreakdown.calculationDetails.margin.marginPercent}%</div>
+                                  <div className="text-gray-400 pt-1">{product.scoreBreakdown.calculationDetails.margin.formula}</div>
+                                  <div className="text-gray-500 text-[10px]">{product.scoreBreakdown.calculationDetails.margin.bands}</div>
+                                </>
+                              )
+                            ) : (
+                              <span>Deal margin: (net proceeds − landed cost) / landed cost × 100. When channels are allocated, this is the blend across all allocated channels.</span>
+                            )}
+                            <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-gray-500">
                           ({(product.scoreBreakdown.weights.netMargin * 100).toFixed(0)}% weight)
                         </span>
@@ -343,7 +373,52 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                   <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-300">Demand Confidence</span>
+                        <div className="relative group/demand flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-gray-300">Demand Confidence</span>
+                          <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/demand:opacity-100 group-hover/demand:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed space-y-1">
+                            {product.scoreBreakdown.calculationDetails?.demand ? (
+                              (product.scoreBreakdown.calculationDetails.demand as { scope?: string }).scope === 'deal' && (product.scoreBreakdown.calculationDetails.demand as { allocatedChannelCount?: number }).allocatedChannelCount != null ? (
+                                <>
+                                  <div className="font-semibold text-white mb-1">How we calculated the score</div>
+                                  <div className="text-gray-400">
+                                    {product.scoreBreakdown.penalties?.find((p: { component: string }) => p.component === 'demand')?.reason ??
+                                      'Base from demand confidence (50 when not reported); +10 only if est. monthly sales > 200. Weighted by allocated qty.'}
+                                  </div>
+                                  {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }[]; totalQty: number; weightedFormula: string } }).breakdown && (
+                                    <div className="mt-2 pt-2 border-t border-gray-600 space-y-1">
+                                      <div className="text-amber-200/90 font-medium">How we got this score</div>
+                                      {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }[]; totalQty: number; weightedFormula: string } }).breakdown!.rows.map((row: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }, idx: number) => (
+                                        <div key={idx} className="text-gray-400">
+                                          {row.channelKey}: {row.channelScore} pts (base {row.baseScore}{row.addedTen ? ', sales &gt;200 → +10' : row.estimatedMonthlySales != null ? `, sales ${row.estimatedMonthlySales} → no +10` : ''}) × {row.allocatedQty} units
+                                        </div>
+                                      ))}
+                                      <div className="text-gray-300 font-mono text-[11px] pt-0.5">
+                                        {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { weightedFormula: string } }).breakdown!.weightedFormula}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="text-gray-500 mt-1">Score: {product.scoreBreakdown.calculationDetails.demand.confidenceScore}/100</div>
+                                </>
+                              ) : (
+                                <>
+                                  <div><strong>Whole deal</strong> — single-channel demand (no allocation)</div>
+                                  <div>Confidence: {product.scoreBreakdown.calculationDetails.demand.confidence} · Score: {product.scoreBreakdown.calculationDetails.demand.confidenceScore}/100</div>
+                                  {(product.scoreBreakdown.calculationDetails.demand as { estimatedMonthlySales?: number }).estimatedMonthlySales != null && (
+                                    <div>Est. monthly sales: {(product.scoreBreakdown.calculationDetails.demand as { estimatedMonthlySales?: number }).estimatedMonthlySales}</div>
+                                  )}
+                                  <div>Methodology: {(product.scoreBreakdown.calculationDetails.demand as { methodology?: string }).methodology ?? 'Estimated'}</div>
+                                  {((product.scoreBreakdown.calculationDetails.demand as { factors?: string[] }).factors?.length ?? 0) > 0 && (
+                                    <div className="text-gray-400">Factors: {(product.scoreBreakdown.calculationDetails.demand as { factors?: string[] }).factors!.join(', ')}</div>
+                                  )}
+                                </>
+                              )
+                            ) : (
+                              <span>Deal demand score: weighted over allocated channels by quantity, or over recommended channels when there is no allocation.</span>
+                            )}
+                            <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-gray-500">
                           ({(product.scoreBreakdown.weights.demandConfidence * 100).toFixed(0)}% weight)
                         </span>
@@ -372,11 +447,19 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                         <div className="relative group/volumerisk flex items-center gap-1.5">
                           <span className="text-xs font-medium text-gray-300">All Channels Combined Volume Risk</span>
                           <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
-                          <div className="absolute left-0 bottom-full mb-2 w-64 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/volumerisk:opacity-100 group-hover/volumerisk:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed">
-                            This volume risk is calculated after allocating and holding volumes to all channels. It represents the overall inventory risk across your entire channel portfolio.
-                            <div className="absolute bottom-0 left-2 transform translate-y-full">
-                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
-                            </div>
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/volumerisk:opacity-100 group-hover/volumerisk:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed space-y-1">
+                            {product.scoreBreakdown.calculationDetails?.volumeRisk ? (
+                              <>
+                                <div>Quantity: {product.scoreBreakdown.calculationDetails.volumeRisk.quantity}</div>
+                                <div>All Channels absorption: {product.scoreBreakdown.calculationDetails.volumeRisk.totalAbsorptionCapacity} units/mo</div>
+                                <div>Months to sell on allocated channels: {product.scoreBreakdown.calculationDetails.volumeRisk.monthsToSell}</div>
+                                <div className="text-gray-400">{product.scoreBreakdown.calculationDetails.volumeRisk.formula}</div>
+                                <div className="text-gray-500 text-[10px]">{product.scoreBreakdown.calculationDetails.volumeRisk.bands}</div>
+                              </>
+                            ) : (
+                              <span>Whole deal: inventory risk across all channels. Months to sell = quantity ÷ total absorption.</span>
+                            )}
+                            <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
                           </div>
                         </div>
                         <span className="text-[10px] text-gray-500">
@@ -404,7 +487,32 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                   <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-300">Data Reliability</span>
+                        <div className="relative group/reliability flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-gray-300">Data Reliability</span>
+                          <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors" size={12} />
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/reliability:opacity-100 group-hover/reliability:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed space-y-1">
+                            {product.scoreBreakdown.calculationDetails?.dataReliability ? (
+                              <>
+                                <div><strong>Whole deal</strong> — share where <strong>prices and demand</strong> are live (not mock)</div>
+                                {(product.scoreBreakdown.calculationDetails.dataReliability as { whatCounts?: string }).whatCounts && (
+                                  <div className="text-gray-500 text-[11px]">{(product.scoreBreakdown.calculationDetails.dataReliability as { whatCounts?: string }).whatCounts}</div>
+                                )}
+                                {(product.scoreBreakdown.calculationDetails.dataReliability as { metric?: string }).metric === 'allocated_units' ? (
+                                  <div>{(product.scoreBreakdown.calculationDetails.dataReliability as { liveChannels?: number }).liveChannels ?? 0} of {product.scoreBreakdown.calculationDetails.dataReliability.channelsWithData} <strong>allocated units</strong> have live prices &amp; demand</div>
+                                ) : (
+                                  <div>{(product.scoreBreakdown.calculationDetails.dataReliability as { liveChannels?: number }).liveChannels ?? 0} of {product.scoreBreakdown.calculationDetails.dataReliability.channelsWithData} <strong>channels</strong> have live prices &amp; demand</div>
+                                )}
+                                <div className="text-gray-400">{product.scoreBreakdown.calculationDetails.dataReliability.formula}</div>
+                                {(product.scoreBreakdown.calculationDetails.dataReliability as { maxChannelsFor100?: number }).maxChannelsFor100 != null && (
+                                  <div className="text-gray-500 text-[10px]">Max score at {(product.scoreBreakdown.calculationDetails.dataReliability as { maxChannelsFor100?: number }).maxChannelsFor100}+ channels</div>
+                                )}
+                              </>
+                            ) : (
+                              <span>Whole deal: share of allocated units (or channels) where <strong>prices and demand</strong> are live, not mock.</span>
+                            )}
+                            <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-gray-500">
                           ({(product.scoreBreakdown.weights.dataReliability * 100).toFixed(0)}% weight)
                         </span>
@@ -425,6 +533,70 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                       ></div>
                     </div>
                   </div>
+
+                  {/* Penalties: why score decreased */}
+                  {product.scoreBreakdown.penalties && product.scoreBreakdown.penalties.length > 0 && (
+                    <div className="bg-amber-500/5 rounded-lg p-3 border border-amber-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FiAlertTriangle className="text-amber-400" size={14} />
+                        <span className="text-xs font-medium text-amber-200 uppercase tracking-wider">Why the score is not higher</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs">
+                        {product.scoreBreakdown.penalties.map((p, i) => {
+                          const b = product.scoreBreakdown?.breakdown as Record<string, number> | undefined;
+                          const scoreKey = p.component === 'margin' ? 'netMarginScore' : p.component === 'demand' ? 'demandConfidenceScore' : p.component === 'volumeRisk' ? 'volumeRiskScore' : 'dataReliabilityScore';
+                          const componentScore = b?.[scoreKey] ?? (100 - p.pointsLost);
+                          return (
+                          <li key={i} className="flex justify-between items-start gap-2 text-gray-300">
+                            <span className="capitalize">{p.component.replace(/([A-Z])/g, ' $1').trim()}</span>
+                            <span className="text-amber-400 font-medium flex items-center gap-1">
+                              −{p.pointsLost} pts
+                              <div className="relative inline-block group/pts">
+                                <FiInfo className="text-gray-500 cursor-help hover:text-gray-400 transition-colors shrink-0" size={12} />
+                                <div className="absolute left-0 bottom-full mb-2 w-56 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/pts:opacity-100 group-hover/pts:visible transition-all duration-200 z-50 text-xs text-left pointer-events-none">
+                                  <div className="text-gray-300 leading-relaxed">
+                                    Points lost = 100 − component score. This one scored {componentScore}/100, so 100 − {componentScore} = {p.pointsLost} pts.
+                                  </div>
+                                  <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
+                                </div>
+                              </div>
+                            </span>
+                            <div className="flex-1 flex justify-end">
+                              {p.reason ? (
+                                <div className="relative inline-block group/penalty">
+                                  <span className="cursor-help border-b border-dotted border-gray-500 hover:border-gray-400">How we calculated the score</span>
+                                  <div className="absolute right-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/penalty:opacity-100 group-hover/penalty:visible transition-all duration-200 z-50 text-xs text-left pointer-events-none">
+                                    <div className="font-semibold text-white mb-1">How we calculated the score</div>
+                                    <div className="text-gray-400">{p.reason}</div>
+                                    <div className="absolute bottom-0 right-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Score history (when recalculated) */}
+                  {product.scoreBreakdown.scoreHistory && product.scoreBreakdown.scoreHistory.length > 1 && (
+                    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FiClock className="text-indigo-400" size={14} />
+                        <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">Score history</span>
+                      </div>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+                        {[...(product.scoreBreakdown.scoreHistory ?? [])].reverse().map((entry, i, arr) => (
+                          <span key={i} className={i === 0 ? 'text-white font-bold' : 'text-gray-400'}>
+                            {entry.overall}%{i === 0 ? ' (current)' : ''}
+                            {i < arr.length - 1 ? ' → ' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Summary Row */}
                   <div className="mt-4 pt-3 border-t border-gray-700/50">

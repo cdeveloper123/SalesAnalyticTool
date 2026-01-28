@@ -708,6 +708,16 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
     metadata
   );
 
+  // Append to score history (keep last 10) for traceability
+  const previousHistory = Array.isArray(deal.evaluationData?.scoreHistory) ? deal.evaluationData.scoreHistory : [];
+  const newSnapshot = {
+    overall: evaluation.dealScore.overall,
+    breakdown: evaluation.dealScore.breakdown,
+    weighted: evaluation.dealScore.weighted,
+    timestamp: new Date().toISOString()
+  };
+  const scoreHistory = [...previousHistory, newSnapshot].slice(-10);
+
   // Update deal with new evaluation results
   await prisma.deal.update({
     where: { id: dealId },
@@ -731,6 +741,9 @@ async function recalculateDealWithNewOverrides(dealId, assumptionOverrides) {
           weighted: evaluation.dealScore.weighted,
           weights: evaluation.dealScore.weights
         },
+        calculationDetails: evaluation.dealScore.calculationDetails || null,
+        penalties: evaluation.dealScore.penalties || [],
+        scoreHistory,
         decision: evaluation.decision,
         explanation: evaluation.explanation,
         bestChannel: evaluation.bestChannel,

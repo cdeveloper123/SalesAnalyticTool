@@ -113,6 +113,54 @@ export interface Compliance {
   summary: string;
 }
 
+/** Per-component calculation inputs and formula (for tooltips / explainability) */
+export interface ScoreCalculationDetails {
+  margin?: {
+    netProceedsUSD: number;
+    landedCostUSD: number;
+    marginPercent: number;
+    formula: string;
+    bands: string;
+    bestChannel: string;
+  };
+  demand?: {
+    confidence: string;
+    confidenceScore: number;
+    estimatedMonthlySales?: number;
+    factors: string[];
+    methodology: string;
+  };
+  volumeRisk?: {
+    quantity: number;
+    totalAbsorptionCapacity: number;
+    monthsToSell: number;
+    formula: string;
+    bands: string;
+  };
+  dataReliability?: {
+    channelsWithData: number;
+    formula: string;
+    maxChannelsFor100: number;
+  };
+}
+
+/** Why the score was reduced (points lost per component) */
+export interface ScorePenalty {
+  component: 'margin' | 'demand' | 'volumeRisk' | 'dataReliability';
+  pointsLost: number;
+  reason: string;
+  weight: number;
+  weightedImpact: number;
+}
+
+/** One snapshot of score over time (e.g. after recalculation) */
+export interface ScoreHistoryEntry {
+  overall: number;
+  breakdown: { netMarginScore: number; demandConfidenceScore: number; volumeRiskScore: number; dataReliabilityScore: number };
+  weighted: { marginContribution: number; demandContribution: number; volumeContribution: number; reliabilityContribution: number };
+  timestamp: string; // ISO
+}
+
 export interface ScoreBreakdown {
   breakdown: {
     netMarginScore: number;
@@ -132,6 +180,9 @@ export interface ScoreBreakdown {
     volumeRisk: number;
     dataReliability: number;
   };
+  calculationDetails?: ScoreCalculationDetails | null;
+  penalties?: ScorePenalty[];
+  scoreHistory?: ScoreHistoryEntry[];
 }
 
 export interface Product {

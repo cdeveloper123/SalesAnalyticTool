@@ -287,6 +287,14 @@ export const analyzeDeal = async (req, res) => {
       overrides: assumptions.overrides
     };
 
+    // Initial score history entry for traceability
+    const scoreSnapshot = {
+      overall: evaluation.dealScore.overall,
+      breakdown: evaluation.dealScore.breakdown,
+      weighted: evaluation.dealScore.weighted,
+      timestamp: new Date().toISOString()
+    };
+
     // Prepare response data
     const responseData = {
       input: {
@@ -304,6 +312,9 @@ export const analyzeDeal = async (req, res) => {
           weighted: evaluation.dealScore.weighted,
           weights: evaluation.dealScore.weights
         },
+        calculationDetails: evaluation.dealScore.calculationDetails || null,
+        penalties: evaluation.dealScore.penalties || [],
+        scoreHistory: [scoreSnapshot],
         decision: evaluation.decision,
         explanation: evaluation.explanation,
         bestChannel: evaluation.bestChannel,
