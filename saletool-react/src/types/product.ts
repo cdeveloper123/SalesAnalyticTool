@@ -133,7 +133,10 @@ export interface ScoreCalculationDetails {
   volumeRisk?: {
     quantity: number;
     totalAbsorptionCapacity: number;
-    monthsToSell: number;
+    monthsToSell: number | null;
+    holdBackReason?: 'no_absorption' | 'low_margins' | 'strategic' | null;
+    heldBackQty?: number;
+    basedOnAllocatedChannels?: boolean;
     formula: string;
     bands: string;
   };
@@ -159,6 +162,26 @@ export interface ScoreHistoryEntry {
   breakdown: { netMarginScore: number; demandConfidenceScore: number; volumeRiskScore: number; dataReliabilityScore: number };
   weighted: { marginContribution: number; demandContribution: number; volumeContribution: number; reliabilityContribution: number };
   timestamp: string; // ISO
+}
+
+/** Threshold information for decision explanation */
+export interface DecisionThreshold {
+  name: string;
+  required: number;
+  actual: number;
+  met: boolean;
+  description: string;
+}
+
+/** Decision explanation with threshold analysis */
+export interface DecisionExplanation {
+  whyExplanation: string;
+  thresholds: DecisionThreshold[];
+  summary: {
+    metCount: number;
+    totalCount: number;
+    criticalUnmet: string[];
+  };
 }
 
 export interface ScoreBreakdown {
@@ -204,6 +227,7 @@ export interface Product {
   scoreBreakdown?: ScoreBreakdown;
   decision: 'Buy' | 'Renegotiate' | 'Source Elsewhere' | 'Pass';
   explanation: string;
+  decisionExplanation?: DecisionExplanation | null;
   // Monthly sales data
   monthlySales?: {
     low: number;

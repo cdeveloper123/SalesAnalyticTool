@@ -212,6 +212,7 @@ function Dashboard() {
             } : undefined,
             decision: deal.decision as Product['decision'],
             explanation: deal.explanation || '',
+            decisionExplanation: (evaluation as any).decisionExplanation ?? null,
             bestChannel: deal.bestChannel ? {
               channel: deal.bestChannel,
               marketplace: deal.bestMarketplace || '',

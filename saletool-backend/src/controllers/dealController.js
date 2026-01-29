@@ -317,6 +317,7 @@ export const analyzeDeal = async (req, res) => {
         scoreHistory: [scoreSnapshot],
         decision: evaluation.decision,
         explanation: evaluation.explanation,
+        decisionExplanation: evaluation.decisionExplanation || null,
         bestChannel: evaluation.bestChannel,
         channelAnalysis: evaluation.channelAnalysis,
         allocation: evaluation.allocationRecommendation,

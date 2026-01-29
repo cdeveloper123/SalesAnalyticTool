@@ -334,7 +334,8 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                 </>
                               ) : (
                                 <>
-                                  <div><strong>Whole deal</strong> — single channel (no allocation)</div>
+                                  <div><strong>Margin Score</strong> — single channel (no allocation)</div>
+                                  <div className="text-gray-400 text-[11px]">Shown: best-margin channel (no channels met allocation threshold).</div>
                                   <div>Channel: {(product.scoreBreakdown.calculationDetails.margin as { bestChannel?: string }).bestChannel ?? '—'}</div>
                                   <div>Net proceeds (USD): {product.scoreBreakdown.calculationDetails.margin.netProceedsUSD.toLocaleString()} · Landed cost (USD): {product.scoreBreakdown.calculationDetails.margin.landedCostUSD.toLocaleString()}</div>
                                   <div>Margin: {product.scoreBreakdown.calculationDetails.margin.marginPercent}%</div>
@@ -383,16 +384,18 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                   <div className="font-semibold text-white mb-1">How we calculated the score</div>
                                   <div className="text-gray-400">
                                     {product.scoreBreakdown.penalties?.find((p: { component: string }) => p.component === 'demand')?.reason ??
-                                      'Base from demand confidence (50 when not reported); +10 only if est. monthly sales > 200. Weighted by allocated qty.'}
+                                      'Base from demand confidence (50 when not reported); +10 only if est. monthly sales > 200. Weighted by absorption across all channels.'}
                                   </div>
-                                  {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }[]; totalQty: number; weightedFormula: string } }).breakdown && (
-                                    <div className="mt-2 pt-2 border-t border-gray-600 space-y-1">
+                                  {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; channelScore: number }[]; weightedFormula: string } }).breakdown && (
+                                    <div className="mt-2 pt-2 border-t border-gray-600 space-y-0.5">
                                       <div className="text-amber-200/90 font-medium">How we got this score</div>
-                                      {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }[]; totalQty: number; weightedFormula: string } }).breakdown!.rows.map((row: { channelKey: string; allocatedQty: number; baseScore: number; estimatedMonthlySales?: number; addedTen: boolean; channelScore: number }, idx: number) => (
-                                        <div key={idx} className="text-gray-400">
-                                          {row.channelKey}: {row.channelScore} pts (base {row.baseScore}{row.addedTen ? ', sales &gt;200 → +10' : row.estimatedMonthlySales != null ? `, sales ${row.estimatedMonthlySales} → no +10` : ''}) × {row.allocatedQty} units
-                                        </div>
-                                      ))}
+                                      <div className="text-gray-400">
+                                        {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { rows: { channelKey: string; channelScore: number }[] } }).breakdown!.rows.map((row: { channelKey: string; channelScore: number }, idx: number, arr: { channelKey: string; channelScore: number }[]) => (
+                                          <span key={idx}>
+                                            {row.channelKey}: {row.channelScore} pts{idx < arr.length - 1 ? ', ' : ''}
+                                          </span>
+                                        ))}
+                                      </div>
                                       <div className="text-gray-300 font-mono text-[11px] pt-0.5">
                                         {(product.scoreBreakdown.calculationDetails.demand as { breakdown?: { weightedFormula: string } }).breakdown!.weightedFormula}
                                       </div>
@@ -414,7 +417,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                                 </>
                               )
                             ) : (
-                              <span>Deal demand score: weighted over allocated channels by quantity, or over recommended channels when there is no allocation.</span>
+                              <span>Deal demand score: weighted by absorption across all channels.</span>
                             )}
                             <div className="absolute bottom-0 left-2 transform translate-y-full"><div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600" /></div>
                           </div>
@@ -451,8 +454,21 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                             {product.scoreBreakdown.calculationDetails?.volumeRisk ? (
                               <>
                                 <div>Quantity: {product.scoreBreakdown.calculationDetails.volumeRisk.quantity}</div>
-                                <div>All Channels absorption: {product.scoreBreakdown.calculationDetails.volumeRisk.totalAbsorptionCapacity} units/mo</div>
-                                <div>Months to sell on allocated channels: {product.scoreBreakdown.calculationDetails.volumeRisk.monthsToSell}</div>
+                                {product.scoreBreakdown.calculationDetails.volumeRisk.holdBackReason ? (
+                                  <>
+                                    <div>
+                                      All Channels absorption: {product.scoreBreakdown.calculationDetails.volumeRisk.holdBackReason === 'no_absorption'
+                                        ? '0 units/mo (no absorption capacity)'
+                                        : `${product.scoreBreakdown.calculationDetails.volumeRisk.totalAbsorptionCapacity} units/mo`}
+                                    </div>
+                                    <div>Months to sell on allocated channels: <span className="text-gray-400">Not allocated</span></div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div>All Channels absorption: {product.scoreBreakdown.calculationDetails.volumeRisk.totalAbsorptionCapacity} units/mo</div>
+                                    <div>Months to sell on allocated channels: {product.scoreBreakdown.calculationDetails.volumeRisk.monthsToSell ?? 'N/A'}</div>
+                                  </>
+                                )}
                                 <div className="text-gray-400">{product.scoreBreakdown.calculationDetails.volumeRisk.formula}</div>
                                 <div className="text-gray-500 text-[10px]">{product.scoreBreakdown.calculationDetails.volumeRisk.bands}</div>
                               </>
@@ -493,7 +509,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                           <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-gray-900 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover/reliability:opacity-100 group-hover/reliability:visible transition-all duration-200 z-50 text-xs text-gray-300 leading-relaxed space-y-1">
                             {product.scoreBreakdown.calculationDetails?.dataReliability ? (
                               <>
-                                <div><strong>Whole deal</strong> — share where <strong>prices and demand</strong> are live (not mock)</div>
+                                <div><strong>Whole deal</strong> share where <strong>prices and demand</strong> are live (not mock)</div>
                                 {(product.scoreBreakdown.calculationDetails.dataReliability as { whatCounts?: string }).whatCounts && (
                                   <div className="text-gray-500 text-[11px]">{(product.scoreBreakdown.calculationDetails.dataReliability as { whatCounts?: string }).whatCounts}</div>
                                 )}
@@ -1398,7 +1414,7 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               <span className="text-sm text-yellow-400 font-bold">{product.allocation.hold.toLocaleString()} units</span>
                             </div>
                             <p className="text-xs text-gray-400 mt-2">
-                              These units are held back to avoid market flooding. Release in phases based on actual sales performance.
+                              {product.allocation?.rationale || 'These units are held back to avoid market flooding. Release in phases based on actual sales performance.'}
                             </p>
                           </div>
                         )}
@@ -1417,6 +1433,97 @@ function ProductCard({ product, onDelete, onUpdate }: ProductCardProps) {
                               </div>
                             ))
                         }
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Why [Decision] Section */}
+                  {product.decisionExplanation && (
+                    <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-lg border border-blue-500/20">
+                      <div className="p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <DecisionIcon className={decisionConfig.textColor} size={18} />
+                          <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                            Why {product.decision}?
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-300 leading-relaxed mb-4">
+                          {product.decisionExplanation.whyExplanation}
+                        </p>
+
+                        {/* Threshold Comparison Table */}
+                        <div className="bg-gray-800/50 rounded-lg border border-gray-600/30 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-gray-700/50 border-b border-gray-600/30">
+                                  <th className="text-left p-3 text-gray-300 font-semibold">Threshold</th>
+                                  <th className="text-right p-3 text-gray-300 font-semibold">Required</th>
+                                  <th className="text-right p-3 text-gray-300 font-semibold">Actual</th>
+                                  <th className="text-center p-3 text-gray-300 font-semibold">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {product.decisionExplanation.thresholds.map((threshold, idx) => {
+                                  const isMet = threshold.met;
+                                  const statusColor = isMet ? 'text-green-400' : 'text-red-400';
+                                  const statusBg = isMet ? 'bg-green-500/10' : 'bg-red-500/10';
+                                  const statusBorder = isMet ? 'border-green-500/30' : 'border-red-500/30';
+                                  
+                                  return (
+                                    <tr 
+                                      key={idx} 
+                                      className={`border-b border-gray-600/20 ${idx % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-800/50'}`}
+                                    >
+                                      <td className="p-3">
+                                        <div className="text-gray-200 font-medium">{threshold.name}</div>
+                                        <div className="text-gray-500 text-[10px] mt-0.5">{threshold.description}</div>
+                                      </td>
+                                      <td className="p-3 text-right text-gray-300">
+                                        {threshold.name === 'Volume Risk' ? '≤ ' : ''}
+                                        {threshold.required}
+                                        {threshold.name === 'Margin' ? '%' : threshold.name === 'Volume Risk' ? ' months' : threshold.name === 'Overall Score' || threshold.name === 'Demand Confidence' || threshold.name === 'Data Reliability' ? '' : ''}
+                                      </td>
+                                      <td className="p-3 text-right">
+                                        <span className={isMet ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+                                          {threshold.actual}
+                                          {threshold.name === 'Margin' ? '%' : threshold.name === 'Volume Risk' ? ' months' : threshold.name === 'Overall Score' || threshold.name === 'Demand Confidence' || threshold.name === 'Data Reliability' ? '' : ''}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded ${statusBg} border ${statusBorder} ${statusColor} font-medium`}>
+                                          {isMet ? (
+                                            <>
+                                              <FiCheckCircle className="mr-1" size={12} />
+                                              Met
+                                            </>
+                                          ) : (
+                                            <>
+                                              <FiXCircle className="mr-1" size={12} />
+                                              Not Met
+                                            </>
+                                          )}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="p-3 bg-gray-700/30 border-t border-gray-600/30">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-400">
+                                Thresholds met: <span className="text-green-400 font-semibold">{product.decisionExplanation.summary.metCount}</span> / <span className="text-gray-300">{product.decisionExplanation.summary.totalCount}</span>
+                              </span>
+                              {product.decisionExplanation.summary.criticalUnmet.length > 0 && (
+                                <span className="text-red-400 text-[10px]">
+                                  Critical: {product.decisionExplanation.summary.criticalUnmet.join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
